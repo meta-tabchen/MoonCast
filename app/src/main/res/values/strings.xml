@@ -132,4 +132,18 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_scenario_movie_hint">Smart cinema and HEVC preference. Capture capped at 60 submissions/s. Suggested Moonlight: 1080p60, HEVC, 30–50 Mbps. Sound and input remain your choice.</string>
     <string name="ui_scenario_game_hint">Whole screen, up to 120 capture submissions/s. Suggested Moonlight: 1080p60, 20–40 Mbps. Enable input separately if needed.</string>
     <string name="ui_scenario_eco_hint">Whole screen, at most 30 capture submissions/s. Suggested Moonlight: 720p30, 8–15 Mbps. Actual power use depends on the device.</string>
+    <string name="ui_capture_source">What to share</string>
+    <string name="ui_capture_source_hint">Share the phone, one app, or create a separate app display. Separate displays require apps that support them; playback audio is currently unavailable there.</string>
+    <string name="ui_source_screen">Entire phone screen</string>
+    <string name="ui_source_app">One app · Android 14+</string>
+    <string name="ui_source_independent">Independent app display · experimental</string>
+    <string name="ui_launch_independent_app">Open an app on the receiver</string>
+    <string name="ui_app_capture_requires_14">Sharing one app requires Android 14 or newer.</string>
+    <string name="ui_independent_app_rejected">This app or Android build does not allow opening on the separate display.</string>
+    <string name="ui_independent_control_requires_privilege">Accessibility input is disabled on a separate display. Use Root or Shizuku input.</string>
+    <string name="ui_shizuku_backend">Shizuku · continuous touch and keyboard</string>
+    <string name="ui_connect_shizuku">Connect / authorize Shizuku</string>
+    <string name="ui_shizuku_hint">Install and start Shizuku, then authorize MoonCast. Independent app displays require this connection.</string>
+    <string name="ui_shizuku_authorized">Shizuku authorized; continuous touch and basic keyboard input.</string>
+    <string name="ui_shizuku_denied">Shizuku permission denied. Choose another mode or authorize it later.</string>
 </resources>

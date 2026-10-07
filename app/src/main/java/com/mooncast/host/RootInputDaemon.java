@@ -21,6 +21,7 @@ public final class RootInputDaemon {
                 if(kind.equals("touch"))injector.touch(event.getInt("type"),event.getInt("id"),(float)event.getDouble("x"),(float)event.getDouble("y"),(float)event.getDouble("pressure"));
                 else if(kind.equals("key"))injector.key(event.getInt("key"),event.getBoolean("release"),event.getInt("flags"));
                 else if(kind.equals("cancel"))injector.cancel();
+                else if(kind.equals("display"))injector.display(event.getInt("id"));
             }
         }catch(EOFException ignored){}
         catch(Throwable e){android.util.Log.e("MoonCastInput","Root control failed",e);}

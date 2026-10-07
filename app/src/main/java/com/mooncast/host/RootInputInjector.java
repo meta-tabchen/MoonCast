@@ -13,9 +13,12 @@ final class RootInputInjector implements RemoteInputController.Backend {
     private final Object manager;
     private final Method inject;
     private long downTime;
-    private int meta;
-    RootInputInjector() throws Exception {
-        if(android.os.Process.myUid()!=0)throw new SecurityException("Root 控制需要 uid 0");
+    private int meta,displayId;
+    void display(int id){cancel();displayId=id;}
+    RootInputInjector() throws Exception {this(false);}
+    RootInputInjector(boolean allowShell) throws Exception {
+        int uid=android.os.Process.myUid();
+        if(uid!=0 && !(allowShell && uid==2000))throw new SecurityException("Privileged input requires root or an authorized shell service");
         try{Class<?> runtime=Class.forName("dalvik.system.VMRuntime");Object vm=runtime.getDeclaredMethod("getRuntime").invoke(null);runtime.getDeclaredMethod("setHiddenApiExemptions",String[].class).invoke(vm,(Object)new String[]{"L"});}catch(Exception ignored){}
         Class<?> type;
         try{type=Class.forName("android.hardware.input.InputManagerGlobal");}catch(ClassNotFoundException e){type=Class.forName("android.hardware.input.InputManager");}
@@ -23,7 +26,10 @@ final class RootInputInjector implements RemoteInputController.Backend {
         inject=type.getDeclaredMethod("injectInputEvent",InputEvent.class,int.class);inject.setAccessible(true);
     }
     public boolean ready(){return true;}
+    // This class executes only inside a checked root/shell process, with hidden-API exemptions.
+    @android.annotation.SuppressLint("BlockedPrivateApi")
     private void inject(InputEvent event){try{
+        if(displayId!=0)InputEvent.class.getDeclaredMethod("setDisplayId",int.class).invoke(event,displayId);
         Object accepted=inject.invoke(manager,event,0);
         if(Boolean.FALSE.equals(accepted))throw new IllegalStateException("系统拒绝输入事件");
     }catch(Exception e){throw new IllegalStateException("Root 输入失败: "+e.getClass().getSimpleName(),e);}}

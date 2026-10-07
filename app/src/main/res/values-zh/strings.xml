@@ -132,4 +132,18 @@
     <string name="ui_scenario_movie_hint">智能影院与 HEVC 偏好，每秒最多提交 60 帧。建议 Moonlight：1080p60、HEVC、30–50 Mbps。声音与控制仍由你选择。</string>
     <string name="ui_scenario_game_hint">完整手机画面，每秒最多提交 120 帧。建议 Moonlight：1080p60、20–40 Mbps；需要控制时单独开启。</string>
     <string name="ui_scenario_eco_hint">完整手机画面，每秒最多提交 30 帧。建议 Moonlight：720p30、8–15 Mbps；实际耗电取决于设备。</string>
+    <string name="ui_capture_source">投屏内容</string>
+    <string name="ui_capture_source_hint">选择手机屏幕、单个应用或独立应用显示。独立显示需要应用支持，目前该模式暂不转发播放音频。</string>
+    <string name="ui_source_screen">整个手机屏幕</string>
+    <string name="ui_source_app">仅一个应用 · Android 14+</string>
+    <string name="ui_source_independent">独立应用显示 · 实验功能</string>
+    <string name="ui_launch_independent_app">在接收端打开应用</string>
+    <string name="ui_app_capture_requires_14">单应用共享需要 Android 14 或以上。</string>
+    <string name="ui_independent_app_rejected">该应用或系统不允许在独立显示中打开。</string>
+    <string name="ui_independent_control_requires_privilege">独立显示下不使用无障碍控制，请选择 Root 或 Shizuku 控制。</string>
+    <string name="ui_shizuku_backend">Shizuku · 持续触摸和键盘</string>
+    <string name="ui_connect_shizuku">连接 / 授权 Shizuku</string>
+    <string name="ui_shizuku_hint">请先安装并启动 Shizuku，再授权 MoonCast。独立应用显示需要此连接。</string>
+    <string name="ui_shizuku_authorized">Shizuku 已授权，支持持续触摸与基本键盘。</string>
+    <string name="ui_shizuku_denied">Shizuku 授权被拒绝，可改用其他模式或稍后授权。</string>
 </resources>

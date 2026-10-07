@@ -11,6 +11,9 @@ final class RootInputBackend implements RemoteInputController.Backend {
     private final Context context;
     private final Consumer<String> log;
     private volatile boolean ready,closed;
+    private volatile int displayId;
+    void display(int id){displayId=id;if(ready())sendDisplay();}
+    private void sendDisplay(){try{send(new JSONObject().put("kind","display").put("id",displayId));}catch(org.json.JSONException e){throw new IllegalArgumentException(e);}}
     private LocalServerSocket server;
     private LocalSocket socket;
     private DataOutputStream commands;
@@ -21,13 +24,13 @@ final class RootInputBackend implements RemoteInputController.Backend {
             String endpoint="mooncast-input-"+UUID.randomUUID();server=new LocalServerSocket(endpoint);
             String command="CLASSPATH="+RootBackend.quote(context.getApplicationInfo().sourceDir)+" /system/bin/app_process / com.mooncast.host.RootInputDaemon "+RootBackend.quote(endpoint)+" "+android.os.Process.myUid();
             process=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
-            new Thread(()->{try(BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))){while(reader.readLine()!=null){}process.waitFor();if(!closed){ready=false;log.accept("Root 控制进程已结束；检查 Root 授权");try{server.close();}catch(IOException ignored){}}}catch(Exception ignored){}},"RootInputOutput").start();
+            new Thread(()->{try(BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))){String line;while((line=reader.readLine())!=null)android.util.Log.i("MoonCastRootInput",line);int code=process.waitFor();if(!closed){ready=false;log.accept("Root 控制进程已结束 ("+code+")；检查 Root 授权");try{server.close();}catch(IOException ignored){}}}catch(Exception ignored){}},"RootInputOutput").start();
             LocalSocket accepted=server.accept();if(closed){accepted.close();return;}
             if(accepted.getPeerCredentials().getUid()!=0){accepted.close();throw new SecurityException("拒绝非 Root 输入通道");}
             socket=accepted;commands=new DataOutputStream(socket.getOutputStream());
             DataInputStream input=new DataInputStream(socket.getInputStream());
             if(!input.readUTF().equals("READY"))throw new IOException("Root 输入初始化失败");
-            ready=true;log.accept("Root 反控已就绪；支持持续触摸与键盘");
+            ready=true;sendDisplay();log.accept("Root 反控已就绪；支持持续触摸与键盘");
             // EOF means the broker died. No input may be sent after that point.
             try{while(input.read()!=-1){}}finally{ready=false;}
         }catch(Exception e){if(!closed)log.accept("Root 反控不可用: "+e.getMessage());}

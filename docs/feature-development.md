@@ -8,7 +8,7 @@ test content on an emulator, not iPad/TV interoperability or phone thermal perfo
 | 1 | Smart cinema: stable border acquisition, lock, rescan, rotation reset | Implemented |
 | 2 | Receiver profiles for framing/audio/input preferences | Implemented |
 | 3 | Live sending/rendering and thermal dashboard; scenario presets | Implemented |
-| 4 | Single-app capture, independent app display; Shizuku control backend | Planned |
+| 4 | Single-app capture, independent app display; Shizuku control backend | Implemented |
 | 5 | Original-file cinema with a compatible receiver workflow | Planned |
 | 6 | Multiple simultaneous receivers and individual disconnect | Planned |
 | 7 | Experimental privileged display-off casting with recovery | Planned |
@@ -53,3 +53,21 @@ Portable counter tests pass, including pauses, reset/unsupported counters and Mb
 units. Build/lint and APK verification pass. The single registered MuMu test runner
 passes the full GPU suite, including an actual capture submission limit, and the
 profile suite. Thermal accuracy and power savings require real hardware measurement.
+
+## Stage 4
+
+Android 14+ single-app mode uses the system consent picker and capture resize callbacks.
+Input is disabled because the system does not expose a reliable mapping back to the
+app's position on the physical screen. Independent-display mode requires an authorized
+Shizuku service and creates one app display at the receiver resolution. It supports
+privileged touch/key routing and a launcher chooser. It currently sends video only.
+Apps may refuse secondary displays or protected capture; this is experimental.
+
+MuMu Android 15 passes actual independent-display creation, generated app launch,
+rendered pixels, Shizuku touch/key/cancel delivery to that display, and display release.
+Its shell lacks trusted-display permission, so the compatibility fallback was exercised.
+MuMu Android 12 passes Root input touch/key/cancel delivery and broker cleanup after
+granting MoonCast permission in MuMu's existing Superuser settings. SDK and Manager are
+separate: the test installed official Shizuku Manager 13.6.0; it is not redistributed.
+Build/lint, portable tests and APK payload checks pass. Single-app consent with an actual
+Moonlight client and arbitrary third-party app compatibility remain device checks.

@@ -7,11 +7,15 @@ import android.view.View;
 
 /** Deterministic visual test content; has no network, storage, or external app dependencies. */
 public final class TestPatternActivity extends Activity {
-    @Override public void onCreate(Bundle b){super.onCreate(b);setContentView(new Pattern());}
+    static volatile int lastDisplayId=-1;
+    static volatile int touches,cancels,keys,lastTouchDisplay=-1;
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event){keys++;return super.dispatchKeyEvent(event);}
+    @Override public void onCreate(Bundle b){super.onCreate(b);lastDisplayId=getWindowManager().getDefaultDisplay().getDisplayId();setContentView(new Pattern());}
     private final class Pattern extends View {
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final long start=android.os.SystemClock.elapsedRealtime();
         Pattern(){super(TestPatternActivity.this);setKeepScreenOn(true);}
+        @Override public boolean onTouchEvent(android.view.MotionEvent event){touches++;lastTouchDisplay=getWindowManager().getDefaultDisplay().getDisplayId();if(event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL)cancels++;return true;}
         @Override protected void onDraw(Canvas c){
             int w=getWidth(),h=getHeight();c.drawColor(Color.rgb(18,30,53));
             p.setColor(Color.WHITE);p.setTextSize(w/18f);c.drawText("MOONCAST / LIVE",w*.07f,h*.14f,p);

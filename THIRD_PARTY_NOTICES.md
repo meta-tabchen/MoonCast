@@ -12,3 +12,29 @@ MoonCast is distributed under GPLv3. The native core is reused, not represented 
 Native release bootstrap provenance and per-library hashes are recorded in `native/prebuilt-manifest.json`. The accompanying source corresponds to that pinned Mirror release. The official upstream APK's Go/AirPlay library, DisplayLink library, Java code and resources are excluded.
 
 Sources: https://github.com/jqssun/android-display-mirror, https://github.com/LizardByte/Sunshine, https://github.com/moonlight-stream/moonlight-common-c, https://www.bouncycastle.org/licence.html.
+
+## Shizuku API
+
+The Android client uses `dev.rikka.shizuku:api` and `provider` version 13.1.5, under the MIT license. See https://github.com/RikkaApps/Shizuku-API. Shizuku Manager is a separately installed application; its APK is not redistributed by MoonCast.
+
+MIT License
+
+Copyright (c) 2021 RikkaW
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
