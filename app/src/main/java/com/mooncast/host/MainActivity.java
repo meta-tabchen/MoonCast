@@ -27,7 +27,10 @@ public final class MainActivity extends Activity {
     private boolean updatingControl;
     private EditText pin, name;
     private LinearLayout pinBox;
-    private Spinner scale;
+    private Spinner scale, profile;
+    private ReceiverProfiles profiles;
+    private int currentProfile;
+    private boolean loadingProfile;
     private boolean updatingScale;
     private final Messenger response=new Messenger(new Handler(Looper.getMainLooper(), msg -> {
         if (msg.what==HostService.STATUS) {
@@ -53,6 +56,7 @@ public final class MainActivity extends Activity {
     private static final int INK=0xff172338, MUTED=0xff778396, BLUE=0xff3868ed;
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        profiles=new ReceiverProfiles(this,getPreferences(0));currentProfile=profiles.selected();
         getWindow().setStatusBarColor(0xfff5f7fb);getWindow().setNavigationBarColor(0xfff5f7fb);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);
@@ -71,39 +75,51 @@ public final class MainActivity extends Activity {
         ip=text(HostService.addresses(MainActivity.this),18,INK);ip.setTypeface(Typeface.MONOSPACE);ip.setTextIsSelectable(true);ipLabel.addView(ip);address.addView(ipLabel,new LinearLayout.LayoutParams(0,-2,1));
         Button copy=smallButton(getString(R.string.ui_copy_ip));copy.setOnClickListener(v->{android.content.ClipboardManager clipboard=getSystemService(android.content.ClipboardManager.class);clipboard.setPrimaryClip(ClipData.newPlainText("MoonCast IP",HostService.addresses(MainActivity.this)));toast(getString(R.string.ui_ip_copied));});address.addView(copy);hero.addView(address);
 
+        LinearLayout devices=card(page);section(devices,getString(R.string.ui_receiver_profile),getString(R.string.ui_receiver_profile_hint));
+        profile=spinner(new String[]{getString(R.string.ui_profile_default),"iPad",getString(R.string.ui_profile_tv),getString(R.string.ui_profile_computer)});
+        profile.setSelection(currentProfile);devices.addView(profile);
+        profile.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
+            public void onNothingSelected(AdapterView<?> parent){}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){
+                if(position==currentProfile)return;
+                if(remote!=null){profile.setSelection(currentProfile);return;}
+                saveProfile();profiles.select(position);currentProfile=position;loadProfile();
+            }
+        });
+
         LinearLayout picture=card(page);section(picture,getString(R.string.ui_picture),getString(R.string.ui_choose_how_the_picture_fits_your_screen));
         scale=spinner(new String[]{getString(R.string.ui_whole_screen_fit),getString(R.string.ui_auto_crop_fit),getString(R.string.ui_fill_screen_crop_edges),getString(R.string.ui_video_region_centered_16_9),getString(R.string.ui_cinema_mode)});
-        if(!getPreferences(0).getBoolean("videoRegionIntroduced",false))getPreferences(0).edit().putInt("scaleMode",3).putBoolean("videoRegionIntroduced",true).apply();
-        scale.setSelection(getPreferences(0).getInt("scaleMode",3));picture.addView(scale);modeInfo=text("",12,MUTED);picture.addView(modeInfo);
+        if(!settings().getBoolean("videoRegionIntroduced",false))settings().edit().putInt("scaleMode",3).putBoolean("videoRegionIntroduced",true).apply();
+        scale.setSelection(settings().getInt("scaleMode",3));picture.addView(scale);modeInfo=text("",12,MUTED);picture.addView(modeInfo);
         rescan=smallButton(getString(R.string.ui_rescan_video));rescan.setEnabled(false);rescan.setOnClickListener(v->{send(HostService.CROP_RESET,null);toast(getString(R.string.ui_rescan_video_hint));});picture.addView(rescan);describeMode(scale.getSelectedItemPosition());
         scale.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(AdapterView<?> parent){}
-            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){describeMode(position);if(updatingScale)return;getPreferences(0).edit().putInt("scaleMode",position).apply();if(remote!=null)try{Message m=Message.obtain(null,HostService.SCALE);m.arg1=position;remote.send(m);}catch(RemoteException ignored){}}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){describeMode(position);if(updatingScale || loadingProfile)return;settings().edit().putInt("scaleMode",position).apply();if(remote!=null)try{Message m=Message.obtain(null,HostService.SCALE);m.arg1=position;remote.send(m);}catch(RemoteException ignored){}}
         });
 
         LinearLayout sound=card(page);section(sound,getString(R.string.ui_sound),getString(R.string.ui_choose_where_playback_audio_is_heard));
-        audio=toggle(sound,getString(R.string.ui_stream_playback_audio),getString(R.string.ui_android_10_source_app_must_allow_capture),getPreferences(0).getBoolean("audio",false));
-        muteLocal=toggle(sound,getString(R.string.ui_mute_phone_locally),getString(R.string.ui_only_while_streaming_audio_restore_on_stop),getPreferences(0).getBoolean("muteLocal",false));muteLocal.setEnabled(audio.isChecked());
+        audio=toggle(sound,getString(R.string.ui_stream_playback_audio),getString(R.string.ui_android_10_source_app_must_allow_capture),settings().getBoolean("audio",false));
+        muteLocal=toggle(sound,getString(R.string.ui_mute_phone_locally),getString(R.string.ui_only_while_streaming_audio_restore_on_stop),settings().getBoolean("muteLocal",false));muteLocal.setEnabled(audio.isChecked());
 
         LinearLayout input=card(page);section(input,getString(R.string.ui_remote_input),getString(R.string.ui_let_a_paired_receiver_control_this_phone));
-        control=toggle(input,getString(R.string.ui_enable_remote_input),getString(R.string.ui_turn_off_for_viewing_only),getPreferences(0).getBoolean("control",false));
-        controlBackend=spinner(new String[]{getString(R.string.ui_no_root_accessibility_taps_and_swipes),getString(R.string.ui_root_continuous_touch_and_keyboard)});controlBackend.setSelection(getPreferences(0).getBoolean("controlRoot",false)?1:0);input.addView(controlBackend);
+        control=toggle(input,getString(R.string.ui_enable_remote_input),getString(R.string.ui_turn_off_for_viewing_only),settings().getBoolean("control",false));
+        controlBackend=spinner(new String[]{getString(R.string.ui_no_root_accessibility_taps_and_swipes),getString(R.string.ui_root_continuous_touch_and_keyboard)});controlBackend.setSelection(settings().getBoolean("controlRoot",false)?1:0);input.addView(controlBackend);
         controlInfo=text(getString(R.string.ui_off),12,MUTED);input.addView(controlInfo);
         accessibility=smallButton(getString(R.string.ui_enable_mooncast_accessibility));accessibility.setOnClickListener(v->startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)));input.addView(accessibility);
 
         LinearLayout settings=card(page);TextView expand=text(getString(R.string.ui_connection_and_device_settings_collapsed),15,INK);expand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));settings.addView(expand);
         LinearLayout advanced=new LinearLayout(this);advanced.setOrientation(LinearLayout.VERTICAL);advanced.setVisibility(View.GONE);settings.addView(advanced);
         expand.setOnClickListener(v->{boolean open=advanced.getVisibility()!=View.VISIBLE;advanced.setVisibility(open?View.VISIBLE:View.GONE);expand.setText(open?getString(R.string.ui_connection_and_device_settings_expanded):getString(R.string.ui_connection_and_device_settings_collapsed));});
-        advanced.addView(text(getString(R.string.ui_host_name),12,MUTED));name=new EditText(this);name.setSingleLine(true);name.setTextSize(15);name.setText(getPreferences(0).getString("name","MoonCast · "+Build.MODEL));advanced.addView(name);
-        hevc=toggle(advanced,getString(R.string.ui_prefer_hevc_h_265),getString(R.string.ui_set_resolution_frame_rate_and_bitrate_in_moonlight),getPreferences(0).getBoolean("hevc",true));
+        advanced.addView(text(getString(R.string.ui_host_name),12,MUTED));name=new EditText(this);name.setSingleLine(true);name.setTextSize(15);name.setText(settings().getString("name","MoonCast · "+Build.MODEL));advanced.addView(name);
+        hevc=toggle(advanced,getString(R.string.ui_prefer_hevc_h_265),getString(R.string.ui_set_resolution_frame_rate_and_bitrate_in_moonlight),settings().getBoolean("hevc",true));
         root=toggle(advanced,getString(R.string.ui_root_screen_capture),getString(R.string.ui_experimental_no_capture_dialog_video_only),false);
         root.setOnCheckedChangeListener((button,checked)->{audio.setEnabled(!checked && remote==null);if(checked){audio.setChecked(false);controlBackend.setSelection(1);}muteLocal.setEnabled(!checked && audio.isChecked() && remote==null);refreshControlOptions();});
         audio.setOnCheckedChangeListener((button,checked)->muteLocal.setEnabled(checked && remote==null && !root.isChecked()));
         control.setOnCheckedChangeListener((button,checked)->{
-            if(updatingControl)return;getPreferences(0).edit().putBoolean("control",checked).apply();refreshControlOptions();
+            if(updatingControl || loadingProfile)return;settings().edit().putBoolean("control",checked).apply();refreshControlOptions();
             if(remote!=null)try{Message m=Message.obtain(null,HostService.CONTROL);m.arg1=checked?1:0;remote.send(m);}catch(RemoteException ignored){}
         });
-        controlBackend.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){getPreferences(0).edit().putBoolean("controlRoot",position==1).apply();refreshControlOptions();}});
+        controlBackend.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){if(loadingProfile)return;settings().edit().putBoolean("controlRoot",position==1).apply();refreshControlOptions();}});
         advanced.addView(text(getString(R.string.ui_device_encoders),12,MUTED));TextView codec=text(EncoderSupport.describe(),11,MUTED);codec.setTextIsSelectable(true);advanced.addView(codec);
         Button pattern=smallButton(getString(R.string.ui_open_visual_test_pattern));pattern.setOnClickListener(v->startActivity(new Intent(this,TestPatternActivity.class)));advanced.addView(pattern);
         advanced.addView(text(getString(R.string.ui_diagnostics),12,MUTED));logs=text(getString(R.string.ui_waiting_to_start_pending),11,MUTED);logs.setTextIsSelectable(true);advanced.addView(logs);
@@ -115,6 +131,21 @@ public final class MainActivity extends Activity {
         submit=button(getString(R.string.ui_pair),BLUE);pinBox.addView(submit);submit.setOnClickListener(v->{String code=pin.getText().toString();if(!code.matches("[0-9]{4}")){toast(getString(R.string.ui_enter_a_4_digit_pin));return;}Bundle data=new Bundle();data.putString("pin",code);send(HostService.PIN,data);pin.setText("");});
         page.addView(text(getString(R.string.ui_use_the_same_lan_and_official_moonlight_nshare_the_entire_phone_screen),12,MUTED));
         TextView foot=text("MoonCast Preview · GPLv3",11,0xffa4adbc);foot.setGravity(Gravity.CENTER);foot.setPadding(0,dp(18),0,0);page.addView(foot);refreshControlOptions();
+    }
+    private SharedPreferences settings(){return profiles.settings();}
+    private void saveProfile(){
+        if(name==null || loadingProfile)return;
+        settings().edit().putInt("scaleMode",scale.getSelectedItemPosition()).putBoolean("audio",audio.isChecked())
+            .putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("hevc",hevc.isChecked()).putBoolean("control",control.isChecked())
+            .putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).putString("name",name.getText().toString()).apply();
+    }
+    private void loadProfile(){
+        loadingProfile=true;updatingScale=true;updatingControl=true;
+        root.setChecked(false);scale.setSelection(settings().getInt("scaleMode",CropGeometry.VIDEO_REGION));describeMode(scale.getSelectedItemPosition());
+        audio.setChecked(settings().getBoolean("audio",false));muteLocal.setChecked(settings().getBoolean("muteLocal",false));
+        hevc.setChecked(settings().getBoolean("hevc",true));control.setChecked(settings().getBoolean("control",false));
+        controlBackend.setSelection(settings().getBoolean("controlRoot",false)?1:0);name.setText(settings().getString("name","MoonCast · "+Build.MODEL));
+        updatingScale=false;updatingControl=false;loadingProfile=false;refreshControlOptions();
     }
     private void describeMode(int mode){modeInfo.setText(switch(mode){case 0->getString(R.string.ui_show_the_entire_phone_screen_at_its_original_aspect_ratio);case 1->getString(R.string.ui_detect_landscape_borders_including_paused_frames_letterboxing_needed_f);case 2->getString(R.string.ui_fill_the_receiver_screen_some_picture_edges_will_be_cropped);case 4->getString(R.string.ui_cinema_mode_hint);default->getString(R.string.ui_cast_the_centered_landscape_16_9_region_no_selection_or_border_detecti);});if(rescan!=null)rescan.setVisibility(mode==CropGeometry.CINEMA?View.VISIBLE:View.GONE);}
     private boolean accessibilityEnabled(){
@@ -172,7 +203,7 @@ public final class MainActivity extends Activity {
     private void launch(Intent grant) {
         String host=name.getText().toString().trim();
         if(host.isEmpty()) host="MoonCast";
-        getPreferences(0).edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
+        settings().edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
         Intent i=new Intent(this,HostService.class).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",audio.isChecked()).putExtra("muteLocal",audio.isChecked() && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
         if(grant!=null) i.putExtra("grant",grant);
         startForegroundService(i); state.setText(getString(R.string.ui_starting_pending)); main.postDelayed(this::bindExisting,300);
@@ -184,9 +215,9 @@ public final class MainActivity extends Activity {
         try { Message m=Message.obtain(null,what); m.replyTo=response; if(data!=null)m.setData(data); remote.send(m); }
         catch(RemoteException e){remote=null; running(false);}
     }
-    private void running(boolean yes) { rescan.setEnabled(yes); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
+    private void running(boolean yes) { profile.setEnabled(!yes); rescan.setEnabled(yes); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}
-    @Override protected void onPause(){resumed=false;main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}super.onPause();}
+    @Override protected void onPause(){resumed=false;saveProfile();main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}super.onPause();}
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String value,int sp,int color){TextView v=new TextView(this);v.setText(value);v.setTextSize(sp);v.setTextColor(color);v.setPadding(0,dp(5),0,dp(5));return v;}
     private LinearLayout card(LinearLayout parent){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);v.setPadding(dp(20),dp(16),dp(20),dp(16));GradientDrawable bg=new GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(24));bg.setStroke(dp(1),0xffecf0f5);v.setBackground(bg);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(14);parent.addView(v,p);return v;}

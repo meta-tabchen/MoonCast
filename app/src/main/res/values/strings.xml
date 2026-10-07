@@ -113,4 +113,9 @@
     <string name="ui_cinema_mode_hint">Detect landscape borders for two seconds, then hold the region through controls and dark scenes. Rescan after changing video or aspect ratio. Portrait preserves the whole screen.</string>
     <string name="ui_rescan_video">Recognize video again</string>
     <string name="ui_rescan_video_hint">Looking for stable video borders again.</string>
+    <string name="ui_receiver_profile">Receiver preferences</string>
+    <string name="ui_receiver_profile_hint">Choose before casting. Each profile remembers picture, sound, codec preference and input. Resolution, FPS and bitrate remain in Moonlight. Profiles are selected manually.</string>
+    <string name="ui_profile_default">General</string>
+    <string name="ui_profile_tv">TV</string>
+    <string name="ui_profile_computer">Computer</string>
 </resources>

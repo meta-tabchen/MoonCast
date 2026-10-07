@@ -1,3 +1,4 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <instrumentation android:name="com.mooncast.host.RenderingInstrumentation" android:targetPackage="com.mooncast.host" android:label="MoonCast GPU rendering checks" />
+    <instrumentation android:name="com.mooncast.host.PreferencesInstrumentation" android:targetPackage="com.mooncast.host" android:label="MoonCast receiver profile checks" />
 </manifest>

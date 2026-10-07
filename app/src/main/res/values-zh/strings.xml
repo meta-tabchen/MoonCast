@@ -113,4 +113,9 @@
     <string name="ui_cinema_mode_hint">横屏视频边界稳定约两秒后锁定，控制栏和暗场不会改变区域。换视频或比例后点重新识别；竖屏保留全屏。</string>
     <string name="ui_rescan_video">重新识别视频区域</string>
     <string name="ui_rescan_video_hint">已开始重新识别稳定的视频边界。</string>
+    <string name="ui_receiver_profile">接收设备偏好</string>
+    <string name="ui_receiver_profile_hint">投屏前选择，各自记住画面、声音、编码偏好和控制设置。分辨率、帧率与码率仍在 Moonlight 配置；这里手动选择设备。</string>
+    <string name="ui_profile_default">通用</string>
+    <string name="ui_profile_tv">电视</string>
+    <string name="ui_profile_computer">电脑</string>
 </resources>
