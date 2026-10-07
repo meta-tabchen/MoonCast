@@ -101,7 +101,7 @@ public final class HostService extends Service implements SunshineServer.Listene
                 if (grant==null) throw new IllegalArgumentException(getString(R.string.ui_missing_screen_capture_permission_start_again));
                 projection=getSystemService(MediaProjectionManager.class).getMediaProjection(Activity.RESULT_OK, grant);
                 projection.registerCallback(new MediaProjection.Callback() {
-                    @Override public void onStop() { if (!stopping && error.isEmpty()) { log(getString(R.string.ui_system_ended_screen_sharing)); stopHost(); } }
+                    @Override public void onStop() { if (!stopping && error!=null && error.isEmpty()) { log(getString(R.string.ui_system_ended_screen_sharing)); stopHost(); } }
                     @Override public void onCapturedContentResize(int width,int height){if(pipeline!=null)pipeline.resize(width,height);}
                 }, main);
             }

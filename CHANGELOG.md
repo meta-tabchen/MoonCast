@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-10-07 (preview)
+
+- Preserve capture-error state when an exception has no message; avoid a null dereference in the stop callback.
+- Correct CI SDK package selection and pin current supported actions; clean-runner CI passes.
+- Retain 0.2.1 localization and native runtime payload. No new device tests are claimed.
+
 ## 0.2.1 — 2026-10-07 (preview)
 
 - English default and Chinese primary UI resources, pairing/status/notification translations, and Android per-app language declaration.

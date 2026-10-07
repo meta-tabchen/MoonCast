@@ -2,7 +2,7 @@
 
 MoonCast is useful when the sender is an **Android phone** and the receiver already runs **Moonlight**. It is not the only Android Moonlight host: Mirror already provides that capability and supplies this project's native core.
 
-| Question | MoonCast 0.2.1 preview | Mirror | scrcpy | Sunshine |
+| Question | MoonCast 0.2.2 preview | Mirror | scrcpy | Sunshine |
 | --- | --- | --- | --- | --- |
 | Primary sender | Android phone | Android | Android | Desktop host |
 | Receiver | Existing Moonlight client | Moonlight, AirPlay, DisplayLink | Desktop scrcpy app on Windows/macOS/Linux | Moonlight client |

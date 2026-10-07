@@ -17,7 +17,7 @@
 
 ## Known evidence
 
-One PGP110 phone running Android 15 has been used for installation and basic Android → iPad streaming. The user's latest feedback for 0.2.0 was informally positive. This does not establish compatibility across models or verify every feature. Version 0.2.1 adds localization/presentation changes; streaming and input behavior need regression testing.
+One PGP110 phone running Android 15 has been used for installation and basic Android → iPad streaming. The user's latest feedback for 0.2.0 was informally positive. This does not establish compatibility across models or verify every feature. Version 0.2.2 adds localization/presentation changes; streaming and input behavior need regression testing.
 
 Android TV, other Moonlight client platforms, long sessions, reconnects, actual audio/muting behavior, and Root/Accessibility input need systematic reports. Please do not label a receiver supported solely because Moonlight is available on it.
 

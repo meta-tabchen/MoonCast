@@ -1,3 +1,17 @@
+# 0.2.2 发布验证
+
+日期：2026-10-07（Asia/Hong_Kong）。versionCode 7、versionName 0.2.2。
+
+- 新增英文默认和中文界面、配对/状态/通知资源，Android 单应用语言声明；较长选项可换行，版本号读取构建元数据。
+- `assembleRelease` / `lintDebug` 通过：0 errors, 15 warnings。Root 隐藏 API、JNI 动态库加载、API 属性和依赖内部代码相关 warning 仍保留。
+- 纯 Java 几何、裁切稳定性、反控坐标、音量恢复测试通过；两种语言资源键一致，文档相对链接存在。
+- APK 含三种 ABI 的九个固定原生库，JNI/原生 SHA 校验通过。APK v2 签名与 zipalign 检查通过。
+- 当前未连接 Android 设备，没有执行 0.2.2 真机安装、英文视觉布局或投屏回归；用户之前反馈对应 0.2.0。
+- 当前仍为 debug 密钥签名的 preview，未配置正式发布签名；底层诊断并非完全国际化。
+- APK 大小：14821713 bytes；SHA-256：`b87d64fcf9b8876a07b6cdb5e80f47ae95a8b26d1303b214b835b3fa7a05f93a`。
+
+以下为此前开发记录，不应把旧版的设备测试当作 0.2.2 已测试的证明。
+
 # 0.2.1 发布验证
 
 日期：2026-10-07（Asia/Hong_Kong）。versionCode 6、versionName 0.2.1。
