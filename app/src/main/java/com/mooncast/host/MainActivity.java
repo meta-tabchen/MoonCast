@@ -23,7 +23,7 @@ public final class MainActivity extends Activity {
     private CompoundButton hevc, audio, root, muteLocal, control;
     private Spinner controlBackend;
     private TextView controlInfo, modeInfo;
-    private Button accessibility;
+    private Button accessibility, rescan;
     private boolean updatingControl;
     private EditText pin, name;
     private LinearLayout pinBox;
@@ -72,9 +72,10 @@ public final class MainActivity extends Activity {
         Button copy=smallButton(getString(R.string.ui_copy_ip));copy.setOnClickListener(v->{android.content.ClipboardManager clipboard=getSystemService(android.content.ClipboardManager.class);clipboard.setPrimaryClip(ClipData.newPlainText("MoonCast IP",HostService.addresses(MainActivity.this)));toast(getString(R.string.ui_ip_copied));});address.addView(copy);hero.addView(address);
 
         LinearLayout picture=card(page);section(picture,getString(R.string.ui_picture),getString(R.string.ui_choose_how_the_picture_fits_your_screen));
-        scale=spinner(new String[]{getString(R.string.ui_whole_screen_fit),getString(R.string.ui_auto_crop_fit),getString(R.string.ui_fill_screen_crop_edges),getString(R.string.ui_video_region_centered_16_9)});
+        scale=spinner(new String[]{getString(R.string.ui_whole_screen_fit),getString(R.string.ui_auto_crop_fit),getString(R.string.ui_fill_screen_crop_edges),getString(R.string.ui_video_region_centered_16_9),getString(R.string.ui_cinema_mode)});
         if(!getPreferences(0).getBoolean("videoRegionIntroduced",false))getPreferences(0).edit().putInt("scaleMode",3).putBoolean("videoRegionIntroduced",true).apply();
-        scale.setSelection(getPreferences(0).getInt("scaleMode",3));picture.addView(scale);modeInfo=text("",12,MUTED);picture.addView(modeInfo);describeMode(scale.getSelectedItemPosition());
+        scale.setSelection(getPreferences(0).getInt("scaleMode",3));picture.addView(scale);modeInfo=text("",12,MUTED);picture.addView(modeInfo);
+        rescan=smallButton(getString(R.string.ui_rescan_video));rescan.setEnabled(false);rescan.setOnClickListener(v->{send(HostService.CROP_RESET,null);toast(getString(R.string.ui_rescan_video_hint));});picture.addView(rescan);describeMode(scale.getSelectedItemPosition());
         scale.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(AdapterView<?> parent){}
             public void onItemSelected(AdapterView<?> parent,View view,int position,long id){describeMode(position);if(updatingScale)return;getPreferences(0).edit().putInt("scaleMode",position).apply();if(remote!=null)try{Message m=Message.obtain(null,HostService.SCALE);m.arg1=position;remote.send(m);}catch(RemoteException ignored){}}
@@ -115,7 +116,7 @@ public final class MainActivity extends Activity {
         page.addView(text(getString(R.string.ui_use_the_same_lan_and_official_moonlight_nshare_the_entire_phone_screen),12,MUTED));
         TextView foot=text("MoonCast Preview · GPLv3",11,0xffa4adbc);foot.setGravity(Gravity.CENTER);foot.setPadding(0,dp(18),0,0);page.addView(foot);refreshControlOptions();
     }
-    private void describeMode(int mode){modeInfo.setText(switch(mode){case 0->getString(R.string.ui_show_the_entire_phone_screen_at_its_original_aspect_ratio);case 1->getString(R.string.ui_detect_landscape_borders_including_paused_frames_letterboxing_needed_f);case 2->getString(R.string.ui_fill_the_receiver_screen_some_picture_edges_will_be_cropped);default->getString(R.string.ui_cast_the_centered_landscape_16_9_region_no_selection_or_border_detecti);});}
+    private void describeMode(int mode){modeInfo.setText(switch(mode){case 0->getString(R.string.ui_show_the_entire_phone_screen_at_its_original_aspect_ratio);case 1->getString(R.string.ui_detect_landscape_borders_including_paused_frames_letterboxing_needed_f);case 2->getString(R.string.ui_fill_the_receiver_screen_some_picture_edges_will_be_cropped);case 4->getString(R.string.ui_cinema_mode_hint);default->getString(R.string.ui_cast_the_centered_landscape_16_9_region_no_selection_or_border_detecti);});if(rescan!=null)rescan.setVisibility(mode==CropGeometry.CINEMA?View.VISIBLE:View.GONE);}
     private boolean accessibilityEnabled(){
         android.view.accessibility.AccessibilityManager manager=getSystemService(android.view.accessibility.AccessibilityManager.class);
         for(android.accessibilityservice.AccessibilityServiceInfo service:manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK))
@@ -183,7 +184,7 @@ public final class MainActivity extends Activity {
         try { Message m=Message.obtain(null,what); m.replyTo=response; if(data!=null)m.setData(data); remote.send(m); }
         catch(RemoteException e){remote=null; running(false);}
     }
-    private void running(boolean yes) { start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
+    private void running(boolean yes) { rescan.setEnabled(yes); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}
     @Override protected void onPause(){resumed=false;main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}super.onPause();}
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}

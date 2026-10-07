@@ -11,7 +11,7 @@ bin_path = Path(java_home) / 'bin' if java_home else None
 suffix = '.exe' if os.name == 'nt' else ''
 javac = str(bin_path / ('javac' + suffix)) if bin_path else 'javac'
 java = str(bin_path / ('java' + suffix)) if bin_path else 'java'
-sources = [java_root / (name + '.java') for name in ('CropGeometry', 'AutoCropTracker', 'MediaVolumeSession')]
+sources = [java_root / (name + '.java') for name in ('CropGeometry', 'AutoCropTracker', 'CinemaCropTracker', 'MediaVolumeSession')]
 sources += [root / 'tests/CropGeometryTest.java', root / 'tests/MediaVolumeSessionTest.java']
 with tempfile.TemporaryDirectory(prefix='mooncast-tests-') as directory:
     subprocess.run([javac, '--release', '17', '-encoding', 'UTF-8', '-d', directory, *map(str, sources)], check=True)

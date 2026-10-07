@@ -23,7 +23,8 @@ public final class RenderingInstrumentation extends Instrumentation {
             checkCase(CropGeometry.VIDEO_REGION,"video-region",false);
             checkCase(CropGeometry.VIDEO_FIT,"paused",false);
             checkCase(CropGeometry.VIDEO_FIT,"portrait",true);
-            result.putString("result","PASS: actual SurfaceTexture/EGL output, auto crop, paused single-frame crop, fixed 16:9, fit/fill, orientation, portrait resize");
+            checkCase(CropGeometry.CINEMA,"cinema-controls",false);
+            result.putString("result","PASS: actual SurfaceTexture/EGL output, auto crop, paused single-frame crop, fixed 16:9, fit/fill, orientation, portrait resize, cinema lock through opaque controls");
             finish(android.app.Activity.RESULT_OK,result);
         }catch(Throwable e){result.putString("error",e.toString());e.printStackTrace();finish(android.app.Activity.RESULT_CANCELED,result);}
     }
@@ -51,16 +52,24 @@ public final class RenderingInstrumentation extends Instrumentation {
                 pipeline.resize(1080,2400);Thread.sleep(120);
                 for(int i=0;i<10;i++){paint(source.get(),true);Thread.sleep(55);Image next=reader.acquireLatestImage();if(next!=null){if(last!=null)last.close();last=next;}}
             }
+            if(mode==CropGeometry.CINEMA){
+                // Opaque player controls cover the original pillar bars for longer than the old expansion filter.
+                long controlsEnd=SystemClock.elapsedRealtime()+1900;
+                while(SystemClock.elapsedRealtime()<controlsEnd){
+                    Canvas c=source.get().lockCanvas(null);c.drawColor(Color.BLUE);source.get().unlockCanvasAndPost(c);
+                    Thread.sleep(55);Image next=reader.acquireLatestImage();if(next!=null){if(last!=null)last.close();last=next;}
+                }
+            }
             if(last==null)throw new AssertionError("No GPU output");
             try{
                 boolean leftBlack=black(last,50,300),topBlack=black(last,400,20),centerBlack=black(last,400,300);
                 if(centerBlack)throw new AssertionError(label+" blank center");
                 if(mode==CropGeometry.SCREEN && !leftBlack)throw new AssertionError("screen mode should retain player pillar bars");
-                if((mode==CropGeometry.VIDEO_FIT || mode==CropGeometry.VIDEO_REGION) && !portrait && (leftBlack || !topBlack))throw new AssertionError("fit must remove pillar bars while retaining aspect bars");
+                if((mode==CropGeometry.VIDEO_FIT || mode==CropGeometry.VIDEO_REGION || mode==CropGeometry.CINEMA) && !portrait && (leftBlack || !topBlack))throw new AssertionError("fit must remove pillar bars while retaining aspect bars");
                 if(mode==CropGeometry.VIDEO_FILL && (leftBlack || topBlack))throw new AssertionError("fill should cover output");
                 if(portrait && !leftBlack)throw new AssertionError("portrait should preserve full height and pillarbox");
                 // Pattern has a red top half and green bottom half. Verify SurfaceTexture transform is used.
-                if(!portrait){int[] upper=color(last,400,200),lower=color(last,400,400);if(upper[0]<150 || lower[1]<150)throw new AssertionError("texture upside down / colors lost");}
+                if(!portrait && mode!=CropGeometry.CINEMA){int[] upper=color(last,400,200),lower=color(last,400,400);if(upper[0]<150 || lower[1]<150)throw new AssertionError("texture upside down / colors lost");}
                 Bitmap bitmap=Bitmap.createBitmap(800,600,Bitmap.Config.ARGB_8888);int[] argb=new int[800*600];
                 for(int y=0;y<600;y++)for(int x=0;x<800;x++){int[] c=color(last,x,y);argb[y*800+x]=Color.rgb(c[0],c[1],c[2]);}
                 bitmap.setPixels(argb,0,800,0,0,800,600);

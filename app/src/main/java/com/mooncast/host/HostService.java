@@ -16,7 +16,7 @@ import java.util.*;
 
 /** Dedicated process owns all native resources. Stopping terminates that process, not the UI. */
 public final class HostService extends Service implements SunshineServer.Listener {
-    static final int STATUS=1, PIN=2, STOP=3, SCALE=4, CONTROL=5;
+    static final int STATUS=1, PIN=2, STOP=3, SCALE=4, CONTROL=5, CROP_RESET=6;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Messenger binder = new Messenger(new Handler(Looper.getMainLooper(), msg -> {
         if (msg.what == STATUS) {
@@ -31,6 +31,7 @@ public final class HostService extends Service implements SunshineServer.Listene
         } else if (msg.what == STOP) stopHost();
         else if(msg.what==SCALE) updateScale(msg.arg1);
         else if(msg.what==CONTROL) updateControl(msg.arg1!=0);
+        else if(msg.what==CROP_RESET) rescanCrop();
         return true;
     }));
     private final ArrayList<String> logs = new ArrayList<>();
@@ -54,8 +55,10 @@ public final class HostService extends Service implements SunshineServer.Listene
     private boolean started, stopping, pinPending, sendAudio, audioPump, muteLocal;
     private long session;
 
+    private void rescanCrop(){if(pipeline!=null)pipeline.rescan();if(root!=null)root.rescan();}
+
     private void updateScale(int value) {
-        scaleMode=Math.max(0,Math.min(CropGeometry.VIDEO_REGION,value));
+        scaleMode=Math.max(0,Math.min(CropGeometry.CINEMA,value));
         if(pipeline!=null)pipeline.setMode(scaleMode);
         if(root!=null)root.scale(scaleMode);
         log(getString(R.string.ui_picture_mode_updated)+scaleMode);

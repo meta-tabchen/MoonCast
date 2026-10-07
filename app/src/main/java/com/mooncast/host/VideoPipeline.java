@@ -39,6 +39,7 @@ public final class VideoPipeline {
     private final ByteBuffer pixels=ByteBuffer.allocateDirect(192*128*4).order(ByteOrder.nativeOrder());
     private final byte[] sample=new byte[192*128*4];
     private final AutoCropTracker tracker=new AutoCropTracker();
+    private final CinemaCropTracker cinema=new CinemaCropTracker();
     private boolean haveFrame;
     private long frames,lastSubmitted,lastProbeLog;
     private final Runnable probe=new Runnable(){public void run(){
@@ -47,7 +48,7 @@ public final class VideoPipeline {
         catch(Exception e){events.error("视频区域采样失败: "+e.getMessage());close();return;}
         handler.postDelayed(this,250);
     }};
-    private boolean autoMode(){return mode==CropGeometry.VIDEO_FIT || mode==CropGeometry.VIDEO_FILL;}
+    private boolean autoMode(){return mode==CropGeometry.VIDEO_FIT || mode==CropGeometry.VIDEO_FILL || (mode==CropGeometry.CINEMA && !cinema.locked());}
     private final DisplayManager.DisplayListener listener=new DisplayManager.DisplayListener(){
         @Override public void onDisplayAdded(int id){}
         @Override public void onDisplayRemoved(int id){}
@@ -74,9 +75,13 @@ public final class VideoPipeline {
         });
     }
     public void setMode(int value){if(handler!=null)handler.post(()->{
-        int next=Math.max(0,Math.min(CropGeometry.VIDEO_REGION,value));if(mode==next)return;
-        mode=next;tracker.reset();lastProbeLog=0;
+        int next=Math.max(0,Math.min(CropGeometry.CINEMA,value));if(mode==next)return;
+        mode=next;tracker.reset();cinema.reset();lastProbeLog=0;
         if(haveFrame && !closed)try{render(System.nanoTime());}catch(Exception e){events.error("显示模式切换失败: "+e.getMessage());}
+    });}
+    public void rescan(){if(handler!=null)handler.post(()->{
+        tracker.reset();cinema.reset();lastProbeLog=0;
+        if(haveFrame && !closed)render(System.nanoTime());
     });}
     public void resize(int width,int height){if(handler!=null)handler.post(()->resizeInternal(width,height));}
     private void setInputSize(int width,int height){
@@ -91,7 +96,7 @@ public final class VideoPipeline {
         if(sourceW==oldW && sourceH==oldH)return;
         texture.setDefaultBufferSize(sourceW,sourceH);
         if(display!=null)display.resize(sourceW,sourceH,160);
-        tracker.reset();lastProbeLog=0;haveFrame=false;
+        tracker.reset();cinema.reset();lastProbeLog=0;haveFrame=false;
         events.message("捕获尺寸更新: "+sourceW+"×"+sourceH);
     }
     private void setup(){
@@ -142,13 +147,14 @@ public final class VideoPipeline {
         if(now-lastProbeLog>5000){
             lastProbeLog=now;events.message("自动区域采样 "+sourceW+"×"+sourceH+": "+(detected==null?"暗场，保留区域":Math.round(detected.width()*100)+"% × "+Math.round(detected.height()*100)+"%"));
         }
-        boolean changed=tracker.consider(detected);
-        if(changed)events.message("视频区域已更新: "+Math.round(tracker.bounds().width()*100)+"% × "+Math.round(tracker.bounds().height()*100)+"%");
+        boolean changed=mode==CropGeometry.CINEMA?cinema.consider(detected):tracker.consider(detected);
+        CropGeometry.Bounds active=mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds();
+        if(changed)events.message((mode==CropGeometry.CINEMA?"影院区域已锁定: ":"视频区域已更新: ")+Math.round(active.width()*100)+"% × "+Math.round(active.height()*100)+"%");
         return changed;
     }
     private void render(long timestamp){
         CropGeometry.Bounds region=mode==CropGeometry.VIDEO_REGION?CropGeometry.videoRegion(sourceW,sourceH):
-            (mode==CropGeometry.SCREEN || sourceW<=sourceH?CropGeometry.Bounds.FULL:tracker.bounds());
+            (mode==CropGeometry.SCREEN || sourceW<=sourceH?CropGeometry.Bounds.FULL:mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds());
         current(window);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
         GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         CropGeometry.Viewport v=CropGeometry.viewport(sourceW,sourceH,region,outW,outH,mode==CropGeometry.VIDEO_FILL && sourceW>sourceH);

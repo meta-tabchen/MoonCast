@@ -25,6 +25,19 @@ public final class CropGeometryTest {
         tracker.consider(CropGeometry.Bounds.FULL);tracker.consider(CropGeometry.Bounds.FULL);tracker.consider(null);
         close(tracker.bounds().left(),crop.left(),"brief controls and dark scene retain crop");
         for(int i=0;i<6;i++)tracker.consider(CropGeometry.Bounds.FULL);close(tracker.bounds().width(),1,"real fullscreen eventually expands");
+        CinemaCropTracker cinema=new CinemaCropTracker();
+        for(int i=0;i<20;i++)cinema.consider(CropGeometry.Bounds.FULL);
+        if(cinema.locked())throw new AssertionError("UI must not stop looking for video");
+        for(int i=0;i<7;i++)cinema.consider(crop);
+        if(cinema.locked())throw new AssertionError("cinema acquired too soon");
+        cinema.consider(null);
+        for(int i=0;i<8;i++)cinema.consider(crop);
+        if(!cinema.locked())throw new AssertionError("stable cinema did not acquire");
+        for(int i=0;i<100;i++){cinema.consider(CropGeometry.Bounds.FULL);cinema.consider(CropGeometry.detect(letterbox,w,h));}
+        close(cinema.bounds().left(),crop.left(),"controls and changed dark borders must keep locked geometry");
+        cinema.reset();if(cinema.locked())throw new AssertionError("rescan/rotation must unlock");
+        for(int i=0;i<8;i++)cinema.consider(CropGeometry.detect(letterbox,w,h));
+        close(cinema.bounds().bottom(),15f/128,"rescan can acquire another aspect ratio");
         if(args.length>0){var actual=CropGeometry.detect(java.nio.file.Files.readAllBytes(java.nio.file.Path.of(args[0])),w,h);if(actual==null || Math.abs(actual.left()-246f/2412)>.015f)throw new AssertionError("actual phone sample "+actual);System.out.println("PASS: real phone screenshot sample "+actual);}
         var fit=CropGeometry.viewport(1920,1080,CropGeometry.Bounds.FULL,2388,1668,false);
         var fixed=CropGeometry.videoRegion(2412,1080);

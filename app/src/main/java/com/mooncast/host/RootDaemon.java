@@ -54,7 +54,8 @@ public final class RootDaemon implements SunshineServer.Listener {
                         String command=commands.readUTF();
                         if (command.equals("STOP")) break;
                         if (command.matches("PIN [0-9]{4}")) SunshineServer.submitPin(command.substring(4));
-                        if(command.matches("SCALE [0-3]"))daemon.main.post(()->{daemon.scaleMode=Integer.parseInt(command.substring(6));if(daemon.pipeline!=null)daemon.pipeline.setMode(daemon.scaleMode);});
+                        if(command.matches("SCALE [0-4]"))daemon.main.post(()->{daemon.scaleMode=Integer.parseInt(command.substring(6));if(daemon.pipeline!=null)daemon.pipeline.setMode(daemon.scaleMode);});
+                        if(command.equals("RESCAN"))daemon.main.post(()->{if(daemon.pipeline!=null)daemon.pipeline.rescan();});
                         if(command.matches("CONTROL [01]"))daemon.main.post(()->daemon.control(command.endsWith("1")));
                     }
                 } catch (IOException ignored) {} finally { daemon.main.post(daemon::shutdown); }

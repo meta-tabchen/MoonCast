@@ -50,6 +50,7 @@ final class RootBackend {
     }
     synchronized void pin(String pin) { send("PIN "+pin); }
     synchronized void scale(int mode){send("SCALE "+mode);}
+    synchronized void rescan(){send("RESCAN");}
     synchronized void control(boolean enabled){send("CONTROL "+(enabled?1:0));}
     private void send(String command) {
         try { if (commands!=null) { commands.writeUTF(command); commands.flush(); } }

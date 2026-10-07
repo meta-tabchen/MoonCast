@@ -2,7 +2,7 @@ package com.mooncast.host;
 
 /** Pure geometry / sampled-border detection, independent of Android and the encoder. */
 public final class CropGeometry {
-    public static final int SCREEN=0, VIDEO_FIT=1, VIDEO_FILL=2, VIDEO_REGION=3;
+    public static final int SCREEN=0, VIDEO_FIT=1, VIDEO_FILL=2, VIDEO_REGION=3, CINEMA=4;
     public record Bounds(float left,float bottom,float right,float top) {
         public static final Bounds FULL=new Bounds(0,0,1,1);
         public float width(){return right-left;}

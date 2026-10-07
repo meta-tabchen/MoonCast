@@ -109,4 +109,8 @@
     <string name="ui_waiting_for_permission_root_connection" formatted="false">"等待授权 / Root 连接"</string>
     <string name="control_accessibility_label">MoonCast 远程操控</string>
     <string name="control_accessibility_description">允许已配对的 Moonlight 接收端在投屏时点击和滑动手机，或执行返回、主页操作。仅当应用中的远程操控开关开启时处理输入；关闭或停止投屏后不再接受新的操作。不读取界面文字。</string>
+    <string name="ui_cinema_mode">智能影院 · 稳定后锁定区域</string>
+    <string name="ui_cinema_mode_hint">横屏视频边界稳定约两秒后锁定，控制栏和暗场不会改变区域。换视频或比例后点重新识别；竖屏保留全屏。</string>
+    <string name="ui_rescan_video">重新识别视频区域</string>
+    <string name="ui_rescan_video_hint">已开始重新识别稳定的视频边界。</string>
 </resources>

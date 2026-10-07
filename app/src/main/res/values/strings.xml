@@ -109,4 +109,8 @@
     <string name="ui_waiting_for_permission_root_connection" formatted="false">"Waiting for permission / Root connection"</string>
     <string name="control_accessibility_label">MoonCast remote input</string>
     <string name="control_accessibility_description">Allows a paired Moonlight receiver to tap, swipe, or use Back and Home while casting. Only processes input when remote input is enabled in MoonCast. Stops accepting new input when disabled or casting stops. Does not read screen text.</string>
+    <string name="ui_cinema_mode">Smart cinema · lock video region</string>
+    <string name="ui_cinema_mode_hint">Detect landscape borders for two seconds, then hold the region through controls and dark scenes. Rescan after changing video or aspect ratio. Portrait preserves the whole screen.</string>
+    <string name="ui_rescan_video">Recognize video again</string>
+    <string name="ui_rescan_video_hint">Looking for stable video borders again.</string>
 </resources>
