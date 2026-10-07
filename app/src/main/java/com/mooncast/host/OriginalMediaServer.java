@@ -15,6 +15,7 @@ final class OriginalMediaServer implements AutoCloseable {
     }
     private final Source source;
     private final ServerSocket server;
+    private final Thread acceptThread;
     private final String token;
     private final boolean chinese;
     private final Set<Socket> sockets=ConcurrentHashMap.newKeySet();
@@ -25,13 +26,17 @@ final class OriginalMediaServer implements AutoCloseable {
         byte[] bytes=new byte[24];new SecureRandom().nextBytes(bytes);
         token=Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         server=new ServerSocket();server.bind(new InetSocketAddress(bind,0),8);
-        Thread accept=new Thread(this::accept,"OriginalMediaAccept");accept.setDaemon(true);accept.start();
+        acceptThread=new Thread(this::accept,"OriginalMediaAccept");acceptThread.setDaemon(true);acceptThread.start();
     }
     int port(){return server.getLocalPort();}
     String path(){return "/"+token+"/";}
     private void accept(){while(!closed)try{
-        Socket socket=server.accept();socket.setSoTimeout(10000);sockets.add(socket);
-        try{workers.execute(()->serve(socket));}catch(RejectedExecutionException e){sockets.remove(socket);socket.close();}
+        Socket socket=server.accept();socket.setSoTimeout(10000);
+        synchronized(this){
+            if(closed){socket.close();return;}
+            sockets.add(socket);
+            try{workers.execute(()->serve(socket));}catch(RejectedExecutionException e){sockets.remove(socket);socket.close();}
+        }
     }catch(IOException e){if(!closed)close();}}
     private void serve(Socket socket){try(socket){
         InputStream in=socket.getInputStream();OutputStream out=socket.getOutputStream();
@@ -93,5 +98,12 @@ final class OriginalMediaServer implements AutoCloseable {
         return "<!doctype html><html lang='"+(chinese?"zh":"en")+"'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>MoonCast · "+escape(source.name())+"</title><style>body{margin:0;background:#111827;color:#e5e7eb;font:16px system-ui}header{padding:24px;max-width:1000px;margin:auto}h1{font-size:24px}p{color:#9ca3af;line-height:1.6}video,img{display:block;width:100%;max-height:80vh;object-fit:contain;background:#000}audio{width:100%}</style><header><h1>MoonCast · "+escape(source.name())+"</h1><p>"+(chinese?"原文件直接传输 · 无转码。请在播放器中开启全屏；格式支持取决于浏览器。停止分享后链接失效。":"Original bytes · No transcoding. Use the player’s fullscreen control. Format support depends on your browser. The link expires when sharing stops.")+"</p></header>"+media+"</html>";
     }
     private static String escape(String s){return s==null?"":s.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\"","&quot;").replace("'","&#39;");}
-    @Override public void close(){if(closed)return;closed=true;try{server.close();}catch(IOException ignored){}for(Socket socket:sockets)try{socket.close();}catch(IOException ignored){}workers.shutdownNow();}
+    @Override public void close(){
+        synchronized(this){
+            if(!closed){closed=true;try{server.close();}catch(IOException ignored){}for(Socket socket:sockets)try{socket.close();}catch(IOException ignored){}workers.shutdownNow();}
+        }
+        // Linux may defer the native listener close until a blocked accept returns.
+        // Never join while holding the registry lock or from the accept thread itself.
+        if(Thread.currentThread()!=acceptThread)try{acceptThread.join(1000);}catch(InterruptedException e){Thread.currentThread().interrupt();}
+    }
 }
