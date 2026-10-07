@@ -31,8 +31,10 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     void display(int id){displayId=id;if(ready())try{remote().display(id);}catch(RemoteException e){throw new IllegalStateException(e);}}
     int createDisplay(Surface surface,int w,int h,int dpi){try{return remote().createDisplay(surface,w,h,dpi);}catch(RemoteException e){throw new IllegalStateException(e);}}
     void launch(String component,int id){try{remote().launch(component,id);}catch(RemoteException e){throw new IllegalStateException(e);}}
+    boolean displayPowerPending(){try{return remote().displayPowerPending();}catch(RemoteException e){throw new IllegalStateException(e);}}
+    boolean displayPower(boolean off){try{return remote().displayPower(off);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void touch(int type,int id,float x,float y,float pressure){try{remote().touch(type,id,x,y,pressure);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void key(int key,boolean release,int flags){try{remote().key(key,release,flags);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void cancel(){if(service!=null)try{service.cancel();}catch(Exception ignored){}}
-    @Override public void close(){if(closed)return;cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
+    @Override public void close(){if(closed)return;try{if(ready())displayPower(false);}catch(RuntimeException e){log.accept("Panel restore failed: "+e.getMessage());}cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
 }

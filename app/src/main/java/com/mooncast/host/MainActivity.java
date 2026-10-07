@@ -32,7 +32,7 @@ public final class MainActivity extends Activity {
     private boolean bound, resumed;
     private TextView state, detail, logs, ip, metrics, scenarioHint;
     private Button start, stop, submit;
-    private CompoundButton hevc, audio, root, muteLocal, control,watchParty;
+    private CompoundButton hevc, audio, root, muteLocal, control,watchParty,panelOff;
     private LinearLayout receiverList;
     private long[] shownReceivers=new long[0];
     private Spinner controlBackend;
@@ -44,7 +44,8 @@ public final class MainActivity extends Activity {
     private EditText pin, name;
     private LinearLayout pinBox;
     private Spinner scale, profile, scenario, source;
-    private Button openApp;
+    private Button openApp,restoreDisplay;
+    private TextView panelState;
     private int independentDisplay=-1;
     private ReceiverProfiles profiles;
     private int currentProfile,currentScenario;
@@ -53,7 +54,7 @@ public final class MainActivity extends Activity {
     private final Messenger response=new Messenger(new Handler(Looper.getMainLooper(), msg -> {
         if (msg.what==HostService.STATUS) {
             Bundle b=msg.getData(); state.setText(b.getString("state")); detail.setText(b.getString("detail"));
-            showReceivers(b);logs.setText(b.getString("logs"));metrics.setText(b.getString("metrics"));independentDisplay=b.getInt("displayId",-1);openApp.setEnabled(independentDisplay>=0); pinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
+            panelState.setText(b.getString("panelState",getString(R.string.ui_off)));showReceivers(b);logs.setText(b.getString("logs"));metrics.setText(b.getString("metrics"));independentDisplay=b.getInt("displayId",-1);openApp.setEnabled(independentDisplay>=0); pinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
             updatingControl=true;control.setChecked(b.getBoolean("control",false));updatingControl=false;
             controlInfo.setText(b.getString("controlStatus",getString(R.string.ui_off)));running(true);
             int mode=b.getInt("scaleMode",CropGeometry.VIDEO_REGION);
@@ -130,6 +131,11 @@ public final class MainActivity extends Activity {
         source.setSelection(settings().getInt("source",0));capture.addView(source);
         source.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){if(loadingProfile)return;settings().edit().putInt("source",position).apply();if(root!=null && position!=0)root.setChecked(false);if(control!=null)refreshControlOptions();if(openApp!=null)openApp.setVisibility(position==2?View.VISIBLE:View.GONE);}});
         openApp=smallButton(getString(R.string.ui_launch_independent_app));openApp.setEnabled(false);openApp.setOnClickListener(v->chooseIndependentApp());capture.addView(openApp);openApp.setVisibility(source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);
+
+        panelOff=toggle(capture,getString(R.string.ui_panel_option),getString(R.string.ui_panel_hint),false);
+        panelOff.setOnCheckedChangeListener((button,checked)->refreshControlOptions());
+        panelState=text(getString(R.string.ui_off),12,MUTED);capture.addView(panelState);
+        restoreDisplay=smallButton(getString(R.string.ui_panel_restore));restoreDisplay.setEnabled(false);restoreDisplay.setOnClickListener(v->{send(HostService.RESTORE_DISPLAY,null);panelOff.setChecked(false);});capture.addView(restoreDisplay);
 
         LinearLayout picture=card(page);section(picture,getString(R.string.ui_picture),getString(R.string.ui_choose_how_the_picture_fits_your_screen));
         scale=spinner(new String[]{getString(R.string.ui_whole_screen_fit),getString(R.string.ui_auto_crop_fit),getString(R.string.ui_fill_screen_crop_edges),getString(R.string.ui_video_region_centered_16_9),getString(R.string.ui_cinema_mode)});
@@ -217,7 +223,7 @@ public final class MainActivity extends Activity {
         if(audio!=null && root!=null){boolean allowed=source.getSelectedItemPosition()!=2 && !root.isChecked();audio.setEnabled(allowed && remote==null);if(!allowed)audio.setChecked(false);muteLocal.setEnabled(allowed && audio.isChecked() && remote==null);}
         boolean appOnly=source.getSelectedItemPosition()==1 || (watchParty!=null && watchParty.isChecked());control.setEnabled(!appOnly);if(appOnly && control.isChecked()){updatingControl=true;control.setChecked(false);updatingControl=false;}
         boolean enabled=control.isChecked(),privileged=controlBackend.getSelectedItemPosition()!=0;
-        if(shizuku!=null)shizuku.setVisibility((enabled && controlBackend.getSelectedItemPosition()==2) || source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);
+        if(shizuku!=null)shizuku.setVisibility((enabled && controlBackend.getSelectedItemPosition()==2) || source.getSelectedItemPosition()==2 || (panelOff!=null && panelOff.isChecked() && root!=null && !root.isChecked())?View.VISIBLE:View.GONE);
         controlBackend.setEnabled(enabled && remote==null && !root.isChecked());
         accessibility.setVisibility(enabled && !privileged?View.VISIBLE:View.GONE);
         if(remote==null && enabled && controlBackend.getSelectedItemPosition()==2){controlInfo.setText(getString(ShizukuInputBackend.authorized()?R.string.ui_shizuku_authorized:R.string.ui_shizuku_hint));return;}
@@ -244,7 +250,7 @@ public final class MainActivity extends Activity {
     }
     private void begin() {
         if(watchParty.isChecked() && !io.github.jqssun.displaymirror.sunshine.NativeSessions.packaged()){toast(getString(R.string.ui_session_bridge_unavailable));return;}
-        if((source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
+        if(((!root.isChecked() && panelOff.isChecked()) || source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
 
         if(control.isChecked() && !root.isChecked() && controlBackend.getSelectedItemPosition()==0 && !accessibilityEnabled()){
             toast(getString(R.string.ui_enable_mooncast_accessibility_first_or_turn_off_remote_input));startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));return;
@@ -277,7 +283,7 @@ public final class MainActivity extends Activity {
         String host=name.getText().toString().trim();
         if(host.isEmpty()) host="MoonCast";
         settings().edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putInt("controlBackend",controlBackend.getSelectedItemPosition()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
-        Intent i=new Intent(this,HostService.class).putExtra("watchParty",watchParty.isChecked()).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",audio.isChecked()).putExtra("muteLocal",audio.isChecked() && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
+        Intent i=new Intent(this,HostService.class).putExtra("panelOff",panelOff.isChecked()).putExtra("watchParty",watchParty.isChecked()).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",audio.isChecked()).putExtra("muteLocal",audio.isChecked() && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
         if(grant!=null) i.putExtra("grant",grant);
         startForegroundService(i); state.setText(getString(R.string.ui_starting_pending)); main.postDelayed(this::bindExisting,300);
     }
@@ -288,7 +294,7 @@ public final class MainActivity extends Activity {
         try { Message m=Message.obtain(null,what); m.replyTo=response; if(data!=null)m.setData(data); remote.send(m); }
         catch(RemoteException e){remote=null; running(false);}
     }
-    private void running(boolean yes) { profile.setEnabled(!yes);watchParty.setEnabled(!yes);if(!yes){receiverList.removeAllViews();shownReceivers=new long[0];}scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
+    private void running(boolean yes) { panelOff.setEnabled(!yes);restoreDisplay.setEnabled(yes);if(!yes)panelState.setText(R.string.ui_off);profile.setEnabled(!yes);watchParty.setEnabled(!yes);if(!yes){receiverList.removeAllViews();shownReceivers=new long[0];}scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}
     private void showReceivers(Bundle b){
         long[] ids=b.getLongArray("receivers");String[] labels=b.getStringArray("receiverLabels");if(ids==null || labels==null || java.util.Arrays.equals(ids,shownReceivers))return;

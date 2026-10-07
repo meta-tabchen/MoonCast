@@ -11,4 +11,6 @@ interface IPrivilegedInput {
     int createDisplay(in Surface surface,int width,int height,int dpi) = 7;
     void releaseDisplays() = 8;
     void launch(String component,int displayId) = 9;
+    boolean displayPower(boolean off) = 10;
+    boolean displayPowerPending() = 11;
 }

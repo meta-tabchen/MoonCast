@@ -12,6 +12,9 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     private RootInputInjector input;
     private IBinder owner;
     private int ownerUid=-1;
+    private DisplayPowerLease power;
+    private final Handler watchdog=new Handler(Looper.getMainLooper());
+    private final Runnable powerWatch=new Runnable(){public void run(){synchronized(PrivilegedInputService.this){try{if(power!=null)power.tick(SystemClock.elapsedRealtime());}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restoration will retry",e);}if(owner!=null)watchdog.postDelayed(this,1000);}}};
     private final Map<Integer,VirtualDisplay> displays=new HashMap<>();
     public PrivilegedInputService(){}
     public PrivilegedInputService(Context context){this.context=context;}
@@ -24,7 +27,7 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
             // Shell has the display permissions and an attribution package on stock Android.
             if(uid==0)android.system.Os.setuid(2000);
             if(input==null)input=new RootInputInjector(true);
-            owner=token;ownerUid=calling;token.linkToDeath(()->{cleanup();System.exit(0);},0);
+            if(owner==null){owner=token;ownerUid=calling;token.linkToDeath(()->{cleanup();System.exit(0);},0);watchdog.post(powerWatch);}
         }catch(Exception e){throw new IllegalStateException("Privileged service initialization failed",e);}
     }
     private void checkOwner(){if(owner==null || !owner.isBinderAlive() || Binder.getCallingUid()!=ownerUid)throw new SecurityException("Unexpected owner");}
@@ -33,6 +36,15 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     @Override public synchronized void key(int code,boolean release,int flags){checkOwner();input.key(code,release,flags);}
     @Override public synchronized void cancel(){checkOwner();input.cancel();}
     @Override public synchronized void display(int id){checkOwner();input.display(id);}
+    @Override public synchronized boolean displayPower(boolean off){
+        checkOwner();long identity=Binder.clearCallingIdentity();
+        try{
+            if(power==null){if(context==null){Class<?> t=Class.forName("android.app.ActivityThread");Object thread=t.getDeclaredMethod("systemMain").invoke(null);context=(Context)t.getDeclaredMethod("getSystemContext").invoke(thread);}power=new DisplayPowerLease(new PhysicalDisplayPower(context));}
+            if(off)power.renew(SystemClock.elapsedRealtime(),30000);else power.restore();return power.pending();
+        }catch(Exception e){throw new IllegalStateException("Panel power unavailable: "+e,e);}
+        finally{Binder.restoreCallingIdentity(identity);}
+    }
+    @Override public synchronized boolean displayPowerPending(){checkOwner();return power!=null && power.pending();}
     // Hidden display flags are intentionally used only by the checked shell/root service.
     @android.annotation.SuppressLint("WrongConstant")
     @Override public synchronized int createDisplay(Surface surface,int width,int height,int dpi){
@@ -71,6 +83,6 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
         }catch(Exception e){throw new IllegalStateException("App launch unavailable: "+e,e);}
         finally{Binder.restoreCallingIdentity(identity);}
     }
-    private synchronized void cleanup(){if(input!=null)try{input.cancel();}catch(RuntimeException ignored){}for(VirtualDisplay d:displays.values())try{d.release();}catch(RuntimeException ignored){}displays.clear();}
+    private synchronized void cleanup(){watchdog.removeCallbacks(powerWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restore failed",e);SystemClock.sleep(100);}if(input!=null)try{input.cancel();}catch(RuntimeException ignored){}for(VirtualDisplay d:displays.values())try{d.release();}catch(RuntimeException ignored){}displays.clear();}
     @Override public void destroy(){cleanup();System.exit(0);}
 }

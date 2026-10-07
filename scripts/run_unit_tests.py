@@ -11,9 +11,9 @@ bin_path = Path(java_home) / 'bin' if java_home else None
 suffix = '.exe' if os.name == 'nt' else ''
 javac = str(bin_path / ('javac' + suffix)) if bin_path else 'javac'
 java = str(bin_path / ('java' + suffix)) if bin_path else 'java'
-sources = [java_root / (name + '.java') for name in ('CropGeometry', 'AutoCropTracker', 'CinemaCropTracker', 'MediaVolumeSession', 'FrameStatistics', 'TrafficRate', 'OriginalMediaServer')]
-sources += [root / 'tests/CropGeometryTest.java', root / 'tests/MediaVolumeSessionTest.java', root / 'tests/StatisticsTest.java', root / 'tests/OriginalMediaServerTest.java']
+sources = [java_root / (name + '.java') for name in ('CropGeometry', 'AutoCropTracker', 'CinemaCropTracker', 'MediaVolumeSession', 'FrameStatistics', 'TrafficRate', 'OriginalMediaServer', 'DisplayPowerLease')]
+sources += [root / 'tests/CropGeometryTest.java', root / 'tests/MediaVolumeSessionTest.java', root / 'tests/StatisticsTest.java', root / 'tests/OriginalMediaServerTest.java', root / 'tests/DisplayPowerLeaseTest.java']
 with tempfile.TemporaryDirectory(prefix='mooncast-tests-') as directory:
     subprocess.run([javac, '--release', '17', '-encoding', 'UTF-8', '-d', directory, *map(str, sources)], check=True)
-    for test in ('CropGeometryTest', 'MediaVolumeSessionTest', 'StatisticsTest', 'OriginalMediaServerTest'):
+    for test in ('CropGeometryTest', 'MediaVolumeSessionTest', 'StatisticsTest', 'OriginalMediaServerTest', 'DisplayPowerLeaseTest'):
         subprocess.run([java, '-cp', directory, 'com.mooncast.host.' + test], check=True)

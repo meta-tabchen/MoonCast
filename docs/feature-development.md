@@ -11,7 +11,7 @@ test content on an emulator, not iPad/TV interoperability or phone thermal perfo
 | 4 | Single-app capture, independent app display; Shizuku control backend | Implemented |
 | 5 | Original-file cinema with a compatible receiver workflow | Implemented |
 | 6 | Multiple simultaneous receivers and individual disconnect | Implemented (experimental) |
-| 7 | Experimental privileged display-off casting with recovery | Planned |
+| 7 | Experimental privileged display-off casting with recovery | Implemented (experimental) |
 
 ## Stage 1
 
@@ -113,3 +113,27 @@ native disconnect, shared audio and real receiver interoperability remain device
 No emulator encoding performance is claimed. Host startup also fixes Shizuku binder
 handoff to non-provider processes. The JNI bridge builds in CI for all three ABIs and
 its binaries/source/build recipe are hash-pinned separately from the upstream core.
+
+## Stage 7
+
+An off-by-default, per-session option requests physical panel power-off after frames
+have been submitted. Ordinary capture uses an authorized Shizuku helper; Root capture
+uses its existing UID-0 daemon. These are separate from enabling remote input. The OS
+stays interactive: no lock/sleep key or secure settings are changed. Hidden display APIs
+follow the compatibility approach documented by scrcpy; one unambiguous physical panel
+is required when an internal token cannot be obtained. Unsupported devices refuse it.
+
+The helper uses a 30-second lease, renewed every five seconds. Stop, owner death/EOF,
+last receiver departure, manual Restore local display and capture errors attempt
+restoration. Failed restoration remains pending for watchdog retries. Root additionally
+requires a fresh host heartbeat; it does not renew forever when its owner is stalled.
+Forcibly killing the privileged helper itself or a system/driver failure can defeat
+software restoration; the physical power button remains the recovery path. No promise
+is made for foldable/multiple-panel ROMs or actual battery savings.
+
+Portable tests cover bounded renewals, expiry, idempotent cleanup, failed-off recovery
+and restoration retries. MuMu Android 15 Shizuku instrumentation passes the actual power
+RPC, Android remaining interactive, manual restore, 30-second watchdog expiry and helper
+cleanup. MuMu Android 12 Root passes a bounded API/expiry probe. These are emulator API
+checks; physical panel state, power consumption, continued phone/Moonlight playback and
+OEM-specific behavior require real-device tests. Build/lint and pinned APK checks pass.

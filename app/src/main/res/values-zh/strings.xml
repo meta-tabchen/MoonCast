@@ -163,4 +163,11 @@
     <string name="ui_receiver_label">接收端 %1$d</string>
     <string name="ui_disconnect">断开</string>
     <string name="ui_session_bridge_unavailable">当前构建缺少会话控制接口，请安装完整的 MoonCast APK。</string>
+    <string name="ui_panel_option">投屏时关闭本地屏幕</string>
+    <string name="ui_panel_hint">实验功能 · 需要 Root 捕获或 Shizuku。画面输出后熄屏，停止或心跳丢失 30 秒后尝试亮屏；每次投屏单独开启。</string>
+    <string name="ui_panel_restore">恢复本地亮屏</string>
+    <string name="ui_panel_waiting">已请求熄屏，等待画面输出</string>
+    <string name="ui_panel_off">本地屏幕已关闭 · 投屏继续</string>
+    <string name="ui_panel_restored">本地屏幕已恢复</string>
+    <string name="ui_panel_unavailable">屏幕电源控制不可用，已尝试恢复</string>
 </resources>

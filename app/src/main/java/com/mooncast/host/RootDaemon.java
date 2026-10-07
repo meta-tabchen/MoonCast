@@ -23,7 +23,18 @@ public final class RootDaemon implements SunshineServer.Listener {
     private volatile VideoPipeline pipeline;
     private final LinkedHashMap<Long,JSONObject> receivers=new LinkedHashMap<>();
     private int receiverOrdinal,audioPacketMs;
-    private boolean watchParty;
+    private boolean watchParty,panelWanted;
+    private DisplayPowerLease power;
+    private long lastPanelRenew,ownerHeartbeat;
+    private final Runnable panelWatch=new Runnable(){public void run(){
+        try{long now=SystemClock.elapsedRealtime();if(power!=null)power.tick(now);if(panelWanted && now-ownerHeartbeat>=30000)restorePanel();
+            if(panelWanted && pipeline!=null && !receivers.isEmpty() && pipeline.statistics().totalFrames()>0 && now-lastPanelRenew>=5000){
+                if(power==null)power=new DisplayPowerLease(new PhysicalDisplayPower(context));power.renew(now,30000);lastPanelRenew=now;event("panel","Local panel off (Root)");
+            }
+        }catch(Exception e){panelWanted=false;event("panel","Panel power unavailable: "+e.getMessage());restorePanel();}
+        main.postDelayed(this,1000);
+    }};
+    private void restorePanel(){panelWanted=false;if(power!=null)try{power.restore();event("panel","Local panel restored");}catch(Exception e){event("panel","Panel restoration failed; watchdog will retry: "+e.getMessage());}}
     private int scaleMode=CropGeometry.VIDEO_REGION;
     private int frameLimit=120;
     private long session;
@@ -33,7 +44,7 @@ public final class RootDaemon implements SunshineServer.Listener {
     public static void main(String[] args) {
         RootDaemon daemon=new RootDaemon();
         try {
-            if (args.length!=9 || android.os.Process.myUid()!=0) throw new IllegalArgumentException("Root daemon requires uid 0 and nine arguments");
+            if (args.length!=10 || android.os.Process.myUid()!=0) throw new IllegalArgumentException("Root daemon requires uid 0 and ten arguments");
             // app_process runs outside an APK process; it needs a system context and a main looper.
             if (Looper.myLooper()==null) Looper.prepareMainLooper();
             daemon.main=new Handler(Looper.getMainLooper());
@@ -54,7 +65,7 @@ public final class RootDaemon implements SunshineServer.Listener {
             SunshineServer.setHevcSupported(Boolean.parseBoolean(args[4]));
             daemon.scaleMode=Integer.parseInt(args[5]);
             daemon.frameLimit=Integer.parseInt(args[7]);
-            daemon.watchParty=Boolean.parseBoolean(args[8]);daemon.control(!daemon.watchParty && Boolean.parseBoolean(args[6]));
+            daemon.ownerHeartbeat=SystemClock.elapsedRealtime();daemon.panelWanted=Boolean.parseBoolean(args[9]);daemon.main.post(daemon.panelWatch);daemon.watchParty=Boolean.parseBoolean(args[8]);daemon.control(!daemon.watchParty && Boolean.parseBoolean(args[6]));
             new Thread(() -> {
                 try {
                     DataInputStream commands=new DataInputStream(daemon.socket.getInputStream());
@@ -64,6 +75,8 @@ public final class RootDaemon implements SunshineServer.Listener {
                         if (command.matches("PIN [0-9]{4}")) SunshineServer.submitPin(command.substring(4));
                         if(command.matches("SCALE [0-4]"))daemon.main.post(()->{daemon.scaleMode=Integer.parseInt(command.substring(6));if(daemon.pipeline!=null)daemon.pipeline.setMode(daemon.scaleMode);});
                         if(command.matches("DISCONNECT -?[0-9]+"))daemon.main.post(()->{long id=Long.parseLong(command.substring(11));if(daemon.receivers.containsKey(id))new Thread(()->NativeSessions.disconnect(id),"RootDisconnect").start();});
+                        if(command.equals("PANEL_HEARTBEAT"))daemon.main.post(()->daemon.ownerHeartbeat=SystemClock.elapsedRealtime());
+                        if(command.equals("RESTORE_DISPLAY"))daemon.main.post(daemon::restorePanel);
                         if(command.equals("RESCAN"))daemon.main.post(()->{if(daemon.pipeline!=null)daemon.pipeline.rescan();});
                         if(command.matches("CONTROL [01]"))daemon.main.post(()->daemon.control(command.endsWith("1")));
                     }
@@ -106,7 +119,7 @@ public final class RootDaemon implements SunshineServer.Listener {
     private void receiverState(){event("receivers",new JSONArray(receivers.values()).toString());}
     @Override public void stopDisplay(long s) {
         VideoPipeline current=pipeline;if(current!=null){java.util.concurrent.CountDownLatch removed=new java.util.concurrent.CountDownLatch(1);current.removeOutput(s,removed::countDown);try{removed.await(2,java.util.concurrent.TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}}
-        main.post(()->{if(receivers.remove(s)==null)return;if(receivers.isEmpty() && pipeline!=null){if(remoteInput!=null)remoteInput.begin(0);session=0;pipeline.close();pipeline=null;event("end","");}receiverState();});
+        main.post(()->{if(receivers.remove(s)==null)return;if(receivers.isEmpty() && pipeline!=null){restorePanel();if(remoteInput!=null)remoteInput.begin(0);session=0;pipeline.close();pipeline=null;event("end","");}receiverState();});
     }
     @Override public void error(String error) { event("error",error); }
     private synchronized void event(String kind,String text) {
@@ -125,6 +138,7 @@ public final class RootDaemon implements SunshineServer.Listener {
         }catch(Exception e){event("controlOff","Root 反控不可用: "+e.getMessage());}
     }
     private void shutdown() {
+        if(main!=null)main.removeCallbacks(panelWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){event("panel","Panel restore failed: "+e);SystemClock.sleep(100);}
         if(remoteInput!=null)try{remoteInput.close();}catch(RuntimeException ignored){}
         if(pipeline!=null)pipeline.close();
         if (display!=null) display.release();

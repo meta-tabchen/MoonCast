@@ -18,14 +18,14 @@ final class RootBackend {
     private Process process;
     private volatile boolean stopping;
     RootBackend(Context c,Events e) { context=c; events=e; }
-    synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit,boolean watchParty) throws Exception {
+    synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit,boolean watchParty,boolean panelOff) throws Exception {
         if(stopping) throw new IOException("Root 发射端已停止");
         String endpoint="mooncast-"+UUID.randomUUID();
         server=new LocalServerSocket(endpoint);
         String command="CLASSPATH="+quote(context.getApplicationInfo().sourceDir)
             +" /system/bin/app_process / com.mooncast.host.RootDaemon "
             +quote(endpoint)+" "+quote(context.getFilesDir().getPath())+" "
-            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control+" "+frameLimit+" "+watchParty;
+            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control+" "+frameLimit+" "+watchParty+" "+panelOff;
         process=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
         new Thread(() -> {
             try (BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -51,6 +51,8 @@ final class RootBackend {
     synchronized void disconnect(long id){send("DISCONNECT "+id);}
     synchronized void pin(String pin) { send("PIN "+pin); }
     synchronized void scale(int mode){send("SCALE "+mode);}
+    synchronized void panelHeartbeat(){send("PANEL_HEARTBEAT");}
+    synchronized void restoreDisplay(){send("RESTORE_DISPLAY");}
     synchronized void rescan(){send("RESCAN");}
     synchronized void control(boolean enabled){send("CONTROL "+(enabled?1:0));}
     private void send(String command) {
@@ -62,7 +64,8 @@ final class RootBackend {
         // EOF is the daemon's watchdog: it exits if the owning host process disappears.
         try { if (socket!=null) socket.close(); } catch (IOException ignored) {}
         try { if (server!=null) server.close(); } catch (IOException ignored) {}
-        if (process!=null) process.destroy();
+        // Let the root owner watchdog restore the physical panel before terminating.
+        Process owned=process;if(owned!=null)new Thread(()->{try{if(!owned.waitFor(3,java.util.concurrent.TimeUnit.SECONDS))owned.destroy();}catch(InterruptedException e){Thread.currentThread().interrupt();}},"RootStop").start();
     }
     static String quote(String s) { return "'"+s.replace("'","'\\''")+"'"; }
 }

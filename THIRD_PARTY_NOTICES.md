@@ -44,3 +44,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Physical display-power compatibility research
+
+MoonCast's independently written privileged reflection adapter uses Android's hidden
+physical-display power APIs. Compatibility research references scrcpy's
+[SurfaceControl](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/wrappers/SurfaceControl.java)
+and [DisplayControl](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/wrappers/DisplayControl.java)
+wrappers, maintained by Genymobile under Apache-2.0. No scrcpy binary is bundled.

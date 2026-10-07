@@ -163,4 +163,11 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_receiver_label">Receiver %1$d</string>
     <string name="ui_disconnect">Disconnect</string>
     <string name="ui_session_bridge_unavailable">Session controls are unavailable in this build. Install the complete MoonCast APK.</string>
+    <string name="ui_panel_option">Turn local display off while casting</string>
+    <string name="ui_panel_hint">Experimental · Root capture or Shizuku required. Starts after video frames; restores on stop or a 30-second missing heartbeat. Enable for each session.</string>
+    <string name="ui_panel_restore">Restore local display</string>
+    <string name="ui_panel_waiting">Panel off requested; waiting for video frames</string>
+    <string name="ui_panel_off">Local panel off · casting continues</string>
+    <string name="ui_panel_restored">Local display restored</string>
+    <string name="ui_panel_unavailable">Panel power unavailable; restoration attempted</string>
 </resources>
