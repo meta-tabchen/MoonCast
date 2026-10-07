@@ -1,0 +1,30 @@
+name: Device compatibility / 设备兼容性
+description: Share a tested phone and Moonlight receiver combination.
+title: "[Device] "
+labels: [compatibility]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: MoonCast version
+    validations:
+      required: true
+  - type: textarea
+    id: combination
+    attributes:
+      label: Phone model, Android/ROM, receiver hardware and Moonlight version
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Codec, resolution/FPS/bitrate, network type and framing/input/audio settings
+    validations:
+      required: true
+  - type: textarea
+    id: observations
+    attributes:
+      label: What was actually tested?
+      description: Separate installation, pairing, video, audio, local mute/restoration, input, rotation, reconnect and duration. Include failures too. Do not post phone serials or private data.
+    validations:
+      required: true

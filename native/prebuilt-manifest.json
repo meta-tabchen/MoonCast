@@ -1,0 +1,16 @@
+{
+  "upstream": "https://github.com/jqssun/android-display-mirror/releases/download/v0.0.34/app-release.apk",
+  "commit": "d7eea1b9e44eea38850bffa32ed0623506a2aa9a",
+  "apkSha256": "e9261755e9c2f9b3b299da58ee5f0d84f75afea76994df65bd0a9dd2515b8f43",
+  "libraries": {
+    "arm64-v8a/libcrypto.so": "ca77df5762ee98cf42630a164a928c19a4d3773129f94d2fa4f133a67b796061",
+    "arm64-v8a/libssl.so": "5ddeaa01be8124cd8c1c0127f94c04c192fa4c195b1822a732c080fd0e4a494b",
+    "arm64-v8a/libsunshine.so": "2a98e86a8ea792950eca3b3411a711c966bcce02428982fec6d9fcacfeee23f9",
+    "armeabi-v7a/libcrypto.so": "c361dd391861212364058dd1c6ac0bf14a32c0657380e3777fdc114cf9517c8f",
+    "armeabi-v7a/libssl.so": "bfb30f32c206a69a7621d24c36ab420530fd40562e0827e3bbd6bc5dfb3f3221",
+    "armeabi-v7a/libsunshine.so": "befaf0f357e97e4fcb21d1faf159dda1909f6ab2321987301f0980317eefa74c",
+    "x86_64/libcrypto.so": "df1e389752155689bbdaa9e7968f770e61d8be2f1ef737234c11570681b4246b",
+    "x86_64/libssl.so": "b47f3597a0aa8bcbec3fd45e6caf898bdc0a09173c3eb0d74ad9de83c4049a2a",
+    "x86_64/libsunshine.so": "33e3b4c4b24e7abebc9f52d93c776adaaf0bc89856f34f4b9dabeaba4836166b"
+  }
+}

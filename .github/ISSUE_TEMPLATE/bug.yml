@@ -1,0 +1,44 @@
+name: Bug report / 错误报告
+description: Report a reproducible problem; English or Chinese is welcome.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities use SECURITY.md. Redact private network details, keys, pairing files, and screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: MoonCast version
+    validations:
+      required: true
+  - type: textarea
+    id: devices
+    attributes:
+      label: Phone, Android/ROM, receiver and Moonlight version
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings
+      description: Codec, resolution/FPS/bitrate, framing mode, audio/mute, Accessibility/Root.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted diagnostic output (optional)
+      render: text

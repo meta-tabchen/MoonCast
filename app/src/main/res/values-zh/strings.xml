@@ -1,0 +1,112 @@
+<resources>
+    <string name="ui_off" formatted="false">"已关闭"</string>
+    <string name="ui_stopped" formatted="false">"已停止"</string>
+    <string name="ui_starting_again_will_request_screen_sharing_permission" formatted="false">"下次启动会重新申请屏幕共享授权"</string>
+    <string name="ui_phone_moonlight_lan" formatted="false">"手机 → Moonlight · 局域网"</string>
+    <string name="ui_connection" formatted="false">"连接状态"</string>
+    <string name="ui_ready_to_cast" formatted="false">"准备投屏"</string>
+    <string name="ui_start_casting_then_connect_from_moonlight_on_your_ipad_or_tv" formatted="false">"启动后，在 iPad 或电视的 Moonlight 中连接"</string>
+    <string name="ui_phone_lan_ip" formatted="false">"手机局域网 IP"</string>
+    <string name="ui_copy_ip" formatted="false">"复制 IP"</string>
+    <string name="ui_ip_copied" formatted="false">"IP 已复制"</string>
+    <string name="ui_picture" formatted="false">"画面"</string>
+    <string name="ui_choose_how_the_picture_fits_your_screen" formatted="false">"保留清晰度，也照顾屏幕比例"</string>
+    <string name="ui_whole_screen_fit" formatted="false">"整个手机屏幕 · 保留比例"</string>
+    <string name="ui_auto_crop_fit" formatted="false">"自动去黑边 · 保留完整画面"</string>
+    <string name="ui_fill_screen_crop_edges" formatted="false">"视频铺满 · 裁切画面边缘"</string>
+    <string name="ui_video_region_centered_16_9" formatted="false">"视频区域 · 固定中央 16:9"</string>
+    <string name="ui_sound" formatted="false">"声音"</string>
+    <string name="ui_choose_where_playback_audio_is_heard" formatted="false">"手机和接收端，选择在哪里播放"</string>
+    <string name="ui_stream_playback_audio" formatted="false">"同步播放声音"</string>
+    <string name="ui_android_10_source_app_must_allow_capture" formatted="false">"Android 10+ · 应用需允许音频捕获"</string>
+    <string name="ui_mute_phone_locally" formatted="false">"手机本地静音"</string>
+    <string name="ui_only_while_streaming_audio_restore_on_stop" formatted="false">"仅音频投屏时生效 · 停止后恢复"</string>
+    <string name="ui_remote_input" formatted="false">"远程操控"</string>
+    <string name="ui_let_a_paired_receiver_control_this_phone" formatted="false">"允许已配对的接收端操作手机"</string>
+    <string name="ui_enable_remote_input" formatted="false">"开启远程操控"</string>
+    <string name="ui_turn_off_for_viewing_only" formatted="false">"关闭即可只看画面，不处理任何输入"</string>
+    <string name="ui_no_root_accessibility_taps_and_swipes" formatted="false">"非 Root · 无障碍点击与滑动"</string>
+    <string name="ui_root_continuous_touch_and_keyboard" formatted="false">"Root · 持续触摸与键盘"</string>
+    <string name="ui_enable_mooncast_accessibility" formatted="false">"启用 MoonCast 无障碍服务"</string>
+    <string name="ui_connection_and_device_settings_collapsed" formatted="false">"连接设置与设备信息  ⌄"</string>
+    <string name="ui_connection_and_device_settings_expanded" formatted="false">"连接设置与设备信息  ⌃"</string>
+    <string name="ui_host_name" formatted="false">"发射端名称"</string>
+    <string name="ui_prefer_hevc_h_265" formatted="false">"优先使用 HEVC / H.265"</string>
+    <string name="ui_set_resolution_frame_rate_and_bitrate_in_moonlight" formatted="false">"接收端设置分辨率、帧率和码率"</string>
+    <string name="ui_root_screen_capture" formatted="false">"Root 屏幕捕获"</string>
+    <string name="ui_experimental_no_capture_dialog_video_only" formatted="false">"实验功能 · 免录屏确认 · 仅视频"</string>
+    <string name="ui_device_encoders" formatted="false">"设备编码器"</string>
+    <string name="ui_open_visual_test_pattern" formatted="false">"打开画质与延迟测试画面"</string>
+    <string name="ui_diagnostics" formatted="false">"运行日志"</string>
+    <string name="ui_waiting_to_start_pending" formatted="false">"等待启动…"</string>
+    <string name="ui_start_casting" formatted="false">"启动投屏"</string>
+    <string name="ui_stop_casting" formatted="false">"停止投屏"</string>
+    <string name="ui_pair_receiver" formatted="false">"配对接收端"</string>
+    <string name="ui_enter_the_4_digit_pin_shown_in_moonlight" formatted="false">"输入 Moonlight 显示的 4 位 PIN"</string>
+    <string name="ui_pair" formatted="false">"确认配对"</string>
+    <string name="ui_enter_a_4_digit_pin" formatted="false">"请输入 4 位 PIN"</string>
+    <string name="ui_use_the_same_lan_and_official_moonlight_nshare_the_entire_phone_screen" formatted="false">"同一局域网 · 接收端安装官方 Moonlight\n手机允许共享整个屏幕，接收端打开 Desktop。"</string>
+    <string name="ui_show_the_entire_phone_screen_at_its_original_aspect_ratio" formatted="false">"完整手机画面，保留原比例。"</string>
+    <string name="ui_detect_landscape_borders_including_paused_frames_letterboxing_needed_f" formatted="false">"横屏自动识别播放器黑边；暂停画面也能检测。iPad 仍保留视频比例所需的上下黑边。"</string>
+    <string name="ui_fill_the_receiver_screen_some_picture_edges_will_be_cropped" formatted="false">"铺满接收端屏幕，画面边缘会被裁切。"</string>
+    <string name="ui_cast_the_centered_landscape_16_9_region_no_selection_or_border_detecti" formatted="false">"直接投横屏中央 16:9 区域，无需框选，也不依赖黑边检测。"</string>
+    <string name="ui_root_continuous_touch_multi_touch_and_keys_permission_requested_on_sta" formatted="false">"Root：持续触摸、多点与键盘；启动时请求授权"</string>
+    <string name="ui_accessibility_enabled_taps_single_finger_swipes_back_and_home" formatted="false">"无障碍已授权：点击、单指滑动、返回与主页"</string>
+    <string name="ui_enable_accessibility_to_control_other_apps" formatted="false">"先启用无障碍服务，即可控制其他应用"</string>
+    <string name="ui_enable_mooncast_accessibility_first_or_turn_off_remote_input" formatted="false">"请先启用 MoonCast 无障碍服务，或关闭远程操控"</string>
+    <string name="ui_audio_permission_denied_continuing_with_video_only" formatted="false">"未允许音频捕获，将使用视频模式"</string>
+    <string name="ui_screen_sharing_was_not_authorized" formatted="false">"未授权屏幕共享"</string>
+    <string name="ui_starting_pending" formatted="false">"正在启动…"</string>
+    <string name="ui_pin_submitted_check_the_receiver_for_the_pairing_result" formatted="false">"PIN 已提交；配对结果以电视提示为准"</string>
+    <string name="ui_waiting_for_root_connection" formatted="false">"等待 Root 连接"</string>
+    <string name="ui_starting" formatted="false">"正在启动"</string>
+    <string name="ui_picture_mode_updated" formatted="false">"画面模式已更新: "</string>
+    <string name="ui_remote_input_enabled" formatted="false">"远程操控已开启"</string>
+    <string name="ui_remote_input_disabled_releasing_touch_and_keys" formatted="false">"远程操控已关闭，释放触摸与按键"</string>
+    <string name="ui_starting_root_host" formatted="false">"Root 发射端启动中"</string>
+    <string name="ui_starting_screen_capture_host" formatted="false">"非 Root 发射端启动中"</string>
+    <string name="ui_missing_screen_capture_permission_start_again" formatted="false">"缺少录屏授权，请重新启动"</string>
+    <string name="ui_error" formatted="false">"出现错误"</string>
+    <string name="ui_system_ended_screen_sharing" formatted="false">"系统已结束屏幕共享"</string>
+    <string name="ui_no_h_264_hardware_encoder_with_surface_input_found" formatted="false">"未找到支持 Surface 的 H.264 硬编码器"</string>
+    <string name="ui_start_failed" formatted="false">"启动失败: "</string>
+    <string name="ui_health_check_response_too_large" formatted="false">"健康检查响应过大"</string>
+    <string name="ui_waiting_for_receiver" formatted="false">"等待电视连接"</string>
+    <string name="ui_host_ready_add_the_phone_ip_in_moonlight_if_needed" formatted="false">"Host 就绪；Moonlight 可手动添加手机 IP"</string>
+    <string name="ui_host_port_unavailable_check_whether_another_sunshine_host_uses_port_47" formatted="false">"服务器端口不可用，检查是否已有 Sunshine 占用 47989"</string>
+    <string name="ui_lan_discovery" formatted="false">"局域网发现: "</string>
+    <string name="ui_discovery_failed" formatted="false">"自动发现失败 ("</string>
+    <string name="ui_add_the_ip_manually" formatted="false">")，可手动添加 IP"</string>
+    <string name="ui_discovery_unavailable_add_the_ip_manually" formatted="false">"自动发现不可用，可手动添加 IP"</string>
+    <string name="ui_casting_host" formatted="false">"投屏发射端"</string>
+    <string name="ui_mooncast_is_running" formatted="false">"MoonCast 正在运行"</string>
+    <string name="ui_lan_casting_tap_to_open_stop_at_any_time" formatted="false">"局域网投屏 · 点击打开 · 可随时停止"</string>
+    <string name="ui_stop" formatted="false">"停止"</string>
+    <string name="ui_enter_the_receiver_pin" formatted="false">"请输入电视上的 PIN"</string>
+    <string name="ui_receiver_requested_pairing_enter_its_4_digit_pin_on_the_phone" formatted="false">"电视请求配对，请在手机输入 4 位 PIN"</string>
+    <string name="ui_host_identity_loaded" formatted="false">"Host 身份已加载"</string>
+    <string name="ui_only_one_receiver_is_supported_disconnect_the_current_receiver_first" formatted="false">"只允许一个接收端；请先断开当前电视"</string>
+    <string name="ui_screen_capture_permission_expired_start_again" formatted="false">"屏幕授权已失效，请重新启动"</string>
+    <string name="ui_casting" formatted="false">"正在投屏"</string>
+    <string name="ui_video_surface_connected" formatted="false">"视频 Surface 已连接: "</string>
+    <string name="ui_capture_creation_failed" formatted="false">"创建投屏失败: "</string>
+    <string name="ui_audio_capture_interrupted_phone_volume_restored_video_continues" formatted="false">"音频捕获中断，已恢复手机音量；继续视频投屏"</string>
+    <string name="ui_audio_capture_did_not_start" formatted="false">"音频捕获未启动"</string>
+    <string name="ui_phone_media_audio_muted_during_casting_restored_on_stop" formatted="false">"投屏期间手机媒体声音已关闭；停止后恢复"</string>
+    <string name="ui_phone_muting_unavailable" formatted="false">"手机静音不可用: "</string>
+    <string name="ui_playback_audio_opus_source_apps_must_allow_capture" formatted="false">"系统播放音频 → Opus；应用需允许被捕获"</string>
+    <string name="ui_audio_capture_unavailable_video_continues" formatted="false">"音频捕获不可用，继续视频投屏: "</string>
+    <string name="ui_video_only_sound_stays_on_the_phone" formatted="false">"视频模式，声音保留在手机"</string>
+    <string name="ui_receiver_disconnected_next_session_needs_screen_capture_permission" formatted="false">"电视已断开；下次投屏需重新授权"</string>
+    <string name="ui_casting_root" formatted="false">"正在投屏（Root）"</string>
+    <string name="ui_waiting_for_receiver_root" formatted="false">"等待电视连接（Root）"</string>
+    <string name="ui_root_session_ended_waiting_for_reconnection" formatted="false">"Root 会话结束，等待重连"</string>
+    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"恢复手机媒体音量失败，下次打开会重试: "</string>
+    <string name="ui_no_lan_connection" formatted="false">"尚未连接局域网"</string>
+    <string name="ui_aa_text_clarity_0123456789" formatted="false">"Aa 文本清晰度 0123456789"</string>
+    <string name="ui_compare_timers_to_estimate_latency_back_to_exit" formatted="false">"对比计时器可估算延迟 · 返回退出"</string>
+    <string name="ui_ready" formatted="false">"已就绪"</string>
+    <string name="ui_waiting_for_permission_root_connection" formatted="false">"等待授权 / Root 连接"</string>
+    <string name="control_accessibility_label">MoonCast 远程操控</string>
+    <string name="control_accessibility_description">允许已配对的 Moonlight 接收端在投屏时点击和滑动手机，或执行返回、主页操作。仅当应用中的远程操控开关开启时处理输入；关闭或停止投屏后不再接受新的操作。不读取界面文字。</string>
+</resources>

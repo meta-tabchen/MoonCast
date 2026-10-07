@@ -1,0 +1,46 @@
+plugins { id 'com.android.application' }
+def fromSource = providers.gradleProperty('nativeFromSource').isPresent()
+android {
+    namespace 'com.mooncast.host'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        applicationId 'com.mooncast.host'
+        minSdk 26
+        targetSdk 35
+        versionCode 6
+        versionName '0.2.1'
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
+        if (fromSource) {
+            externalNativeBuild { cmake { cppFlags '-std=c++20' } }
+        }
+    }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    buildTypes {
+        release {
+            minifyEnabled false
+            // This first build is explicitly a locally signed preview.
+            signingConfig signingConfigs.debug
+        }
+    }
+    if (fromSource) {
+        ndkVersion '27.0.12077973'
+        sourceSets.main.jniLibs.srcDirs = []
+        externalNativeBuild { cmake { path '../native/sunshine/CMakeLists.txt'; version '3.31.1' } }
+    }
+    packaging { jniLibs { useLegacyPackaging true } }
+    lint { abortOnError true }
+}
+dependencies { implementation 'org.bouncycastle:bcpkix-jdk18on:1.77' }
+if (!fromSource) {
+    tasks.named('preBuild').configure {
+        doFirst {
+            for (abi in ['arm64-v8a', 'armeabi-v7a', 'x86_64']) {
+                if (!file("src/main/jniLibs/${abi}/libsunshine.so").isFile()) {
+                    throw new GradleException('Missing native host core. Run python scripts/prepare_native.py first.')
+                }
+            }
+        }
+    }
+}

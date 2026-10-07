@@ -1,0 +1,15 @@
+.gradle/
+**/build/
+**/.cxx/
+local.properties
+*.jks
+*.keystore
+__pycache__/
+*.pyc
+.idea/
+.env
+.env.*
+*.log
+host-cert.pem
+host-key.pem
+paired-clients.json

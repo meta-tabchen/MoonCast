@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">MoonCast</title><desc id="desc">Your Android phone, on a bigger screen. Android streams over your LAN to an existing Moonlight client. No PC intermediary.</desc>
+  <defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101e39"/><stop offset="1" stop-color="#203961"/></linearGradient><linearGradient id="accent"><stop stop-color="#7aa9ff"/><stop offset="1" stop-color="#80e5d1"/></linearGradient></defs>
+  <rect width="1200" height="430" rx="24" fill="url(#bg)"/>
+  <circle cx="1080" cy="0" r="210" fill="#294577" opacity=".35"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <path d="M69 61a26 26 0 1 0 25 42A25 25 0 0 1 69 61" fill="#8db8ff"/>
+    <text x="119" y="100" fill="#fff" font-size="48" font-weight="700">MoonCast</text>
+    <text x="62" y="151" fill="#d7e6ff" font-size="28">Your Android phone, on a bigger screen.</text>
+    <text x="62" y="186" fill="#a8bddc" font-size="18">LAN screen casting · Existing Moonlight clients · Optional remote input</text>
+    <rect x="65" y="237" width="68" height="110" rx="13" fill="#172747" stroke="#9cc0ff" stroke-width="3"/>
+    <rect x="73" y="250" width="52" height="77" rx="4" fill="#416cb7"/><path d="m82 296 10-17 10 10 12-24" fill="none" stroke="#93e5d6" stroke-width="3"/><rect x="88" y="335" width="22" height="3" rx="1.5" fill="#a4bde2"/>
+    <text x="158" y="275" fill="#fff" font-size="23" font-weight="600">Android phone</text><text x="158" y="305" fill="#a8bddc" font-size="17">MoonCast host</text>
+    <path d="M370 283h227m-17-10 17 10-17 10" fill="none" stroke="url(#accent)" stroke-width="3"/>
+    <text x="431" y="260" fill="#8ddfce" font-size="17">Your LAN</text><text x="413" y="318" fill="#a8bddc" font-size="15">No PC intermediary</text>
+    <rect x="649" y="230" width="168" height="105" rx="9" fill="#172747" stroke="#9cc0ff" stroke-width="3"/><rect x="658" y="239" width="150" height="86" rx="3" fill="#416cb7"/><path d="m688 303 24-34 26 18 35-31" fill="none" stroke="#93e5d6" stroke-width="5"/><path d="M715 347h37m-18-12v12" stroke="#9cc0ff" stroke-width="3"/>
+    <text x="842" y="275" fill="#fff" font-size="23" font-weight="600">Moonlight client</text><text x="842" y="305" fill="#a8bddc" font-size="17">iPad · Android TV · Desktop</text>
+    <text x="65" y="395" fill="#a8bddc" font-size="15">Open source · GPLv3 · Early preview</text>
+  </g>
+</svg>

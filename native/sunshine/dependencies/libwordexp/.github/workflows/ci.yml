@@ -1,0 +1,31 @@
+name: ci workflow
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    # https://docs.github.com/en/free-pro-team@latest/actions/reference/specifications-for-github-hosted-runners#supported-runners-and-hardware-resources
+    strategy:
+      matrix:
+        os: [ubuntu-16.04, ubuntu-18.04, ubuntu-20.04, macos-11.0, macos-10.15]
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - run: export -p
+    
+    - run: brew update
+    
+    - run: brew tap leleliu008/fpliu
+
+    - run: brew install ndk-pkg tree
+
+    - run: ndk-pkg --version
+
+    - run: ndk-pkg update
+
+    - run: ndk-pkg install libwordexp -v

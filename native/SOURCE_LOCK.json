@@ -1,0 +1,20 @@
+{
+  "mirror": "d7eea1b9e44eea38850bffa32ed0623506a2aa9a",
+  "mirrorUrl": "https://github.com/jqssun/android-display-mirror",
+  "sunshineBase": "v2025.122.141614",
+  "dependencies": {
+    "Simple-Web-Server": "546895a93a29062bb178367b46c7afb72da9881e",
+    "libwordexp": "c3da198b6c697065eab39dcb6da1e87802d53f52",
+    "moonlight-common-c": "7b026e77be62175104640e7e722b758df6d3d0d7",
+    "moonlight-common-c/enet": "c7353c059373f8d3fc83d451f8f1a477be3dc94e",
+    "moonlight-common-c/nanors/deps/simde": "595b743dcebc05756244a66dcd78e9d64c07b3b7",
+    "nanors": "19f07b513e924e471cadd141943c1ec4adc8d0e0",
+    "openssl-cmake": "4edd36a8dab5f85a8f92650b5bdf6e0cab13aab8",
+    "opus": "788cc89ce4f2c42025d8c70ec1b4457dc89cd50f"
+  },
+  "externalBuildDownloads": {
+    "boost": "1.86.0",
+    "openssl": "3.5.5"
+  },
+  "notes": "Native core and CMake build are vendored unmodified. MoonCast app code lives in app/src/main/java/com/mooncast/host; io/github/jqssun classes preserve the JNI ABI and forward optional input callbacks."
+}

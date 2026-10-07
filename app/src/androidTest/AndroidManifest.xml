@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation android:name="com.mooncast.host.RenderingInstrumentation" android:targetPackage="com.mooncast.host" android:label="MoonCast GPU rendering checks" />
+</manifest>

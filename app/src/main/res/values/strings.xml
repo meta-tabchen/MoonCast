@@ -1,0 +1,112 @@
+<resources>
+    <string name="ui_off" formatted="false">"Off"</string>
+    <string name="ui_stopped" formatted="false">"Stopped"</string>
+    <string name="ui_starting_again_will_request_screen_sharing_permission" formatted="false">"Starting again will request screen sharing permission."</string>
+    <string name="ui_phone_moonlight_lan" formatted="false">"Phone → Moonlight · LAN"</string>
+    <string name="ui_connection" formatted="false">"Connection"</string>
+    <string name="ui_ready_to_cast" formatted="false">"Ready to cast"</string>
+    <string name="ui_start_casting_then_connect_from_moonlight_on_your_ipad_or_tv" formatted="false">"Start casting, then connect from Moonlight on your iPad or TV."</string>
+    <string name="ui_phone_lan_ip" formatted="false">"Phone LAN IP"</string>
+    <string name="ui_copy_ip" formatted="false">"Copy IP"</string>
+    <string name="ui_ip_copied" formatted="false">"IP copied"</string>
+    <string name="ui_picture" formatted="false">"Picture"</string>
+    <string name="ui_choose_how_the_picture_fits_your_screen" formatted="false">"Choose how the picture fits your screen"</string>
+    <string name="ui_whole_screen_fit" formatted="false">"Whole screen · Fit"</string>
+    <string name="ui_auto_crop_fit" formatted="false">"Auto crop · Fit"</string>
+    <string name="ui_fill_screen_crop_edges" formatted="false">"Fill screen · Crop edges"</string>
+    <string name="ui_video_region_centered_16_9" formatted="false">"Video region · Centered 16:9"</string>
+    <string name="ui_sound" formatted="false">"Sound"</string>
+    <string name="ui_choose_where_playback_audio_is_heard" formatted="false">"Choose where playback audio is heard"</string>
+    <string name="ui_stream_playback_audio" formatted="false">"Stream playback audio"</string>
+    <string name="ui_android_10_source_app_must_allow_capture" formatted="false">"Android 10+ · Source app must allow capture"</string>
+    <string name="ui_mute_phone_locally" formatted="false">"Mute phone locally"</string>
+    <string name="ui_only_while_streaming_audio_restore_on_stop" formatted="false">"Only while streaming audio · Restore on stop"</string>
+    <string name="ui_remote_input" formatted="false">"Remote input"</string>
+    <string name="ui_let_a_paired_receiver_control_this_phone" formatted="false">"Let a paired receiver control this phone"</string>
+    <string name="ui_enable_remote_input" formatted="false">"Enable remote input"</string>
+    <string name="ui_turn_off_for_viewing_only" formatted="false">"Turn off for viewing only"</string>
+    <string name="ui_no_root_accessibility_taps_and_swipes" formatted="false">"No Root · Accessibility taps and swipes"</string>
+    <string name="ui_root_continuous_touch_and_keyboard" formatted="false">"Root · Continuous touch and keyboard"</string>
+    <string name="ui_enable_mooncast_accessibility" formatted="false">"Enable MoonCast Accessibility"</string>
+    <string name="ui_connection_and_device_settings_collapsed" formatted="false">"Connection and device settings  ⌄"</string>
+    <string name="ui_connection_and_device_settings_expanded" formatted="false">"Connection and device settings  ⌃"</string>
+    <string name="ui_host_name" formatted="false">"Host name"</string>
+    <string name="ui_prefer_hevc_h_265" formatted="false">"Prefer HEVC / H.265"</string>
+    <string name="ui_set_resolution_frame_rate_and_bitrate_in_moonlight" formatted="false">"Set resolution, frame rate, and bitrate in Moonlight"</string>
+    <string name="ui_root_screen_capture" formatted="false">"Root screen capture"</string>
+    <string name="ui_experimental_no_capture_dialog_video_only" formatted="false">"Experimental · No capture dialog · Video only"</string>
+    <string name="ui_device_encoders" formatted="false">"Device encoders"</string>
+    <string name="ui_open_visual_test_pattern" formatted="false">"Open visual test pattern"</string>
+    <string name="ui_diagnostics" formatted="false">"Diagnostics"</string>
+    <string name="ui_waiting_to_start_pending" formatted="false">"Waiting to start…"</string>
+    <string name="ui_start_casting" formatted="false">"Start casting"</string>
+    <string name="ui_stop_casting" formatted="false">"Stop casting"</string>
+    <string name="ui_pair_receiver" formatted="false">"Pair receiver"</string>
+    <string name="ui_enter_the_4_digit_pin_shown_in_moonlight" formatted="false">"Enter the 4-digit PIN shown in Moonlight"</string>
+    <string name="ui_pair" formatted="false">"Pair"</string>
+    <string name="ui_enter_a_4_digit_pin" formatted="false">"Enter a 4-digit PIN"</string>
+    <string name="ui_use_the_same_lan_and_official_moonlight_nshare_the_entire_phone_screen" formatted="false">"Use the same LAN and official Moonlight.\nShare the entire phone screen, then open Desktop in Moonlight."</string>
+    <string name="ui_show_the_entire_phone_screen_at_its_original_aspect_ratio" formatted="false">"Show the entire phone screen at its original aspect ratio."</string>
+    <string name="ui_detect_landscape_borders_including_paused_frames_letterboxing_needed_f" formatted="false">"Detect landscape borders, including paused frames. Letterboxing needed for the video aspect ratio remains."</string>
+    <string name="ui_fill_the_receiver_screen_some_picture_edges_will_be_cropped" formatted="false">"Fill the receiver screen. Some picture edges will be cropped."</string>
+    <string name="ui_cast_the_centered_landscape_16_9_region_no_selection_or_border_detecti" formatted="false">"Cast the centered landscape 16:9 region. No selection or border detection needed."</string>
+    <string name="ui_root_continuous_touch_multi_touch_and_keys_permission_requested_on_sta" formatted="false">"Root: continuous touch, multi-touch, and keys; permission requested on start"</string>
+    <string name="ui_accessibility_enabled_taps_single_finger_swipes_back_and_home" formatted="false">"Accessibility enabled: taps, single-finger swipes, Back and Home"</string>
+    <string name="ui_enable_accessibility_to_control_other_apps" formatted="false">"Enable Accessibility to control other apps"</string>
+    <string name="ui_enable_mooncast_accessibility_first_or_turn_off_remote_input" formatted="false">"Enable MoonCast Accessibility first, or turn off remote input"</string>
+    <string name="ui_audio_permission_denied_continuing_with_video_only" formatted="false">"Audio permission denied. Continuing with video only."</string>
+    <string name="ui_screen_sharing_was_not_authorized" formatted="false">"Screen sharing was not authorized"</string>
+    <string name="ui_starting_pending" formatted="false">"Starting…"</string>
+    <string name="ui_pin_submitted_check_the_receiver_for_the_pairing_result" formatted="false">"PIN submitted; check the receiver for the pairing result"</string>
+    <string name="ui_waiting_for_root_connection" formatted="false">"Waiting for Root connection"</string>
+    <string name="ui_starting" formatted="false">"Starting"</string>
+    <string name="ui_picture_mode_updated" formatted="false">"Picture mode updated: "</string>
+    <string name="ui_remote_input_enabled" formatted="false">"Remote input enabled"</string>
+    <string name="ui_remote_input_disabled_releasing_touch_and_keys" formatted="false">"Remote input disabled; releasing touch and keys"</string>
+    <string name="ui_starting_root_host" formatted="false">"Starting Root host"</string>
+    <string name="ui_starting_screen_capture_host" formatted="false">"Starting screen capture host"</string>
+    <string name="ui_missing_screen_capture_permission_start_again" formatted="false">"Missing screen capture permission; start again"</string>
+    <string name="ui_error" formatted="false">"Error"</string>
+    <string name="ui_system_ended_screen_sharing" formatted="false">"System ended screen sharing"</string>
+    <string name="ui_no_h_264_hardware_encoder_with_surface_input_found" formatted="false">"No H.264 hardware encoder with Surface input found"</string>
+    <string name="ui_start_failed" formatted="false">"Start failed: "</string>
+    <string name="ui_health_check_response_too_large" formatted="false">"Health-check response too large"</string>
+    <string name="ui_waiting_for_receiver" formatted="false">"Waiting for receiver"</string>
+    <string name="ui_host_ready_add_the_phone_ip_in_moonlight_if_needed" formatted="false">"Host ready; add the phone IP in Moonlight if needed"</string>
+    <string name="ui_host_port_unavailable_check_whether_another_sunshine_host_uses_port_47" formatted="false">"Host port unavailable; check whether another Sunshine host uses port 47989"</string>
+    <string name="ui_lan_discovery" formatted="false">"LAN discovery: "</string>
+    <string name="ui_discovery_failed" formatted="false">"Discovery failed ("</string>
+    <string name="ui_add_the_ip_manually" formatted="false">"); add the IP manually"</string>
+    <string name="ui_discovery_unavailable_add_the_ip_manually" formatted="false">"Discovery unavailable; add the IP manually"</string>
+    <string name="ui_casting_host" formatted="false">"Casting host"</string>
+    <string name="ui_mooncast_is_running" formatted="false">"MoonCast is running"</string>
+    <string name="ui_lan_casting_tap_to_open_stop_at_any_time" formatted="false">"LAN casting · Tap to open · Stop at any time"</string>
+    <string name="ui_stop" formatted="false">"Stop"</string>
+    <string name="ui_enter_the_receiver_pin" formatted="false">"Enter the receiver PIN"</string>
+    <string name="ui_receiver_requested_pairing_enter_its_4_digit_pin_on_the_phone" formatted="false">"Receiver requested pairing; enter its 4-digit PIN on the phone"</string>
+    <string name="ui_host_identity_loaded" formatted="false">"Host identity loaded"</string>
+    <string name="ui_only_one_receiver_is_supported_disconnect_the_current_receiver_first" formatted="false">"Only one receiver is supported; disconnect the current receiver first"</string>
+    <string name="ui_screen_capture_permission_expired_start_again" formatted="false">"Screen capture permission expired; start again"</string>
+    <string name="ui_casting" formatted="false">"Casting"</string>
+    <string name="ui_video_surface_connected" formatted="false">"Video Surface connected: "</string>
+    <string name="ui_capture_creation_failed" formatted="false">"Capture creation failed: "</string>
+    <string name="ui_audio_capture_interrupted_phone_volume_restored_video_continues" formatted="false">"Audio capture interrupted; phone volume restored, video continues"</string>
+    <string name="ui_audio_capture_did_not_start" formatted="false">"Audio capture did not start"</string>
+    <string name="ui_phone_media_audio_muted_during_casting_restored_on_stop" formatted="false">"Phone media audio muted during casting; restored on stop"</string>
+    <string name="ui_phone_muting_unavailable" formatted="false">"Phone muting unavailable: "</string>
+    <string name="ui_playback_audio_opus_source_apps_must_allow_capture" formatted="false">"Playback audio → Opus; source apps must allow capture"</string>
+    <string name="ui_audio_capture_unavailable_video_continues" formatted="false">"Audio capture unavailable; video continues: "</string>
+    <string name="ui_video_only_sound_stays_on_the_phone" formatted="false">"Video only; sound stays on the phone"</string>
+    <string name="ui_receiver_disconnected_next_session_needs_screen_capture_permission" formatted="false">"Receiver disconnected; next session needs screen capture permission"</string>
+    <string name="ui_casting_root" formatted="false">"Casting (Root)"</string>
+    <string name="ui_waiting_for_receiver_root" formatted="false">"Waiting for receiver (Root)"</string>
+    <string name="ui_root_session_ended_waiting_for_reconnection" formatted="false">"Root session ended; waiting for reconnection"</string>
+    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"Volume restoration failed; retrying on next launch: "</string>
+    <string name="ui_no_lan_connection" formatted="false">"No LAN connection"</string>
+    <string name="ui_aa_text_clarity_0123456789" formatted="false">"Aa Text clarity 0123456789"</string>
+    <string name="ui_compare_timers_to_estimate_latency_back_to_exit" formatted="false">"Compare timers to estimate latency · Back to exit"</string>
+    <string name="ui_ready" formatted="false">"Ready"</string>
+    <string name="ui_waiting_for_permission_root_connection" formatted="false">"Waiting for permission / Root connection"</string>
+    <string name="control_accessibility_label">MoonCast remote input</string>
+    <string name="control_accessibility_description">Allows a paired Moonlight receiver to tap, swipe, or use Back and Home while casting. Only processes input when remote input is enabled in MoonCast. Stops accepting new input when disabled or casting stops. Does not read screen text.</string>
+</resources>
