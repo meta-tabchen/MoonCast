@@ -2,14 +2,14 @@
 
 MoonCast is useful when the sender is an **Android phone** and the receiver already runs **Moonlight**. It is not the only Android Moonlight host: Mirror already provides that capability and supplies this project's native core.
 
-| Question | MoonCast 0.2.2 preview | Mirror | scrcpy | Sunshine |
+| Question | MoonCast 0.3.0 preview | Mirror | scrcpy | Sunshine |
 | --- | --- | --- | --- | --- |
 | Primary sender | Android phone | Android | Android | Desktop host |
 | Receiver | Existing Moonlight client | Moonlight, AirPlay, DisplayLink | Desktop scrcpy app on Windows/macOS/Linux | Moonlight client |
 | PC needed between phone and receiver? | No | No for Moonlight/AirPlay | A desktop runs the standard receiver | Desktop is the sender |
 | Ordinary screen sharing privileges | MediaProjection consent; no Root/ADB | Android display sharing without privileged access | ADB authorization for ordinary mirroring | OS-specific capture permissions |
-| Remote input path | Opt-in Accessibility or experimental Root | Optional Shizuku (ADB/wireless debugging/Root modes) | ADB and supported HID/UHID paths | Desktop input integration |
-| Project emphasis | Phone video framing, playback/local audio choice, two optional input backends | Multi-protocol display sharing and virtual displays | Mature phone-to-desktop mirroring, control, recording | Desktop/game streaming |
+| Remote input path | Opt-in Accessibility, Root or Shizuku | Optional Shizuku (ADB/wireless debugging/Root modes) | ADB and supported HID/UHID paths | Desktop input integration |
+| Project emphasis | Phone video framing, playback/local audio choice, three optional input backends, stable cinema and file sharing | Multi-protocol display sharing and virtual displays | Mature phone-to-desktop mirroring, control, recording | Desktop/game streaming |
 
 Mirror's capabilities above follow its current README, checked on 2026-10-07. MoonCast vendors the older **fixed v0.0.34** native snapshot; it does not inherit every capability in current Mirror. This table compares normal workflows, not every optional mode or third-party receiver.
 
@@ -20,7 +20,7 @@ Mirror's capabilities above follow its current README, checked on 2026-10-07. Mo
 - **Choose Sunshine** when the desktop is what you want to stream.
 - **Choose MoonCast** when you want a focused Android-to-Moonlight sender and are willing to help validate a preview across devices.
 
-For original photos/video files, a compatible direct-file player can avoid screen recapture and re-encoding. MoonCast currently mirrors the screen; it does not implement original-file serving or DLNA media playback.
+For original photos/video files, a compatible direct-file player can avoid screen recapture and re-encoding. MoonCast includes a separate single-file LAN HTTP player. A compatible receiver browser opens the tokenized link and reads original bytes without transcoding; this is not DLNA and does not use Moonlight as its file player.
 
 ## Quality claims
 

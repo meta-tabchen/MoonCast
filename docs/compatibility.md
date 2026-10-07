@@ -11,13 +11,15 @@
 | Accessibility control | User must enable the service; single-finger gestures/navigation only |
 | Root capture/input | Experimental `su` / `app_process` / hidden APIs; ROM-dependent |
 | Network | Trusted LAN, reachable host ports; multicast discovery optional |
-| Concurrent receivers | One active session; multiple paired clients can be remembered, simultaneous streams are not supported |
-| Image formats | Lossy H.264/HEVC SDR; no HDR, AV1, lossless RGB, or original-file playback |
+| Concurrent receivers | One normally; Watch party permits up to three (experimental), input off, common framing/audio packet duration |
+| App capture | Android 14+ system app picker; Shizuku independent display, video-only, apps may refuse |
+| Panel off | Opt-in per session, Root capture or Shizuku; hidden APIs and single physical-panel ambiguity checks |
+| Image formats | Lossy H.264/HEVC SDR; no HDR, AV1, lossless RGB, ; original files use a separate browser HTTP link |
 | Protected content | DRM/secure layers unsupported |
 
 ## Known evidence
 
-One PGP110 phone running Android 15 has been used for installation and basic Android → iPad streaming. The user's latest feedback for 0.2.0 was informally positive. This does not establish compatibility across models or verify every feature. Version 0.2.2 adds localization/presentation changes; streaming and input behavior need regression testing.
+One PGP110 phone running Android 15 has been used for installation and basic Android → iPad streaming. The user's latest feedback for 0.2.0 was informally positive. This does not establish compatibility across models or verify every feature. Version 0.3.0 adds generated-content MuMu tests documented in [feature development](feature-development.md). These do not establish a new phone/receiver combination. MuMu lacks a compatible hardware AVC encoder; full multi-session streaming remains a hardware check.
 
 Android TV, other Moonlight client platforms, long sessions, reconnects, actual audio/muting behavior, and Root/Accessibility input need systematic reports. Please do not label a receiver supported solely because Moonlight is available on it.
 

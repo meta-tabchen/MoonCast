@@ -4,13 +4,13 @@
 
 <p align="center">
   <a href="https://github.com/meta-tabchen/MoonCast/actions/workflows/android.yml"><img src="https://github.com/meta-tabchen/MoonCast/actions/workflows/android.yml/badge.svg" alt="Android CI"></a>
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.2.2"><img src="https://img.shields.io/badge/release-0.2.2%20preview-blue" alt="0.2.2 preview"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-0.3.0%20preview-blue" alt="0.3.0 preview"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.2.2">Download APK</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/comparison.md">Compare alternatives</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0">Download APK</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/comparison.md">Compare alternatives</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
 
 # MoonCast
 
@@ -18,21 +18,25 @@
 
 MoonCast focuses on phone-to-screen casting: keep the whole picture, crop a centered video region, forward playback audio, and optionally control the phone from the receiver. Screen sharing works without root or ADB. Remote input is a separate, opt-in feature.
 
-**Status: early preview.** Basic Android → iPad streaming has been tried on one real phone. Version 0.2.0 received positive informal feedback; cropping, audio muting, and remote input still need broader device validation. The primary interface follows your system language: English by default, Chinese on Chinese systems. English/Chinese documentation is included. Lower-level diagnostics are not fully translated yet.
+**Status: early preview.** Basic Android → iPad streaming has been tried on one real phone. Version 0.2.0 received positive informal feedback; New features have generated-content MuMu tests; multi-receiver streaming and physical phone panel behavior still need real-device validation. See the [per-feature evidence](docs/feature-development.md). The primary interface follows your system language: English by default, Chinese on Chinese systems. English/Chinese documentation is included. Lower-level diagnostics are not fully translated yet.
 
 ## Why try it?
 
 - **Use the Moonlight you already have.** No custom receiver app; PIN pairing and hardware decoding use the existing Moonlight ecosystem.
 - **Cast the video region.** A fixed, centered 16:9 preset avoids manual selection; full-screen, automatic border removal, and fill modes remain available.
 - **Choose where sound plays.** Forward eligible Android playback audio and optionally mute the phone, with volume restoration when the session ends.
-- **Choose how input works.** Watch only, use Accessibility for single-finger taps/swipes, or try Root input injection for continuous touch and basic keyboard input.
+- **Lock the video framing.** Smart cinema acquires stable borders and keeps that crop through player controls and dark scenes; rescan when the content changes.
+- **Remember your receiver.** Separate iPad/TV/computer profiles and Movie/Game/Power saver presets, with live capture, network and thermal statistics.
+- **Choose how input works.** Watch only, use Accessibility gestures, or try Root/Shizuku continuous touch and basic keys. Android 14+ single-app capture and a Shizuku app display are also available.
+- **Play original files.** Select a photo/video/audio file and open its tokenized LAN link in a compatible browser. The bytes are not transcoded; this is a separate receiver workflow.
+- **Share and save the local screen.** Experimental up-to-three receiver fan-out, individual disconnect, and opt-in Root/Shizuku panel-off casting with recovery leases.
 - **Run locally.** No MoonCast account, advertising, or cloud service is required at runtime.
 
 The protocol core comes from [Mirror](https://github.com/jqssun/android-display-mirror)'s Android adaptation of [Sunshine](https://github.com/LizardByte/Sunshine). MoonCast builds a focused Android app around that work. It is an independent project, not an official Moonlight or Sunshine release. See [credits and provenance](THIRD_PARTY_NOTICES.md).
 
 ## Get a picture in five steps
 
-1. Install the [0.2.2 preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.2.2) on an Android 8.0+ phone. It is a **debug-key-signed preview**, not a production-signed release.
+1. Install the [0.3.0 preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0) on an Android 8.0+ phone. It is a **debug-key-signed preview**, not a production-signed release.
 2. Install [official Moonlight](https://moonlight-stream.org/#) on the receiving device. Put both devices on the same trusted LAN.
 3. Tap **Start casting** (Chinese: **启动投屏**) on the phone and approve sharing the **entire screen**.
 4. In Moonlight, add the phone's LAN IP if discovery does not find it. Enter Moonlight's four-digit PIN in MoonCast.
@@ -57,13 +61,16 @@ This is a workflow comparison, not a measured latency or quality ranking. [Detai
 
 | Area | Current implementation | Practical limit |
 | --- | --- | --- |
-| Video | H.264 / HEVC, hardware encoder, SDR | Lossy encoding; no HDR, AV1, or original-file playback |
-| Framing | Whole screen, automatic crop, fill, centered 16:9 | Fixed preset assumes centered landscape video; automatic detection is heuristic |
+| Video | H.264 / HEVC, hardware encoder, SDR | Lossy screen encoding; no HDR or AV1 |
+| Original files | Tokenized LAN browser player; original bytes and seeking | Browser/container/codec support required; separate from Moonlight |
+| Framing | Whole screen, auto crop, fill, centered 16:9, stable smart cinema | Detection remains heuristic; Cinema locks until rescan/resize/mode change |
+| App capture | Android 14+ app picker; Shizuku independent display | App picker has no input mapping; independent display is video-only |
 | Audio | Android 10+ playback capture → Opus | Source apps must permit capture; Root capture is video-only |
 | Local mute | Optional media-volume mute + recovery journal | Real ROM audio behavior needs testing; user volume changes are respected |
 | Accessibility input | Taps, one-finger swipe on release, navigation | No arbitrary keyboard text, held touch, or multi-touch |
-| Root input | Continuous touch, up to ten pointers, basic keys | Experimental hidden APIs and ROM permissions |
-| Sessions | One active receiver | Simultaneous multi-receiver streaming is not implemented |
+| Root/Shizuku input | Continuous touch, up to ten pointers, basic keys | Experimental hidden APIs and explicit privileged authorization |
+| Sessions | One receiver normally; up to three with Watch party | Experimental; encoder/network limits, common framing/audio packet duration, input off |
+| Local display power | Opt-in Root/Shizuku physical panel power with restore/lease | ROM-dependent; phone panel effect and power savings unmeasured |
 
 Root input can be combined with ordinary screen capture. Input defaults off. Root screen capture is a separate experimental option. Protected/DRM surfaces are not supported. See [compatibility](docs/compatibility.md) and [validation](docs/validation.md); no latency, 4K60, thermal, or visual-losslessness benchmark is claimed.
 
@@ -79,7 +86,7 @@ python scripts/run_unit_tests.py
 python scripts/verify_apk.py app/build/outputs/apk/debug/app-debug.apk
 ```
 
-On Windows use `gradlew.bat`. The default build includes pinned native runtimes; their source, licenses, and hashes are in this repository. Native-source rebuilding has a separate toolchain and has **not** been validated for this preview. [Full build guide →](docs/building.md)
+On Windows use `gradlew.bat`. The default build includes pinned native runtimes; their source, licenses, and hashes are in this repository. The small session bridge has a verified three-ABI CI build. Full native-core source rebuilding has a separate toolchain and has **not** been validated for this preview. [Full build guide →](docs/building.md)
 
 ## Help make the next release better
 

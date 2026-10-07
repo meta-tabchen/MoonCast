@@ -28,6 +28,7 @@ Start with 1080p60, H.264 or HEVC, and 30–50 Mbps in Moonlight. Resolution/FPS
 | Auto crop · Fit | A landscape player has near-black outer borders | Heuristic crop; necessary receiver letterboxing remains |
 | Fill screen · Crop edges | Filling the receiver matters more than seeing all edges | Some picture content is cropped |
 | Video region · Centered 16:9 | Landscape video is centered and 16:9 | Deterministic center crop; no manual selection |
+| Smart cinema | Stable landscape border acquisition | Locks after eight consistent samples; holds through controls/dark frames until rescan/resize/mode change |
 
 The fixed preset selects 1920×1080 from a 2412×1080 phone. It does not identify the player or query the original video's bounds. It falls back to the full screen in portrait. A 4:3 receiver cannot display a complete 16:9 video without letterboxing or distortion/cropping.
 
@@ -46,7 +47,8 @@ Root screen capture is currently video-only. Root input can still be paired with
 The switch defaults off. Enable it only if you want the paired receiver to operate the phone.
 
 - **Accessibility**: enable the MoonCast service in Android Settings. Supports taps, single-finger swipes executed on release, Back, Home, and Recents. It does not read window text. No arbitrary keyboard typing, multi-touch, or continuous held touch. A gesture already submitted to Android may finish after disabling.
-- **Root**: grant `su` when starting the input broker. Experimental continuous touch, up to ten pointers, and basic keyboard mapping. Depends on ROM permissions/hidden APIs. No Shizuku integration in this preview.
+- **Root**: grant `su` when starting the input broker. Experimental continuous touch, up to ten pointers, and basic keyboard mapping. Depends on ROM permissions/hidden APIs.
+- **Shizuku**: install/start official Shizuku separately and authorize MoonCast. Continuous touch and basic keys use an owned shell/root helper; no permission is silently enabled.
 
 Start input tests in Whole screen mode; then check cropped/fill coordinates. Black-bar clicks are ignored. Gamepad, wheel, and right-click are not implemented. On iPad try Moonlight's touchpad mode first.
 
@@ -64,3 +66,37 @@ Start input tests in Whole screen mode; then check cropped/fill coordinates. Bla
 | Port in use | Stop another Sunshine/GameStream host on the phone |
 
 **Connection and device settings** contains encoder information, a deterministic visual test pattern, and diagnostics. Lower-level diagnostics may still include Chinese or upstream English messages. Do not post certificates, private keys, pairing records, full screen captures, or private network details.
+
+## Profiles, presets and dashboard
+
+Choose General/iPad/TV/computer before starting; each stores independent app preferences.
+This is manual selection, not client identity detection. Movie/Game/Power saver cap capture
+submissions at 60/120/30 FPS; bitrate and requested resolution/FPS still belong to Moonlight.
+The dashboard shows app-UID outbound traffic, submitted frames, CPU/driver submission time,
+battery temperature and OS thermal state. It does not measure receiver FPS or latency.
+
+## App display and file cinema
+
+Choose Single app on Android 14+ and pick the app in system consent. Input is disabled
+because the source window position is unavailable. Independent app display requires
+Shizuku, then a connected receiver: use Launch app on that display. It sends video only.
+Apps can refuse secondary displays or protected capture.
+
+Original-file cinema selects one media document and shares a tokenized LAN browser link.
+Open that link in a compatible receiver browser, not in Moonlight. File bytes are original;
+codec/container/HDR decoding depends on the browser. Stop sharing revokes the link, and
+selecting another file replaces it. Anyone holding the link can read it while active.
+
+## Watch party and local panel off (experimental)
+
+Enable Watch party before casting to permit up to three receivers. Framing is shared,
+input is off and audio packet duration must match. Different sizes create separate encoders;
+phone hardware/network capacity can limit this. Use the receiver list to disconnect one.
+MuMu GPU fan-out passed; full multi-session encode/transport/decode still needs phone tests.
+
+Local display off is a per-session option requiring Root capture or Shizuku. It starts
+after submitted frames and keeps Android interactive. Restore local display, stop, capture
+error and owner loss attempt restoration. A missing heartbeat expires in 30 seconds.
+Unsupported or ambiguous physical-panel APIs refuse the operation. A forcibly killed
+privileged helper/system failure can defeat software recovery; use the physical power
+button. Phone panel effect, continued playback and battery savings are not measured.

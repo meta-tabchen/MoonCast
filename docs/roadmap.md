@@ -10,6 +10,10 @@ Priorities, not delivery promises. Open an issue before large changes.
 - [x] Optional Accessibility and experimental Root input implementations.
 - [x] English and Chinese primary UI resources and bilingual project documentation.
 
+- [x] Stable smart cinema, receiver profiles, presets and live dashboard.
+- [x] Android 14+ app picker, Shizuku independent app display and input.
+- [x] Experimental Root/Shizuku panel-off option with recovery leases.
+
 Implemented does not mean validated on every device. See [validation](validation.md).
 
 ## Next priorities
@@ -25,7 +29,7 @@ Implemented does not mean validated on every device. See [validation](validation
 
 - [ ] Better player-region selection without user-drawn boxes.
 - [ ] More input paths and richer non-Root interaction where Android permits it.
-- [ ] Multiple concurrent receivers, with encoder/bandwidth limits made explicit.
-- [ ] Original-file photo/video serving as a separate path from screen mirroring.
+- [x] Experimental shared capture for up to three receivers; hardware/network verification outstanding.
+- [x] Original-file media via tokenized LAN browser playback, separate from screen mirroring.
 
 HDR, AV1, protected-content capture, and Internet hosting are not promised for this preview.

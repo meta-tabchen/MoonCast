@@ -79,7 +79,12 @@ public final class MainActivity extends Activity {
         profiles=new ReceiverProfiles(this,getPreferences(0));currentProfile=profiles.selected();
         getWindow().setStatusBarColor(0xfff5f7fb);getWindow().setNavigationBarColor(0xfff5f7fb);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR|View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(false);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);scroll.setClipToPadding(true);scroll.setBackgroundColor(0xfff5f7fb);
+        scroll.setOnApplyWindowInsetsListener((view,insets)->{
+            if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());view.setPadding(bars.left,bars.top,bars.right,bars.bottom);}
+            else view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
+            return insets.consumeSystemWindowInsets();
+        });
         LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(22),dp(20),dp(22),dp(28));page.setBackgroundColor(0xfff5f7fb);scroll.addView(page);setContentView(scroll);
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
         TextView mark=text("↗",30,Color.WHITE);mark.setGravity(Gravity.CENTER);mark.setBackground(background(BLUE,16));heading.addView(mark,new LinearLayout.LayoutParams(dp(52),dp(52)));
@@ -98,8 +103,10 @@ public final class MainActivity extends Activity {
         LinearLayout cinema=card(page);section(cinema,getString(R.string.ui_original_cinema),getString(R.string.ui_original_cinema_hint));
         fileInfo=text(getString(R.string.ui_file_idle),12,MUTED);fileInfo.setTextIsSelectable(true);cinema.addView(fileInfo);
         Button choose=smallButton(getString(R.string.ui_choose_media));choose.setOnClickListener(v->{Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"video/*","audio/*","image/*"});startActivityForResult(pick,DOCUMENT);});cinema.addView(choose);
-        fileCopy=smallButton(getString(R.string.ui_copy_file_link));fileCopy.setEnabled(false);fileCopy.setOnClickListener(v->{getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",fileUrls.split("\n")[0]));toast(getString(R.string.ui_file_link_copied));});cinema.addView(fileCopy);
-        fileStop=smallButton(getString(R.string.ui_stop_file_sharing));fileStop.setEnabled(false);fileStop.setOnClickListener(v->{if(fileRemote!=null)try{fileRemote.send(Message.obtain(null,FileCinemaService.STOP));}catch(RemoteException ignored){}});cinema.addView(fileStop);
+        fileCopy=smallButton(getString(R.string.ui_copy_file_link));fileCopy.setEnabled(false);fileCopy.setOnClickListener(v->{getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",fileUrls.split("\n")[0]));toast(getString(R.string.ui_file_link_copied));});
+        fileStop=smallButton(getString(R.string.ui_stop_file_sharing));fileStop.setEnabled(false);fileStop.setOnClickListener(v->{if(fileRemote!=null)try{fileRemote.send(Message.obtain(null,FileCinemaService.STOP));}catch(RemoteException ignored){}});
+        LinearLayout fileActions=new LinearLayout(this);fileActions.setPadding(0,dp(8),0,0);
+        fileActions.addView(fileCopy,new LinearLayout.LayoutParams(0,-2,1));LinearLayout.LayoutParams fileStopLayout=new LinearLayout.LayoutParams(0,-2,1);fileStopLayout.setMarginStart(dp(8));fileActions.addView(fileStop,fileStopLayout);cinema.addView(fileActions);
 
         LinearLayout devices=card(page);section(devices,getString(R.string.ui_receiver_profile),getString(R.string.ui_receiver_profile_hint));
         profile=spinner(new String[]{getString(R.string.ui_profile_default),"iPad",getString(R.string.ui_profile_tv),getString(R.string.ui_profile_computer)});
@@ -242,7 +249,7 @@ public final class MainActivity extends Activity {
             @Override public View getView(int position,View convert,ViewGroup parent){TextView t=(TextView)super.getView(position,convert,parent);t.setTextColor(INK);t.setTextSize(14);t.setSingleLine(false);t.setMaxLines(3);t.setPadding(dp(10),dp(12),dp(6),dp(12));return t;}
         });return v;
     }
-    private Button smallButton(String label){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(12);b.setTextColor(BLUE);b.setBackground(background(0xffeaf0ff,12));b.setMinHeight(dp(42));b.setMinimumHeight(dp(42));b.setPadding(dp(14),0,dp(14),0);return b;}
+    private Button smallButton(String label){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(12);b.setTextColor(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_enabled},new int[]{}},new int[]{BLUE,MUTED}));b.setStateListAnimator(null);b.setElevation(0);b.setBackground(background(0xffeaf0ff,12));b.setMinHeight(dp(42));b.setMinimumHeight(dp(42));b.setPadding(dp(14),0,dp(14),0);return b;}
     private void requestShizuku(boolean thenStart){
         if(ShizukuInputBackend.authorized()){if(thenStart)begin();return;}
         if(!rikka.shizuku.Shizuku.pingBinder()){toast(getString(R.string.ui_shizuku_hint));Intent manager=getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");if(manager!=null)startActivity(manager);return;}
