@@ -41,7 +41,11 @@ public final class VideoPipeline {
     private final AutoCropTracker tracker=new AutoCropTracker();
     private final CinemaCropTracker cinema=new CinemaCropTracker();
     private boolean haveFrame;
-    private long frames,lastSubmitted,lastProbeLog;
+    private long frames,lastSubmitted,lastProbeLog,lastRendered;
+    private volatile int frameLimit=120;
+    private final FrameStatistics statistics=new FrameStatistics();
+    FrameStatistics.Sample statistics(){return statistics.sample(System.nanoTime());}
+    public void setFrameLimit(int fps){frameLimit=Math.max(15,Math.min(120,fps));}
     private final Runnable probe=new Runnable(){public void run(){
         if(closed)return;
         try{if(haveFrame && autoMode() && sourceW>sourceH && detect())render(System.nanoTime());}
@@ -133,7 +137,8 @@ public final class VideoPipeline {
         if(closed)return;
         try{
             current(home);texture.updateTexImage();texture.getTransformMatrix(transform);
-            haveFrame=true;render(texture.getTimestamp());
+            haveFrame=true;long now=System.nanoTime();
+            if(now-lastRendered>=1_000_000_000L/frameLimit){render(texture.getTimestamp());lastRendered=now;}
             if(++frames==1)events.message("GPU 首帧已送入编码器");
         }catch(Exception e){if(!closed){events.error("GPU 渲染失败: "+e.getMessage());close();}}
     }
@@ -153,6 +158,7 @@ public final class VideoPipeline {
         return changed;
     }
     private void render(long timestamp){
+        long submissionStart=System.nanoTime();
         CropGeometry.Bounds region=mode==CropGeometry.VIDEO_REGION?CropGeometry.videoRegion(sourceW,sourceH):
             (mode==CropGeometry.SCREEN || sourceW<=sourceH?CropGeometry.Bounds.FULL:mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds());
         current(window);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
@@ -162,6 +168,7 @@ public final class VideoPipeline {
         events.geometry(new CropGeometry.Mapping(sourceW,sourceH,screenW,screenH,outW,outH,region,v));
         lastSubmitted=Math.max(timestamp,lastSubmitted+1);
         EGLExt.eglPresentationTimeANDROID(egl,window,lastSubmitted);check(EGL14.eglSwapBuffers(egl,window),"eglSwapBuffers");
+        statistics.submitted(submissionStart,System.nanoTime());
     }
     private void draw(CropGeometry.Bounds b){
         coords.position(0);coords.put(new float[]{b.left(),b.bottom(),b.right(),b.bottom(),b.left(),b.top(),b.right(),b.top()});coords.position(0);vertices.position(0);

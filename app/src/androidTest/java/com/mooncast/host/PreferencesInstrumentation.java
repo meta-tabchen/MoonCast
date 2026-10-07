@@ -1,16 +1,10 @@
 package com.mooncast.host;
 
-import android.app.Instrumentation;
 import android.content.Context;
-import android.os.Bundle;
 
-/** Isolated storage namespace: never overwrites real user's receiver settings. */
-public final class PreferencesInstrumentation extends Instrumentation {
-    @Override public void onCreate(Bundle b){super.onCreate(b);start();}
-    @Override public void onStart(){
-        Bundle result=new Bundle();
-        try{
-            Context target=getTargetContext();
+/** Isolated preference namespace. Called by the single registered instrumentation runner. */
+public final class PreferencesInstrumentation {
+    static void verify(Context target){
             Context isolated=new android.content.ContextWrapper(target){
                 @Override public android.content.SharedPreferences getSharedPreferences(String name,int mode){return super.getSharedPreferences("test-"+name,mode);}
             };
@@ -24,7 +18,5 @@ public final class PreferencesInstrumentation extends Instrumentation {
             if(profiles.selected()!=2 || profiles.settings().getInt("scaleMode",-1)!=0)throw new AssertionError("restart persistence");
             profiles.select(1);if(profiles.settings().getInt("scaleMode",-1)!=4 || profiles.settings().getBoolean("audio",true))throw new AssertionError("profile isolation");
             profiles.select(0);if(profiles.settings().getInt("scaleMode",-1)!=1)throw new AssertionError("original defaults preserved");
-            result.putString("result","PASS: legacy migration, independent receiver settings, selected-profile and restart persistence");finish(-1,result);
-        }catch(Throwable e){result.putString("error",e.toString());finish(0,result);}
     }
 }

@@ -19,6 +19,7 @@ public final class RootDaemon implements SunshineServer.Listener {
     private VirtualDisplay display;
     private VideoPipeline pipeline;
     private int scaleMode=CropGeometry.VIDEO_REGION;
+    private int frameLimit=120;
     private long session;
     private boolean audioPump;
     private RemoteInputController remoteInput;
@@ -26,7 +27,7 @@ public final class RootDaemon implements SunshineServer.Listener {
     public static void main(String[] args) {
         RootDaemon daemon=new RootDaemon();
         try {
-            if (args.length!=7 || android.os.Process.myUid()!=0) throw new IllegalArgumentException("Root daemon requires uid 0 and seven arguments");
+            if (args.length!=8 || android.os.Process.myUid()!=0) throw new IllegalArgumentException("Root daemon requires uid 0 and eight arguments");
             // app_process runs outside an APK process; it needs a system context and a main looper.
             if (Looper.myLooper()==null) Looper.prepareMainLooper();
             daemon.main=new Handler(Looper.getMainLooper());
@@ -46,6 +47,7 @@ public final class RootDaemon implements SunshineServer.Listener {
             SunshineServer.setFileStatePath(args[1]+"/paired-clients.json");
             SunshineServer.setHevcSupported(Boolean.parseBoolean(args[4]));
             daemon.scaleMode=Integer.parseInt(args[5]);
+            daemon.frameLimit=Integer.parseInt(args[7]);
             daemon.control(Boolean.parseBoolean(args[6]));
             new Thread(() -> {
                 try {
@@ -78,6 +80,7 @@ public final class RootDaemon implements SunshineServer.Listener {
                     public void error(String error){event("error",error);}
                     public void geometry(CropGeometry.Mapping value){mapping=value;if(remoteInput!=null)remoteInput.mapping(value);}
                 });
+                pipeline.setFrameLimit(frameLimit);
                 android.util.DisplayMetrics size=VideoPipeline.metrics(context.getSystemService(DisplayManager.class));
                 pipeline.start(size.widthPixels,size.heightPixels,true,(input,width,height)->{
                     VirtualDisplay vd=context.getSystemService(DisplayManager.class).createVirtualDisplay("MoonCastRoot",width,height,context.getResources().getDisplayMetrics().densityDpi,

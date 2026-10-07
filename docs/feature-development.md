@@ -7,7 +7,7 @@ test content on an emulator, not iPad/TV interoperability or phone thermal perfo
 | --- | --- | --- |
 | 1 | Smart cinema: stable border acquisition, lock, rescan, rotation reset | Implemented |
 | 2 | Receiver profiles for framing/audio/input preferences | Implemented |
-| 3 | Live sending/rendering and thermal dashboard; scenario presets | Planned |
+| 3 | Live sending/rendering and thermal dashboard; scenario presets | Implemented |
 | 4 | Single-app capture, independent app display; Shizuku control backend | Planned |
 | 5 | Original-file cinema with a compatible receiver workflow | Planned |
 | 6 | Multiple simultaneous receivers and individual disconnect | Planned |
@@ -38,3 +38,18 @@ is not remembered. Legacy preferences migrate once to General.
 Build/lint and pinned APK checks pass. MuMu Android 15 instrumentation with an isolated
 preference namespace passes migration, per-profile isolation and restart persistence.
 The main activity also launches successfully on that emulator.
+
+## Stage 3
+
+The dashboard reports Android UID outbound Mbps, submitted capture FPS, CPU/driver
+submission time, battery temperature and OS thermal status. These are not receiver
+decode FPS, encoded-video-only bitrate, GPU execution time or end-to-end latency.
+Unsupported counters/temperature show a dash. Root capture runs outside this UID and
+is explicitly excluded from the dashboard. Movie, Game and Power saver presets change
+framing/codec preference and cap capture submissions at 60/120/30 per second; they do
+not silently grant input/audio permission or override Moonlight client configuration.
+
+Portable counter tests pass, including pauses, reset/unsupported counters and Mbps
+units. Build/lint and APK verification pass. The single registered MuMu test runner
+passes the full GPU suite, including an actual capture submission limit, and the
+profile suite. Thermal accuracy and power savings require real hardware measurement.

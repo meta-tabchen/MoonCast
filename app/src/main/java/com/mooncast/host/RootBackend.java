@@ -18,14 +18,14 @@ final class RootBackend {
     private Process process;
     private volatile boolean stopping;
     RootBackend(Context c,Events e) { context=c; events=e; }
-    synchronized void start(String name,boolean hevc,int scaleMode,boolean control) throws Exception {
+    synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit) throws Exception {
         if(stopping) throw new IOException("Root 发射端已停止");
         String endpoint="mooncast-"+UUID.randomUUID();
         server=new LocalServerSocket(endpoint);
         String command="CLASSPATH="+quote(context.getApplicationInfo().sourceDir)
             +" /system/bin/app_process / com.mooncast.host.RootDaemon "
             +quote(endpoint)+" "+quote(context.getFilesDir().getPath())+" "
-            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control;
+            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control+" "+frameLimit;
         process=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
         new Thread(() -> {
             try (BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))) {

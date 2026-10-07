@@ -54,6 +54,9 @@ public final class HostService extends Service implements SunshineServer.Listene
     private String state="", detail="", error="", hostName="MoonCast";
     private boolean started, stopping, pinPending, sendAudio, audioPump, muteLocal;
     private long session;
+    private int frameLimit=120;
+    private boolean rootCapture;
+    private final TrafficRate trafficRate=new TrafficRate();
 
     private void rescanCrop(){if(pipeline!=null)pipeline.rescan();if(root!=null)root.rescan();}
 
@@ -81,7 +84,8 @@ public final class HostService extends Service implements SunshineServer.Listene
         if ("stop".equals(intent.getAction())) { stopHost(); return START_NOT_STICKY; }
         if (started) return START_NOT_STICKY;
         started=true;
-        boolean isRoot=intent.getBooleanExtra("root", false);
+        boolean isRoot=intent.getBooleanExtra("root", false);rootCapture=isRoot;
+        frameLimit=intent.getIntExtra("frameLimit",120);
         controlEnabled=intent.getBooleanExtra("control",false);controlRoot=isRoot || intent.getBooleanExtra("controlRoot",false);
         if(!isRoot){
             RemoteInputController.Backend backend;
@@ -116,7 +120,7 @@ public final class HostService extends Service implements SunshineServer.Listene
                     if (stopping) return;
                     if (isRoot) {
                         root=new RootBackend(this, this::rootEvent);
-                        root.start(hostName,hevc,scaleMode,controlEnabled);
+                        root.start(hostName,hevc,scaleMode,controlEnabled,frameLimit);
                     } else {
                         SunshineServer.listener=this;
                         SunshineServer.setSunshineName(hostName);
@@ -190,6 +194,7 @@ public final class HostService extends Service implements SunshineServer.Listene
                     public void error(String text){HostService.this.error(text);}
                     public void geometry(CropGeometry.Mapping mapping){if(remoteInput!=null)remoteInput.mapping(mapping);}
                 });
+                pipeline.setFrameLimit(frameLimit);
                 android.util.DisplayMetrics size=VideoPipeline.metrics(getSystemService(DisplayManager.class));
                 pipeline.start(size.widthPixels,size.heightPixels,true,(input,captureW,captureH)->{
                     if(stopping)return null;
@@ -280,7 +285,19 @@ public final class HostService extends Service implements SunshineServer.Listene
         Bundle b=new Bundle(); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
         b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
         b.putBoolean("control",remoteInput!=null?remoteInput.enabled():controlEnabled);
+        b.putString("metrics",metrics());
         b.putString("controlStatus",remoteInput!=null?remoteInput.status(this):!controlEnabled?getString(R.string.ui_off):rootControlStatus);return b;
+    }
+    private String metrics(){
+        if(rootCapture)return getString(R.string.ui_dashboard_root_unavailable);
+        double mbps=trafficRate.sample(android.net.TrafficStats.getUidTxBytes(android.os.Process.myUid()),SystemClock.elapsedRealtime());
+        FrameStatistics.Sample stats=pipeline==null?new FrameStatistics.Sample(0,0,0):pipeline.statistics();
+        Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        int temp=battery==null?0:battery.getIntExtra(BatteryManager.EXTRA_TEMPERATURE,0);
+        String rate=mbps<0?"—":String.format(java.util.Locale.getDefault(),"%.1f",mbps);
+        String temperature=temp<=0?"—":String.format(java.util.Locale.getDefault(),"%.1f",temp/10d);
+        int thermal=Build.VERSION.SDK_INT>=29?getSystemService(PowerManager.class).getCurrentThermalStatus():-1;
+        return getString(R.string.ui_dashboard_values,rate,stats.fps(),stats.submissionMs(),temperature,thermal<0?"—":Integer.toString(thermal));
     }
     static String addresses(Context context) {
         ArrayList<String> result=new ArrayList<>();

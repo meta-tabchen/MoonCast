@@ -118,4 +118,18 @@
     <string name="ui_profile_default">通用</string>
     <string name="ui_profile_tv">电视</string>
     <string name="ui_profile_computer">电脑</string>
+    <string name="ui_dashboard">实时仪表盘</string>
+    <string name="ui_dashboard_hint">整款应用的上行流量和捕获画面提交帧率。提交耗时含 CPU/驱动等待，不是端到端延迟。温控等级为 Android 的 0–6 级。</string>
+    <string name="ui_dashboard_idle">等待视频连接…</string>
+    <string name="ui_dashboard_root_unavailable">Root 捕获在独立特权进程中，此处暂不提供统计。</string>
+    <string name="ui_dashboard_values">上行：%1$s Mbps · 捕获：%2$.1f FPS
+提交：%3$.2f ms · 电池：%4$s °C · 温控：%5$s</string>
+    <string name="ui_scenario_custom">自定义</string>
+    <string name="ui_scenario_movie">电影</string>
+    <string name="ui_scenario_game">游戏</string>
+    <string name="ui_scenario_eco">省电</string>
+    <string name="ui_scenario_custom_hint">保留已有偏好，每秒最多提交 120 帧；接收端帧率在 Moonlight 中配置。</string>
+    <string name="ui_scenario_movie_hint">智能影院与 HEVC 偏好，每秒最多提交 60 帧。建议 Moonlight：1080p60、HEVC、30–50 Mbps。声音与控制仍由你选择。</string>
+    <string name="ui_scenario_game_hint">完整手机画面，每秒最多提交 120 帧。建议 Moonlight：1080p60、20–40 Mbps；需要控制时单独开启。</string>
+    <string name="ui_scenario_eco_hint">完整手机画面，每秒最多提交 30 帧。建议 Moonlight：720p30、8–15 Mbps；实际耗电取决于设备。</string>
 </resources>

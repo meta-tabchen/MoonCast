@@ -118,4 +118,18 @@
     <string name="ui_profile_default">General</string>
     <string name="ui_profile_tv">TV</string>
     <string name="ui_profile_computer">Computer</string>
+    <string name="ui_dashboard">Live dashboard</string>
+    <string name="ui_dashboard_hint">Whole-app outbound traffic and submitted capture frames. Submission time includes CPU/driver waiting; it is not end-to-end latency. Thermal level: Android 0–6.</string>
+    <string name="ui_dashboard_idle">Waiting for a stream…</string>
+    <string name="ui_dashboard_root_unavailable">Privileged capture metrics are not available in this host process.</string>
+    <string name="ui_dashboard_values">Outbound: %1$s Mbps · Capture: %2$.1f FPS
+Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
+    <string name="ui_scenario_custom">Custom</string>
+    <string name="ui_scenario_movie">Movie</string>
+    <string name="ui_scenario_game">Game</string>
+    <string name="ui_scenario_eco">Power saver</string>
+    <string name="ui_scenario_custom_hint">Keep your preferences. Up to 120 capture submissions/s; receiver FPS is configured in Moonlight.</string>
+    <string name="ui_scenario_movie_hint">Smart cinema and HEVC preference. Capture capped at 60 submissions/s. Suggested Moonlight: 1080p60, HEVC, 30–50 Mbps. Sound and input remain your choice.</string>
+    <string name="ui_scenario_game_hint">Whole screen, up to 120 capture submissions/s. Suggested Moonlight: 1080p60, 20–40 Mbps. Enable input separately if needed.</string>
+    <string name="ui_scenario_eco_hint">Whole screen, at most 30 capture submissions/s. Suggested Moonlight: 720p30, 8–15 Mbps. Actual power use depends on the device.</string>
 </resources>

@@ -13,10 +13,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Hardware GL integration check using generated video bars, never the user's screen. */
 public final class RenderingInstrumentation extends Instrumentation {
-    @Override public void onCreate(Bundle b){super.onCreate(b);start();}
+    private String suite;
+    @Override public void onCreate(Bundle b){super.onCreate(b);suite=b==null?"all":b.getString("suite","all");start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
         try{
+            if(suite.equals("profiles")){PreferencesInstrumentation.verify(getTargetContext());result.putString("result","PASS: legacy migration, independent receiver settings, selected-profile and restart persistence");finish(-1,result);return;}
             checkCase(CropGeometry.SCREEN,"screen",false);
             checkCase(CropGeometry.VIDEO_FIT,"video-fit",false);
             checkCase(CropGeometry.VIDEO_FILL,"video-fill",false);
@@ -24,6 +26,7 @@ public final class RenderingInstrumentation extends Instrumentation {
             checkCase(CropGeometry.VIDEO_FIT,"paused",false);
             checkCase(CropGeometry.VIDEO_FIT,"portrait",true);
             checkCase(CropGeometry.CINEMA,"cinema-controls",false);
+            checkCase(CropGeometry.SCREEN,"frame-limit",false);
             result.putString("result","PASS: actual SurfaceTexture/EGL output, auto crop, paused single-frame crop, fixed 16:9, fit/fill, orientation, portrait resize, cinema lock through opaque controls");
             finish(android.app.Activity.RESULT_OK,result);
         }catch(Throwable e){result.putString("error",e.toString());e.printStackTrace();finish(android.app.Activity.RESULT_CANCELED,result);}
@@ -35,6 +38,7 @@ public final class RenderingInstrumentation extends Instrumentation {
             public void message(String message){android.util.Log.i("MoonCastGpuTest",label+": "+message);}
             public void error(String message){failure.set(message);ready.countDown();}
         });
+        if(label.equals("frame-limit"))pipeline.setFrameLimit(15);
         pipeline.start(2400,1080,false,(surface,w,h)->{source.set(surface);ready.countDown();return null;});
         try{
             if(!ready.await(5,TimeUnit.SECONDS) || source.get()==null)throw new AssertionError("GL setup: "+failure.get());
@@ -60,6 +64,7 @@ public final class RenderingInstrumentation extends Instrumentation {
                     Thread.sleep(55);Image next=reader.acquireLatestImage();if(next!=null){if(last!=null)last.close();last=next;}
                 }
             }
+            if(label.equals("frame-limit")){var stats=pipeline.statistics();if(stats.fps()<=0 || stats.fps()>16)throw new AssertionError("capture submission limit: "+stats);}
             if(last==null)throw new AssertionError("No GPU output");
             try{
                 boolean leftBlack=black(last,50,300),topBlack=black(last,400,20),centerBlack=black(last,400,300);
