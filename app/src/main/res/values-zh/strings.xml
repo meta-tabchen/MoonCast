@@ -146,4 +146,14 @@
     <string name="ui_shizuku_hint">请先安装并启动 Shizuku，再授权 MoonCast。独立应用显示需要此连接。</string>
     <string name="ui_shizuku_authorized">Shizuku 已授权，支持持续触摸与基本键盘。</string>
     <string name="ui_shizuku_denied">Shizuku 授权被拒绝，可改用其他模式或稍后授权。</string>
+    <string name="ui_original_cinema">原文件影院</string>
+    <string name="ui_original_cinema_hint">局域网直接传输选中的视频、照片或音频，在接收端浏览器打开链接。无转码，格式支持取决于浏览器；持有链接的人可读取该文件，停止分享后失效。</string>
+    <string name="ui_file_idle">选择文件后开始分享。</string>
+    <string name="ui_choose_media">选择视频、照片或音频</string>
+    <string name="ui_copy_file_link">复制播放链接</string>
+    <string name="ui_stop_file_sharing">停止文件分享</string>
+    <string name="ui_file_link_copied">已复制播放链接，请在同一局域网的设备上打开。</string>
+    <string name="ui_file_preparing">正在准备链接；若未出现地址，请连接局域网。</string>
+    <string name="ui_file_sharing_active">正在局域网分享选中的文件，停止后链接失效。</string>
+    <string name="ui_file_open_failed">无法打开选中的文件，请重新选择本地媒体文件。</string>
 </resources>

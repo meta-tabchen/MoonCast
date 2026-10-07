@@ -14,7 +14,19 @@ import android.view.*;
 import android.widget.*;
 
 public final class MainActivity extends Activity {
-    private static final int PROJECTION=50, AUDIO=51;
+    private static final int PROJECTION=50, AUDIO=51, DOCUMENT=52;
+    private Messenger fileRemote;
+    private boolean fileBound;
+    private TextView fileInfo;
+    private Button fileStop,fileCopy;
+    private String fileUrls="";
+    private final Messenger fileResponse=new Messenger(new Handler(Looper.getMainLooper(),msg->{
+        if(msg.what==FileCinemaService.STATUS){Bundle b=msg.getData();if(b.getBoolean("stopped")){if(fileBound){unbindService(this.fileConnection);fileBound=false;fileRemote=null;}fileUrls="";fileInfo.setText(R.string.ui_file_idle);fileCopy.setEnabled(false);fileStop.setEnabled(false);return true;}fileUrls=b.getString("urls","");String failure=b.getString("error","");fileInfo.setText(!failure.isEmpty()?failure:b.getString("name","")+"\n"+(fileUrls.isEmpty()?getString(R.string.ui_file_preparing):fileUrls));fileCopy.setEnabled(!fileUrls.isEmpty());fileStop.setEnabled(true);}return true;
+    }));
+    private final ServiceConnection fileConnection=new ServiceConnection(){
+        public void onServiceConnected(ComponentName n,IBinder b){fileRemote=new Messenger(b);queryFile();}
+        public void onServiceDisconnected(ComponentName n){fileRemote=null;if(fileBound){unbindService(this);fileBound=false;}fileUrls="";fileInfo.setText(R.string.ui_file_idle);fileCopy.setEnabled(false);fileStop.setEnabled(false);}
+    };
     private final Handler main=new Handler(Looper.getMainLooper());
     private Messenger remote;
     private boolean bound, resumed;
@@ -55,7 +67,7 @@ public final class MainActivity extends Activity {
         }
     };
     private final Runnable poll=new Runnable() {
-        @Override public void run() { if (!resumed) return; if (remote==null) bindExisting(); else query(); ip.setText(HostService.addresses(MainActivity.this)); main.postDelayed(this,1500); }
+        @Override public void run() { if (!resumed) return; if (remote==null) bindExisting(); else query();if(!fileBound)fileBound=bindService(new Intent(MainActivity.this,FileCinemaService.class),fileConnection,0);else queryFile(); ip.setText(HostService.addresses(MainActivity.this)); main.postDelayed(this,1500); }
     };
     private static final int INK=0xff172338, MUTED=0xff778396, BLUE=0xff3868ed;
     @Override public void onCreate(Bundle b) {
@@ -79,6 +91,12 @@ public final class MainActivity extends Activity {
         LinearLayout ipLabel=new LinearLayout(this);ipLabel.setOrientation(LinearLayout.VERTICAL);ipLabel.addView(text(getString(R.string.ui_phone_lan_ip),11,MUTED));
         ip=text(HostService.addresses(MainActivity.this),18,INK);ip.setTypeface(Typeface.MONOSPACE);ip.setTextIsSelectable(true);ipLabel.addView(ip);address.addView(ipLabel,new LinearLayout.LayoutParams(0,-2,1));
         Button copy=smallButton(getString(R.string.ui_copy_ip));copy.setOnClickListener(v->{android.content.ClipboardManager clipboard=getSystemService(android.content.ClipboardManager.class);clipboard.setPrimaryClip(ClipData.newPlainText("MoonCast IP",HostService.addresses(MainActivity.this)));toast(getString(R.string.ui_ip_copied));});address.addView(copy);hero.addView(address);
+
+        LinearLayout cinema=card(page);section(cinema,getString(R.string.ui_original_cinema),getString(R.string.ui_original_cinema_hint));
+        fileInfo=text(getString(R.string.ui_file_idle),12,MUTED);fileInfo.setTextIsSelectable(true);cinema.addView(fileInfo);
+        Button choose=smallButton(getString(R.string.ui_choose_media));choose.setOnClickListener(v->{Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"video/*","audio/*","image/*"});startActivityForResult(pick,DOCUMENT);});cinema.addView(choose);
+        fileCopy=smallButton(getString(R.string.ui_copy_file_link));fileCopy.setEnabled(false);fileCopy.setOnClickListener(v->{getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",fileUrls.split("\n")[0]));toast(getString(R.string.ui_file_link_copied));});cinema.addView(fileCopy);
+        fileStop=smallButton(getString(R.string.ui_stop_file_sharing));fileStop.setEnabled(false);fileStop.setOnClickListener(v->{if(fileRemote!=null)try{fileRemote.send(Message.obtain(null,FileCinemaService.STOP));}catch(RemoteException ignored){}});cinema.addView(fileStop);
 
         LinearLayout devices=card(page);section(devices,getString(R.string.ui_receiver_profile),getString(R.string.ui_receiver_profile_hint));
         profile=spinner(new String[]{getString(R.string.ui_profile_default),"iPad",getString(R.string.ui_profile_tv),getString(R.string.ui_profile_computer)});
@@ -245,6 +263,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
         super.onActivityResult(request,result,data);
+        if(request==DOCUMENT && result==RESULT_OK && data!=null && data.getData()!=null){startForegroundService(new Intent(this,FileCinemaService.class).setData(data.getData()).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION));main.postDelayed(()->{if(resumed && !fileBound)fileBound=bindService(new Intent(this,FileCinemaService.class),fileConnection,0);},300);}
         if(request==PROJECTION) { if(result==RESULT_OK && data!=null) launch(data); else toast(getString(R.string.ui_screen_sharing_was_not_authorized)); }
     }
     private void launch(Intent grant) {
@@ -264,7 +283,8 @@ public final class MainActivity extends Activity {
     }
     private void running(boolean yes) { profile.setEnabled(!yes);scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}
-    @Override protected void onPause(){resumed=false;saveProfile();main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}super.onPause();}
+    private void queryFile(){if(fileRemote==null)return;try{Message m=Message.obtain(null,FileCinemaService.STATUS);m.replyTo=fileResponse;fileRemote.send(m);}catch(RemoteException ignored){}}
+    @Override protected void onPause(){resumed=false;saveProfile();main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}if(fileBound){unbindService(this.fileConnection);fileBound=false;fileRemote=null;}super.onPause();}
     @Override protected void onDestroy(){rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);super.onDestroy();}
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String value,int sp,int color){TextView v=new TextView(this);v.setText(value);v.setTextSize(sp);v.setTextColor(color);v.setPadding(0,dp(5),0,dp(5));return v;}

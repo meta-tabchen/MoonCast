@@ -21,6 +21,7 @@ public final class RenderingInstrumentation extends Instrumentation {
             if(suite.equals("profiles")){PreferencesInstrumentation.verify(getTargetContext());result.putString("result","PASS: legacy migration, independent receiver settings, selected-profile and restart persistence");finish(-1,result);return;}
             if(suite.equals("app-display")){AppDisplayChecks.verify(this);result.putString("result","PASS: independent VirtualDisplay, generated app launch/pixels, Shizuku touch/key/cancel routing, display release");finish(-1,result);return;}
             if(suite.equals("root-input")){RootInputChecks.verify(this);result.putString("result","PASS: root input broker, real touch/key/cancel events and cleanup");finish(-1,result);return;}
+            if(suite.equals("file-cinema")){FileCinemaChecks.verify(this);result.putString("result","PASS: SAF generated media, background service, exact HTTP bytes/range and stop revocation");finish(-1,result);return;}
             checkCase(CropGeometry.SCREEN,"screen",false);
             checkCase(CropGeometry.VIDEO_FIT,"video-fit",false);
             checkCase(CropGeometry.VIDEO_FILL,"video-fill",false);

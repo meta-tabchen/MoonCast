@@ -146,4 +146,14 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_shizuku_hint">Install and start Shizuku, then authorize MoonCast. Independent app displays require this connection.</string>
     <string name="ui_shizuku_authorized">Shizuku authorized; continuous touch and basic keyboard input.</string>
     <string name="ui_shizuku_denied">Shizuku permission denied. Choose another mode or authorize it later.</string>
+    <string name="ui_original_cinema">Original-file cinema</string>
+    <string name="ui_original_cinema_hint">Send a selected video, photo or audio file directly over LAN. Open the link in a receiver browser. No transcoding; browser codec support applies. Anyone holding this link can read the selected file until you stop sharing.</string>
+    <string name="ui_file_idle">Choose a file to start sharing.</string>
+    <string name="ui_choose_media">Choose video, photo or audio</string>
+    <string name="ui_copy_file_link">Copy playback link</string>
+    <string name="ui_stop_file_sharing">Stop file sharing</string>
+    <string name="ui_file_link_copied">Playback link copied. Open it on a device on the same LAN.</string>
+    <string name="ui_file_preparing">Preparing link; connect to a LAN if no address appears.</string>
+    <string name="ui_file_sharing_active">Sharing your selected file over LAN. Stop to revoke the link.</string>
+    <string name="ui_file_open_failed">Cannot open the selected file. Choose a local media document again.</string>
 </resources>

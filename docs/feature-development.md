@@ -9,7 +9,7 @@ test content on an emulator, not iPad/TV interoperability or phone thermal perfo
 | 2 | Receiver profiles for framing/audio/input preferences | Implemented |
 | 3 | Live sending/rendering and thermal dashboard; scenario presets | Implemented |
 | 4 | Single-app capture, independent app display; Shizuku control backend | Implemented |
-| 5 | Original-file cinema with a compatible receiver workflow | Planned |
+| 5 | Original-file cinema with a compatible receiver workflow | Implemented |
 | 6 | Multiple simultaneous receivers and individual disconnect | Planned |
 | 7 | Experimental privileged display-off casting with recovery | Planned |
 
@@ -71,3 +71,24 @@ granting MoonCast permission in MuMu's existing Superuser settings. SDK and Mana
 separate: the test installed official Shizuku Manager 13.6.0; it is not redistributed.
 Build/lint, portable tests and APK payload checks pass. Single-app consent with an actual
 Moonlight client and arbitrary third-party app compatibility remain device checks.
+
+## Stage 5
+
+Original-file cinema selects a single video, image or audio document with the system
+file picker, then offers a tokenized LAN HTTP link with a minimal browser player.
+The selected file's bytes are streamed without transcoding. GET/HEAD and single byte
+ranges support compatible browser seeking. Unknown-length providers stream to EOF
+without range support. Moonlight remains the screen receiver; it does not play this
+file link. Receiver browser/container/codec support and decoded color/HDR rendering
+are separate from original-byte transmission. This does not extract DRM video.
+
+The independent file-sharing service has its own stop notification. Replacing the
+file closes the old server and changes its token. Stopping closes client sockets and
+revokes the link, including while the UI remains bound. Anyone holding an active link
+can read the selected file; use a trusted LAN. No broad storage permission is requested.
+
+Portable live-socket tests pass original bytes, seek/suffix, HEAD, token/path rejection,
+invalid ranges, HTML escaping, unknown length and shutdown. MuMu Android 15 passes
+generated SAF media, foreground service startup, exact HTTP bytes/ranges and immediate
+stop revocation. Build/lint and APK checks pass. Browser playback on actual iPad/TV
+and provider-specific seeking remain manual compatibility checks.
