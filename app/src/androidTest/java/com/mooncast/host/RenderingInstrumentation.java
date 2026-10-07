@@ -22,6 +22,8 @@ public final class RenderingInstrumentation extends Instrumentation {
             if(suite.equals("app-display")){AppDisplayChecks.verify(this);result.putString("result","PASS: independent VirtualDisplay, generated app launch/pixels, Shizuku touch/key/cancel routing, display release");finish(-1,result);return;}
             if(suite.equals("root-input")){RootInputChecks.verify(this);result.putString("result","PASS: root input broker, real touch/key/cancel events and cleanup");finish(-1,result);return;}
             if(suite.equals("file-cinema")){FileCinemaChecks.verify(this);result.putString("result","PASS: SAF generated media, background service, exact HTTP bytes/range and stop revocation");finish(-1,result);return;}
+            if(suite.equals("multi-output")){MultiOutputChecks.verify(this);result.putString("result","PASS: single capture, simultaneous GPU outputs, independent detach/add, survivor frames, native session bridge and inactive-handle gate");finish(-1,result);return;}
+            if(suite.equals("native-stream")){NativeStreamChecks.verify(this);result.putString("result","PASS: two real Moonlight-core sessions, MediaCodec encode/transport/client decode and individual native disconnect with survivor frames");finish(-1,result);return;}
             checkCase(CropGeometry.SCREEN,"screen",false);
             checkCase(CropGeometry.VIDEO_FIT,"video-fit",false);
             checkCase(CropGeometry.VIDEO_FILL,"video-fill",false);

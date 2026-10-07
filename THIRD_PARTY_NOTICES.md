@@ -17,6 +17,12 @@ Sources: https://github.com/jqssun/android-display-mirror, https://github.com/Li
 
 The Android client uses `dev.rikka.shizuku:api` and `provider` version 13.1.5, under the MIT license. See https://github.com/RikkaApps/Shizuku-API. Shizuku Manager is a separately installed application; its APK is not redistributed by MoonCast.
 
+Optional loopback tests download Moonlight Android 12.2's GPLv3 client core from its
+official release, with fixed APK/library SHA-256 values. Corresponding source is at
+https://github.com/moonlight-stream/moonlight-android/tree/v12.2. This test dependency
+is excluded from Git, corresponding release archives, and release APKs. Debug-only
+Java adapters run it in two isolated processes; they are not the Moonlight UI.
+
 MIT License
 
 Copyright (c) 2021 RikkaW

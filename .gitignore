@@ -13,3 +13,4 @@ __pycache__/
 host-cert.pem
 host-key.pem
 paired-clients.json
+app/src/debug/jniLibs/

@@ -10,7 +10,7 @@ test content on an emulator, not iPad/TV interoperability or phone thermal perfo
 | 3 | Live sending/rendering and thermal dashboard; scenario presets | Implemented |
 | 4 | Single-app capture, independent app display; Shizuku control backend | Implemented |
 | 5 | Original-file cinema with a compatible receiver workflow | Implemented |
-| 6 | Multiple simultaneous receivers and individual disconnect | Planned |
+| 6 | Multiple simultaneous receivers and individual disconnect | Implemented (experimental) |
 | 7 | Experimental privileged display-off casting with recovery | Planned |
 
 ## Stage 1
@@ -92,3 +92,24 @@ invalid ranges, HTML escaping, unknown length and shutdown. MuMu Android 15 pass
 generated SAF media, foreground service startup, exact HTTP bytes/ranges and immediate
 stop revocation. Build/lint and APK checks pass. Browser playback on actual iPad/TV
 and provider-specific seeking remain manual compatibility checks.
+
+## Stage 6
+
+Watch party permits up to three receivers sharing one capture texture and common framing.
+Each output has its own size and encoder Surface. The receiver list can disconnect one
+session through a separately compiled, pinned JNI bridge to the existing native stop
+export. Callbacks register/unregister live handles before forwarding to Java, and the
+bridge rejects inactive handles. EGL outputs detach before the native encoder releases
+its Surface. All receivers must request the same audio packet duration. Input is disabled
+in this mode because native key callbacks do not identify their receiver.
+
+MuMu Android 15 passes single-capture GPU fan-out at different sizes, independent output
+removal/addition and continuing survivor frames, plus native bridge loading and inactive
+handle rejection. The complete existing GPU suite still passes. A real Moonlight-core
+loopback harness is included as an optional debug-only fixture. TLS launch reaches the
+host, but MuMu has no hardware AVC encoder and its software OMX encoder rejects the
+native configuration (-61). Therefore multi-session encode/transport/decode, individual
+native disconnect, shared audio and real receiver interoperability remain device checks.
+No emulator encoding performance is claimed. Host startup also fixes Shizuku binder
+handoff to non-provider processes. The JNI bridge builds in CI for all three ABIs and
+its binaries/source/build recipe are hash-pinned separately from the upstream core.

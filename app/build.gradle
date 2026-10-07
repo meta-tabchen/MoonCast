@@ -30,7 +30,7 @@ android {
         sourceSets.main.jniLibs.srcDirs = []
         externalNativeBuild { cmake { path '../native/sunshine/CMakeLists.txt'; version '3.31.1' } }
     }
-    packaging { jniLibs { useLegacyPackaging true } }
+    packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/libmooncast_sessions.so'] } }
     lint { abortOnError true }
 }
 dependencies {

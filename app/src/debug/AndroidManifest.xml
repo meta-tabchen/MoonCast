@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- Repeat types for AGP 8.7's source-manifest lint inspection. -->
+        <service android:name=".HostService" android:foregroundServiceType="mediaProjection|connectedDevice" tools:replace="android:foregroundServiceType" />
+        <service android:name=".FileCinemaService" android:foregroundServiceType="connectedDevice" tools:replace="android:foregroundServiceType" />
+        <service android:name=".testclient.ClientOneService" android:process=":client_test_one" android:exported="false" />
+        <service android:name=".testclient.ClientTwoService" android:process=":client_test_two" android:exported="false" />
+    </application>
+</manifest>

@@ -1,0 +1,16 @@
+{
+  "source": "native/sessions/session_bridge.cpp",
+  "sourceSha256": "fb2403ad8b6e62aed5b2adfbcc8090f30578a304fcb06afe4fae6fb4a7d0df87",
+  "ndk": "27.0.12077973",
+  "api": 26,
+  "toolchainHost": "linux-x86_64",
+  "commandSource": "scripts/build_session_bridge.py",
+  "commandSourceSha256": "afd79225f78131cd7c6ed6e4a5d7455bc30da408a054dfc03bb0a386c373e151",
+  "libraries": {
+    "arm64-v8a/libmooncast_sessions.so": "bac2c01f475c9b3f1d7550330451fbb8974ec989fcdce36a0a30010aa3ad3b38",
+    "armeabi-v7a/libmooncast_sessions.so": "2d24faaac9364bed111e3e22b9ec0a06f2c7c8bcb3e4d87aa68768c512b430a6",
+    "x86_64/libmooncast_sessions.so": "52337a992a77ba78c561ed5f671e827354e6c8563cefe3451a41dbe713f3d7cc"
+  },
+  "buildRun": "https://github.com/meta-tabchen/MoonCast/actions/runs/37642919585",
+  "sourceGitCommit": "c97acd83cd04a057301579495f748dd5a9c2697f"
+}

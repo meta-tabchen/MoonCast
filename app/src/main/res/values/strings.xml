@@ -156,4 +156,11 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_file_preparing">Preparing link; connect to a LAN if no address appears.</string>
     <string name="ui_file_sharing_active">Sharing your selected file over LAN. Stop to revoke the link.</string>
     <string name="ui_file_open_failed">Cannot open the selected file. Choose a local media document again.</string>
+    <string name="ui_watch_party">Watch party · up to 3 receivers</string>
+    <string name="ui_watch_party_hint">Experimental. Separate hardware encoder for each receiver; phone capacity varies. All receivers share framing. Input is disabled in this mode. Use the same audio packet settings in Moonlight.</string>
+    <string name="ui_receiver_rejected">Receiver rejected: the configured limit was reached or audio packet settings differ. Existing receivers continue.</string>
+    <string name="ui_receivers_connected">%1$d receiver(s) connected</string>
+    <string name="ui_receiver_label">Receiver %1$d</string>
+    <string name="ui_disconnect">Disconnect</string>
+    <string name="ui_session_bridge_unavailable">Session controls are unavailable in this build. Install the complete MoonCast APK.</string>
 </resources>

@@ -156,4 +156,11 @@
     <string name="ui_file_preparing">正在准备链接；若未出现地址，请连接局域网。</string>
     <string name="ui_file_sharing_active">正在局域网分享选中的文件，停止后链接失效。</string>
     <string name="ui_file_open_failed">无法打开选中的文件，请重新选择本地媒体文件。</string>
+    <string name="ui_watch_party">多人同看 · 最多 3 个接收端</string>
+    <string name="ui_watch_party_hint">实验功能，每个接收端独立编码，数量取决于手机能力；共用画面模式，本模式关闭反控。Moonlight 请使用相同的音频分包设置。</string>
+    <string name="ui_receiver_rejected">接收端被拒绝：已达到数量限制，或音频分包设置不同；现有接收端继续播放。</string>
+    <string name="ui_receivers_connected">已连接 %1$d 个接收端</string>
+    <string name="ui_receiver_label">接收端 %1$d</string>
+    <string name="ui_disconnect">断开</string>
+    <string name="ui_session_bridge_unavailable">当前构建缺少会话控制接口，请安装完整的 MoonCast APK。</string>
 </resources>

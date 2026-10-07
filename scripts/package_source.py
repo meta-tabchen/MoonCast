@@ -12,6 +12,8 @@ with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         if not path.is_file():
             continue
         rel = path.relative_to(root)
+        if rel.parts[:4] == ('app','src','debug','jniLibs'):
+            continue
         if any(part in excluded for part in rel.parts) or path.suffix in {".keystore", ".jks"}:
             continue
         z.write(path, "MoonCast/" + rel.as_posix())

@@ -13,6 +13,9 @@ import zipfile
 root = Path(__file__).resolve().parents[1]
 apk = Path(sys.argv[1]) if len(sys.argv) > 1 else root / "app/build/outputs/apk/release/app-release.apk"
 manifest = json.loads((root / "native/prebuilt-manifest.json").read_text())
+sessions = json.loads((root / "native/session-bridge-manifest.json").read_text())
+assert hashlib.sha256((root / sessions['source']).read_bytes()).hexdigest() == sessions['sourceSha256'], 'session bridge source mismatch'
+assert hashlib.sha256((root / sessions['commandSource']).read_bytes()).hexdigest() == sessions['commandSourceSha256'], 'session bridge build recipe mismatch'
 
 def elf_exports(data):
     assert data[:4] == b"\x7fELF"
@@ -39,6 +42,9 @@ bridge = (root / "app/src/main/java/io/github/jqssun/displaymirror/sunshine/Suns
 native_methods = re.findall(r"native \w+ (\w+)\(", bridge)
 prefix = "Java_io_github_jqssun_displaymirror_sunshine_SunshineServer_"
 with zipfile.ZipFile(apk) as z:
+    if 'release' in apk.name.lower():
+        assert not any('libmoonlight-core' in n for n in z.namelist()), 'test-client payload in release'
+        assert b'com/mooncast/host/testclient' not in z.read('classes.dex'), 'test-client classes in release'
     assert not any("libgojni" in n or "displaylink" in n.lower() for n in z.namelist())
     for relative, expected in manifest["libraries"].items():
         data = z.read("lib/" + relative)
@@ -50,6 +56,14 @@ with zipfile.ZipFile(apk) as z:
             for callback in (b"onPinRequested", b"createVirtualDisplay", b"stopVirtualDisplay", b"showEncoderError"):
                 assert callback in data, (relative, callback)
     assert "classes.dex" in z.namelist()
+    for relative, expected in sessions['libraries'].items():
+        data=z.read('lib/'+relative)
+        assert hashlib.sha256(data).hexdigest()==expected, relative
+        exports=elf_exports(data)
+        for method in ('availableNative','stopNative'):
+            assert 'Java_io_github_jqssun_displaymirror_sunshine_NativeSessions_'+method in exports, (relative,method)
+    for abi in ('arm64-v8a','armeabi-v7a','x86_64'):
+        assert '_ZN6stream7session4stopERNS_9session_tE' in elf_exports(z.read('lib/'+abi+'/libsunshine.so')), 'session stop export missing'
 print(json.dumps({"apk": apk.name, "sha256": hashlib.sha256(apk.read_bytes()).hexdigest(),
-    "abis": ["arm64-v8a", "armeabi-v7a", "x86_64"], "nativeLibraries": len(manifest["libraries"]),
+    "abis": ["arm64-v8a", "armeabi-v7a", "x86_64"], "nativeLibraries": len(manifest["libraries"])+len(sessions['libraries']),
     "jniMethodsPerAbi": len(native_methods), "status": "static checks passed"}, indent=2))

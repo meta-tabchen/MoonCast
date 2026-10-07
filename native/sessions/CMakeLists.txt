@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22)
+add_library(mooncast_sessions SHARED session_bridge.cpp)
+target_compile_options(mooncast_sessions PRIVATE -fno-exceptions -fno-rtti)
+target_link_options(mooncast_sessions PRIVATE -Wl,-z,max-page-size=16384)
+target_link_libraries(mooncast_sessions dl)

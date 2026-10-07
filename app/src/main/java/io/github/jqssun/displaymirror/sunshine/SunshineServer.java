@@ -34,9 +34,10 @@ public final class SunshineServer {
     public static native boolean exitServer();
     public static void onPinRequested() { if (listener != null) listener.pinRequested(); }
     public static void createVirtualDisplay(long s, int w, int h, int f, int p, Surface surface, boolean audio) {
+        NativeSessions.created(s);
         if (listener != null) listener.createDisplay(s,w,h,f,p,surface,audio);
     }
-    public static void stopVirtualDisplay(long s) { if (listener != null) listener.stopDisplay(s); }
+    public static void stopVirtualDisplay(long s) { NativeSessions.ended(s);if (listener != null) listener.stopDisplay(s); }
     public static void showEncoderError(String error) { if (listener != null) listener.error(error); }
     public static void onMirrorClientDiscovered(String ignored) {}
     public static void setMirrorServerUuid(String uuid) { if (listener != null) listener.uuid(uuid); }

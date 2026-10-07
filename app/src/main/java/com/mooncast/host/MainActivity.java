@@ -32,7 +32,9 @@ public final class MainActivity extends Activity {
     private boolean bound, resumed;
     private TextView state, detail, logs, ip, metrics, scenarioHint;
     private Button start, stop, submit;
-    private CompoundButton hevc, audio, root, muteLocal, control;
+    private CompoundButton hevc, audio, root, muteLocal, control,watchParty;
+    private LinearLayout receiverList;
+    private long[] shownReceivers=new long[0];
     private Spinner controlBackend;
     private TextView controlInfo, modeInfo;
     private Button accessibility, rescan, shizuku;
@@ -51,7 +53,7 @@ public final class MainActivity extends Activity {
     private final Messenger response=new Messenger(new Handler(Looper.getMainLooper(), msg -> {
         if (msg.what==HostService.STATUS) {
             Bundle b=msg.getData(); state.setText(b.getString("state")); detail.setText(b.getString("detail"));
-            logs.setText(b.getString("logs"));metrics.setText(b.getString("metrics"));independentDisplay=b.getInt("displayId",-1);openApp.setEnabled(independentDisplay>=0); pinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
+            showReceivers(b);logs.setText(b.getString("logs"));metrics.setText(b.getString("metrics"));independentDisplay=b.getInt("displayId",-1);openApp.setEnabled(independentDisplay>=0); pinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
             updatingControl=true;control.setChecked(b.getBoolean("control",false));updatingControl=false;
             controlInfo.setText(b.getString("controlStatus",getString(R.string.ui_off)));running(true);
             int mode=b.getInt("scaleMode",CropGeometry.VIDEO_REGION);
@@ -109,6 +111,10 @@ public final class MainActivity extends Activity {
                 saveProfile();profiles.select(position);currentProfile=position;loadProfile();
             }
         });
+
+        watchParty=toggle(devices,getString(R.string.ui_watch_party),getString(R.string.ui_watch_party_hint),settings().getBoolean("watchParty",false));
+        receiverList=new LinearLayout(this);receiverList.setOrientation(LinearLayout.VERTICAL);devices.addView(receiverList);
+        watchParty.setOnCheckedChangeListener((button,checked)->{if(loadingProfile)return;settings().edit().putBoolean("watchParty",checked).apply();refreshControlOptions();});
 
         LinearLayout dashboard=card(page);section(dashboard,getString(R.string.ui_dashboard),getString(R.string.ui_dashboard_hint));
         metrics=text(getString(R.string.ui_dashboard_idle),14,INK);dashboard.addView(metrics);
@@ -174,13 +180,13 @@ public final class MainActivity extends Activity {
     private SharedPreferences settings(){return profiles.settings();}
     private void saveProfile(){
         if(name==null || loadingProfile)return;
-        settings().edit().putInt("source",source.getSelectedItemPosition()).putInt("scenario",scenario.getSelectedItemPosition()).putInt("scaleMode",scale.getSelectedItemPosition()).putBoolean("audio",audio.isChecked())
+        settings().edit().putBoolean("watchParty",watchParty.isChecked()).putInt("source",source.getSelectedItemPosition()).putInt("scenario",scenario.getSelectedItemPosition()).putInt("scaleMode",scale.getSelectedItemPosition()).putBoolean("audio",audio.isChecked())
             .putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("hevc",hevc.isChecked()).putBoolean("control",control.isChecked())
             .putInt("controlBackend",controlBackend.getSelectedItemPosition()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).putString("name",name.getText().toString()).apply();
     }
     private void loadProfile(){
         loadingProfile=true;updatingScale=true;updatingControl=true;
-        root.setChecked(false);source.setSelection(settings().getInt("source",0));openApp.setVisibility(source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);currentScenario=settings().getInt("scenario",0);scenario.setSelection(currentScenario);describeScenario(currentScenario);scale.setSelection(settings().getInt("scaleMode",CropGeometry.VIDEO_REGION));describeMode(scale.getSelectedItemPosition());
+        root.setChecked(false);watchParty.setChecked(settings().getBoolean("watchParty",false));source.setSelection(settings().getInt("source",0));openApp.setVisibility(source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);currentScenario=settings().getInt("scenario",0);scenario.setSelection(currentScenario);describeScenario(currentScenario);scale.setSelection(settings().getInt("scaleMode",CropGeometry.VIDEO_REGION));describeMode(scale.getSelectedItemPosition());
         audio.setChecked(settings().getBoolean("audio",false));muteLocal.setChecked(settings().getBoolean("muteLocal",false));
         hevc.setChecked(settings().getBoolean("hevc",true));control.setChecked(settings().getBoolean("control",false));
         controlBackend.setSelection(settings().getInt("controlBackend",settings().getBoolean("controlRoot",false)?1:0));name.setText(settings().getString("name","MoonCast · "+Build.MODEL));
@@ -209,7 +215,7 @@ public final class MainActivity extends Activity {
     private void refreshControlOptions(){
         if(source.getSelectedItemPosition()==2 && controlBackend.getSelectedItemPosition()==0)controlBackend.setSelection(2);
         if(audio!=null && root!=null){boolean allowed=source.getSelectedItemPosition()!=2 && !root.isChecked();audio.setEnabled(allowed && remote==null);if(!allowed)audio.setChecked(false);muteLocal.setEnabled(allowed && audio.isChecked() && remote==null);}
-        boolean appOnly=source.getSelectedItemPosition()==1;control.setEnabled(!appOnly);if(appOnly && control.isChecked()){updatingControl=true;control.setChecked(false);updatingControl=false;}
+        boolean appOnly=source.getSelectedItemPosition()==1 || (watchParty!=null && watchParty.isChecked());control.setEnabled(!appOnly);if(appOnly && control.isChecked()){updatingControl=true;control.setChecked(false);updatingControl=false;}
         boolean enabled=control.isChecked(),privileged=controlBackend.getSelectedItemPosition()!=0;
         if(shizuku!=null)shizuku.setVisibility((enabled && controlBackend.getSelectedItemPosition()==2) || source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);
         controlBackend.setEnabled(enabled && remote==null && !root.isChecked());
@@ -237,6 +243,7 @@ public final class MainActivity extends Activity {
         pendingShizukuStart=thenStart;try{rikka.shizuku.Shizuku.requestPermission(60);}catch(RuntimeException e){pendingShizukuStart=false;toast(getString(R.string.ui_shizuku_hint));}
     }
     private void begin() {
+        if(watchParty.isChecked() && !io.github.jqssun.displaymirror.sunshine.NativeSessions.packaged()){toast(getString(R.string.ui_session_bridge_unavailable));return;}
         if((source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
 
         if(control.isChecked() && !root.isChecked() && controlBackend.getSelectedItemPosition()==0 && !accessibilityEnabled()){
@@ -270,7 +277,7 @@ public final class MainActivity extends Activity {
         String host=name.getText().toString().trim();
         if(host.isEmpty()) host="MoonCast";
         settings().edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putInt("controlBackend",controlBackend.getSelectedItemPosition()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
-        Intent i=new Intent(this,HostService.class).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",audio.isChecked()).putExtra("muteLocal",audio.isChecked() && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
+        Intent i=new Intent(this,HostService.class).putExtra("watchParty",watchParty.isChecked()).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",audio.isChecked()).putExtra("muteLocal",audio.isChecked() && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
         if(grant!=null) i.putExtra("grant",grant);
         startForegroundService(i); state.setText(getString(R.string.ui_starting_pending)); main.postDelayed(this::bindExisting,300);
     }
@@ -281,8 +288,12 @@ public final class MainActivity extends Activity {
         try { Message m=Message.obtain(null,what); m.replyTo=response; if(data!=null)m.setData(data); remote.send(m); }
         catch(RemoteException e){remote=null; running(false);}
     }
-    private void running(boolean yes) { profile.setEnabled(!yes);scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
+    private void running(boolean yes) { profile.setEnabled(!yes);watchParty.setEnabled(!yes);if(!yes){receiverList.removeAllViews();shownReceivers=new long[0];}scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}
+    private void showReceivers(Bundle b){
+        long[] ids=b.getLongArray("receivers");String[] labels=b.getStringArray("receiverLabels");if(ids==null || labels==null || java.util.Arrays.equals(ids,shownReceivers))return;
+        shownReceivers=ids.clone();receiverList.removeAllViews();for(int i=0;i<ids.length;i++){long id=ids[i];Button disconnect=smallButton(labels[i]+" · "+getString(R.string.ui_disconnect));disconnect.setOnClickListener(v->{Bundle data=new Bundle();data.putLong("session",id);send(HostService.DISCONNECT,data);});receiverList.addView(disconnect);}
+    }
     private void queryFile(){if(fileRemote==null)return;try{Message m=Message.obtain(null,FileCinemaService.STATUS);m.replyTo=fileResponse;fileRemote.send(m);}catch(RemoteException ignored){}}
     @Override protected void onPause(){resumed=false;saveProfile();main.removeCallbacks(poll);if(bound){unbindService(connection);bound=false;remote=null;}if(fileBound){unbindService(this.fileConnection);fileBound=false;fileRemote=null;}super.onPause();}
     @Override protected void onDestroy(){rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);super.onDestroy();}

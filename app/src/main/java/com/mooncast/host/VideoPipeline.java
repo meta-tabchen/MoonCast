@@ -9,15 +9,20 @@ import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.Surface;
 import java.nio.*;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 /** SurfaceTexture -> OpenGL ES -> encoder Surface. No full-resolution CPU readback or Bitmap copies. */
 public final class VideoPipeline {
     public interface Factory { VirtualDisplay create(Surface input,int width,int height); }
-    public interface Events { void message(String message); void error(String message); default void geometry(CropGeometry.Mapping mapping){} }
-    private final Surface output;
-    private final int outW,outH;
+    public interface Events { void message(String message); void error(String message); default void geometry(CropGeometry.Mapping mapping){} default void geometry(long session,CropGeometry.Mapping mapping){geometry(mapping);} }
+    private static final class Target {
+        final Surface surface;final int width,height;EGLSurface window=EGL14.EGL_NO_SURFACE;long timestamp;
+        Target(Surface surface,int width,int height){this.surface=surface;this.width=width;this.height=height;}
+    }
+    private final LinkedHashMap<Long,Target> targets=new LinkedHashMap<>();
+    private int maxOutputSize;
     private final Events events;
     private final DisplayManager manager;
     private final HandlerThread thread=new HandlerThread("MoonCastGL");
@@ -30,7 +35,8 @@ public final class VideoPipeline {
     private SurfaceTexture texture;
     private EGLDisplay egl=EGL14.EGL_NO_DISPLAY;
     private EGLContext context=EGL14.EGL_NO_CONTEXT;
-    private EGLSurface window=EGL14.EGL_NO_SURFACE,home=EGL14.EGL_NO_SURFACE;
+    private EGLSurface home=EGL14.EGL_NO_SURFACE;
+    private EGLConfig config;
     private int program,texId,sampleTex,fbo;
     private int positionLocation,uvLocation,transformLocation;
     private final float[] transform=new float[16];
@@ -59,7 +65,18 @@ public final class VideoPipeline {
         @Override public void onDisplayChanged(int id){if(id==Display.DEFAULT_DISPLAY && followsDisplay){DisplayMetrics m=metrics(manager); resizeInternal(m.widthPixels,m.heightPixels);}}
     };
     public VideoPipeline(Context c,Surface encoder,int width,int height,int mode,Events events){
-        this.output=encoder;outW=width;outH=height;this.mode=mode;this.events=events;manager=c.getSystemService(DisplayManager.class);
+        this(c,encoder,width,height,mode,events,0);
+    }
+    public VideoPipeline(Context c,Surface encoder,int width,int height,int mode,Events events,long session){
+        targets.put(session,new Target(encoder,width,height));maxOutputSize=Math.max(width,height);this.mode=mode;this.events=events;manager=c.getSystemService(DisplayManager.class);
+    }
+    public void addOutput(long session,Surface surface,int width,int height){
+        if(width<1 || height<1 || width>8192 || height>8192)throw new IllegalArgumentException("output size");
+        handler.post(()->{if(closed)return;try{if(targets.containsKey(session))return;current(home);Target target=new Target(surface,width,height);target.window=createWindow(surface);targets.put(session,target);int limit=Math.max(maxOutputSize,Math.max(width,height));if(limit!=maxOutputSize){maxOutputSize=limit;if(followsDisplay)resizeInternal(screenW,screenH);}if(haveFrame)render(System.nanoTime());}catch(Exception e){events.error("Additional encoder output failed: "+e.getMessage());}});
+    }
+    public void removeOutput(long session,Runnable removed){
+        if(handler==null || closed){removed.run();return;}
+        handler.post(()->{try{Target target=targets.remove(session);if(target!=null && target.window!=EGL14.EGL_NO_SURFACE){current(home);EGL14.eglDestroySurface(egl,target.window);}}finally{removed.run();}});
     }
     public static DisplayMetrics metrics(DisplayManager m){DisplayMetrics result=new DisplayMetrics();m.getDisplay(Display.DEFAULT_DISPLAY).getRealMetrics(result);return result;}
     public void start(int width,int height,boolean followDisplay,Factory factory){
@@ -73,7 +90,7 @@ public final class VideoPipeline {
                 texture.setOnFrameAvailableListener(t->frame(),handler);input=new Surface(texture);
                 display=factory.create(input,sourceW,sourceH);
                 if(followsDisplay)manager.registerDisplayListener(listener,handler);
-                events.message("GPU 捕获 "+sourceW+"×"+sourceH+" → 编码 "+outW+"×"+outH);
+                events.message("GPU 捕获 "+sourceW+"×"+sourceH+" → "+targets.size()+" encoder output(s)");
                 handler.post(probe);
             }catch(Exception e){events.error("GPU 初始化失败: "+e.getMessage());close();}
         });
@@ -91,7 +108,7 @@ public final class VideoPipeline {
     private void setInputSize(int width,int height){
         if(width<1 || height<1)throw new IllegalArgumentException("Invalid capture size");
         screenW=width;screenH=height;
-        float scale=Math.min(1f,Math.max(outW,outH)/(float)Math.max(width,height));
+        float scale=Math.min(1f,maxOutputSize/(float)Math.max(width,height));
         sourceW=Math.max(2,Math.round(width*scale)/2*2);sourceH=Math.max(2,Math.round(height*scale)/2*2);
     }
     private void resizeInternal(int width,int height){
@@ -113,8 +130,8 @@ public final class VideoPipeline {
         context=EGL14.eglCreateContext(egl,configs[0],EGL14.EGL_NO_CONTEXT,new int[]{EGL14.EGL_CONTEXT_CLIENT_VERSION,2,EGL14.EGL_NONE},0);
         check(context!=EGL14.EGL_NO_CONTEXT,"eglCreateContext");
         home=EGL14.eglCreatePbufferSurface(egl,configs[0],new int[]{EGL14.EGL_WIDTH,1,EGL14.EGL_HEIGHT,1,EGL14.EGL_NONE},0);
-        window=EGL14.eglCreateWindowSurface(egl,configs[0],output,new int[]{EGL14.EGL_NONE},0);
-        check(window!=EGL14.EGL_NO_SURFACE,"eglCreateWindowSurface");current(home);
+        config=configs[0];for(Target target:targets.values())target.window=createWindow(target.surface);
+        current(home);
         int vertex=shader(GLES20.GL_VERTEX_SHADER,"attribute vec2 aPosition; attribute vec2 aUv; uniform mat4 uTransform; varying vec2 vUv; void main(){gl_Position=vec4(aPosition,0.,1.);vUv=(uTransform*vec4(aUv,0.,1.)).xy;}");
         int fragment=shader(GLES20.GL_FRAGMENT_SHADER,"#extension GL_OES_EGL_image_external : require\nprecision mediump float; uniform samplerExternalOES uTexture; varying vec2 vUv; void main(){gl_FragColor=texture2D(uTexture,vUv);}");
         program=GLES20.glCreateProgram();GLES20.glAttachShader(program,vertex);GLES20.glAttachShader(program,fragment);GLES20.glLinkProgram(program);
@@ -161,13 +178,16 @@ public final class VideoPipeline {
         long submissionStart=System.nanoTime();
         CropGeometry.Bounds region=mode==CropGeometry.VIDEO_REGION?CropGeometry.videoRegion(sourceW,sourceH):
             (mode==CropGeometry.SCREEN || sourceW<=sourceH?CropGeometry.Bounds.FULL:mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds());
+        for(var entry:targets.entrySet()){
+        Target target=entry.getValue();int outW=target.width,outH=target.height;EGLSurface window=target.window;
         current(window);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
         GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
         CropGeometry.Viewport v=CropGeometry.viewport(sourceW,sourceH,region,outW,outH,mode==CropGeometry.VIDEO_FILL && sourceW>sourceH);
         GLES20.glViewport(v.x(),v.y(),v.width(),v.height());draw(region);
-        events.geometry(new CropGeometry.Mapping(sourceW,sourceH,screenW,screenH,outW,outH,region,v));
-        lastSubmitted=Math.max(timestamp,lastSubmitted+1);
-        EGLExt.eglPresentationTimeANDROID(egl,window,lastSubmitted);check(EGL14.eglSwapBuffers(egl,window),"eglSwapBuffers");
+        events.geometry(entry.getKey(),new CropGeometry.Mapping(sourceW,sourceH,screenW,screenH,outW,outH,region,v));
+        target.timestamp=Math.max(timestamp,target.timestamp+1);
+        EGLExt.eglPresentationTimeANDROID(egl,window,target.timestamp);check(EGL14.eglSwapBuffers(egl,window),"eglSwapBuffers");
+        }
         statistics.submitted(submissionStart,System.nanoTime());
     }
     private void draw(CropGeometry.Bounds b){
@@ -178,6 +198,7 @@ public final class VideoPipeline {
         GLES20.glVertexAttribPointer(positionLocation,2,GLES20.GL_FLOAT,false,0,vertices);GLES20.glVertexAttribPointer(uvLocation,2,GLES20.GL_FLOAT,false,0,coords);
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP,0,4);
     }
+    private EGLSurface createWindow(Surface surface){EGLSurface window=EGL14.eglCreateWindowSurface(egl,config,surface,new int[]{EGL14.EGL_NONE},0);check(window!=EGL14.EGL_NO_SURFACE,"eglCreateWindowSurface");return window;}
     private void current(EGLSurface s){check(EGL14.eglMakeCurrent(egl,s,s,context),"eglMakeCurrent");}
     private static int shader(int kind,String text){int shader=GLES20.glCreateShader(kind);GLES20.glShaderSource(shader,text);GLES20.glCompileShader(shader);int[] good=new int[1];GLES20.glGetShaderiv(shader,GLES20.GL_COMPILE_STATUS,good,0);if(good[0]==0)throw new IllegalStateException(GLES20.glGetShaderInfoLog(shader));return shader;}
     private static void check(boolean good,String action){if(!good)throw new IllegalStateException(action+" / EGL 0x"+Integer.toHexString(EGL14.eglGetError()));}
@@ -203,7 +224,8 @@ public final class VideoPipeline {
         if(input!=null)input.release();if(texture!=null)texture.release();
         if(egl!=EGL14.EGL_NO_DISPLAY){
             EGL14.eglMakeCurrent(egl,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_SURFACE,EGL14.EGL_NO_CONTEXT);
-            if(window!=EGL14.EGL_NO_SURFACE)EGL14.eglDestroySurface(egl,window);
+            for(Target target:targets.values())if(target.window!=EGL14.EGL_NO_SURFACE)EGL14.eglDestroySurface(egl,target.window);
+            targets.clear();
             if(home!=EGL14.EGL_NO_SURFACE)EGL14.eglDestroySurface(egl,home);
             if(context!=EGL14.EGL_NO_CONTEXT)EGL14.eglDestroyContext(egl,context);
             EGL14.eglTerminate(egl);EGL14.eglReleaseThread();

@@ -18,14 +18,14 @@ final class RootBackend {
     private Process process;
     private volatile boolean stopping;
     RootBackend(Context c,Events e) { context=c; events=e; }
-    synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit) throws Exception {
+    synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit,boolean watchParty) throws Exception {
         if(stopping) throw new IOException("Root 发射端已停止");
         String endpoint="mooncast-"+UUID.randomUUID();
         server=new LocalServerSocket(endpoint);
         String command="CLASSPATH="+quote(context.getApplicationInfo().sourceDir)
             +" /system/bin/app_process / com.mooncast.host.RootDaemon "
             +quote(endpoint)+" "+quote(context.getFilesDir().getPath())+" "
-            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control+" "+frameLimit;
+            +quote(context.getApplicationInfo().nativeLibraryDir)+" "+quote(name)+" "+hevc+" "+scaleMode+" "+control+" "+frameLimit+" "+watchParty;
         process=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
         new Thread(() -> {
             try (BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))) {
@@ -48,6 +48,7 @@ final class RootBackend {
             } catch (Exception e) { if (!stopping) events.event("error","Root 通道断开: "+e.getMessage()); }
         },"RootEvents").start();
     }
+    synchronized void disconnect(long id){send("DISCONNECT "+id);}
     synchronized void pin(String pin) { send("PIN "+pin); }
     synchronized void scale(int mode){send("SCALE "+mode);}
     synchronized void rescan(){send("RESCAN");}

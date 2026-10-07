@@ -77,3 +77,5 @@ target_link_libraries(
         simple-web-server
         ${Boost_LIBRARIES}
 )
+
+add_subdirectory(../sessions "${CMAKE_CURRENT_BINARY_DIR}/mooncast_sessions")
