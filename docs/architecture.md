@@ -57,3 +57,25 @@ power APIs without locking Android. Leases and host heartbeat expire in 30 secon
 manual restore/stop/error/owner loss attempt restoration before helper teardown. Failed
 restore remains pending for retries. A privileged helper forcibly killed before restoration
 or driver failure can defeat this; recovery guarantees are deliberately bounded.
+
+## Reconnect and shutdown
+
+The foreground `:host` process owns MediaProjection and the one capture input. The
+pinned native runtime runs in a private bound `:stream` service. Encoder Surfaces cross
+Binder; encoder departure synchronously detaches EGL before its IPC Surface is released.
+Playback PCM and optional input callbacks cross the same private binding. Owner death
+terminates the stream process.
+
+When the last receiver leaves, capture remains alive; audio/mute/panel ownership is
+released and only the stream process restarts. This avoids reusing stopped native network
+threads while keeping the Android 14+ consumed capture grant in its original owner.
+The UI shows preparing-reconnection until the replacement HTTP listener answers. A new
+session in ordinary single-receiver mode replaces an old session that has not completed
+its ENet disconnect timeout. Watch party keeps its receiver cap and common audio packet
+requirement; Root capture still uses its separate daemon.
+
+Stop messages use a separate command looper. A four-second process-exit deadline is armed
+before cleanup, independently of the main/render loopers. Normal cleanup still releases
+resources first. Native session membership reads do not wait for the lifetime lock held
+by a disconnect. UI bindings handle null/dead bindings and expire unanswered pending binds,
+so a disappeared service cannot leave the Start button permanently hidden.

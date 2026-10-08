@@ -1,6 +1,24 @@
 # Validation scope
 
-Date: 2026-10-08 (Asia/Hong_Kong). Current source: **0.3.0 preview**, versionCode 8.
+Date: 2026-10-08 (Asia/Hong_Kong). Current source: **0.3.1 preview**, versionCode 9.
+
+## 0.3.1 reconnect evidence
+
+- A physical PGP110 / Android 15 phone reproduced the original last-receiver disconnect
+  ending screen sharing. Keeping capture alone still reproduced native initial-ping timeout.
+- With capture and transport in separate processes, phone logs show native process replacement,
+  preserved capture-owner PID, new encoder attachment and renewed playback AudioRecord. The
+  user reports picture/sound and reconnection working after waiting for the disconnected state.
+- Immediate reconnection before old-peer timeout initially needed a second attempt. Single-
+  receiver takeover and a listener-readiness state were subsequently added; the user then confirmed immediate reconnection succeeds on its first attempt. These are informal device checks,
+  not a latency/quality benchmark or a broad receiver compatibility matrix.
+- The lifecycle suite passed normal Stop, blocked main/cleanup Stop, stale UI recovery and
+  new-process restart on the phone. GPU zero-output/re-attach coverage uses generated content.
+- The optional phone loopback suite did not complete its system-consent setup in this cycle;
+  it is not counted as full native encode/transport/decode regression evidence.
+- Final local debug/release builds, portable tests, lint (0 errors, 29 warnings), APK payload,
+  v2 signature and ZIP alignment checks pass. Native runtime/shim bytes remain pinned and unchanged. Root capture, watch-party audio,
+  privileged input and panel power have no new full-device regression acceptance in this patch.
 
 ## 0.3.0 feature evidence
 

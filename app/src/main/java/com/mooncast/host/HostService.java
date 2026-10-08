@@ -10,40 +10,48 @@ import android.net.nsd.*;
 import android.os.*;
 import android.view.Surface;
 import io.github.jqssun.displaymirror.sunshine.SunshineServer;
-import io.github.jqssun.displaymirror.sunshine.NativeSessions;
 import java.net.*;
 import java.io.*;
 import java.util.*;
 
 /** Dedicated process owns all native resources. Stopping terminates that process, not the UI. */
-public final class HostService extends Service implements SunshineServer.Listener {
+public class HostService extends Service implements SunshineServer.Listener {
     static final int STATUS=1, PIN=2, STOP=3, SCALE=4, CONTROL=5, CROP_RESET=6, LAUNCH_APP=7, DISCONNECT=8, RESTORE_DISPLAY=9;
     private final Handler main = new Handler(Looper.getMainLooper());
-    private final Messenger binder = new Messenger(new Handler(Looper.getMainLooper(), msg -> {
+    private final HandlerThread commands = new HandlerThread("MoonCastCommands");
+    private Messenger binder;
+    private boolean cleanupStarted;
+    private boolean handleCommand(Message msg) {
+        // Stop must be delivered even if capture, Binder or a driver stalls the main looper.
+        if (msg.what == STOP) { stopHost(); return true; }
+        Message copy=Message.obtain(msg);
+        main.post(() -> { try{if (!stopping || copy.what == STATUS) handleOnMain(copy);}finally{copy.recycle();} });
+        return true;
+    }
+    private void handleOnMain(Message msg) {
         if (msg.what == STATUS) {
             if (msg.replyTo != null) try { Message response = Message.obtain(null, STATUS); response.setData(snapshot()); msg.replyTo.send(response); } catch (RemoteException ignored) {}
         } else if (msg.what == PIN) {
             String pin = msg.getData().getString("pin", "");
             if (pin.matches("[0-9]{4}")) {
                 pinPending=false;
-                if (HostService.this.root != null) HostService.this.root.pin(pin); else new Thread(() -> SunshineServer.submitPin(pin), "Pairing").start();
+                if (HostService.this.root != null) HostService.this.root.pin(pin); else if(nativeHost!=null)new Thread(() -> nativeHost.pin(pin), "Pairing").start();
                 log(getString(R.string.ui_pin_submitted_check_the_receiver_for_the_pairing_result));
             }
-        } else if (msg.what == STOP) stopHost();
+        }
         else if(msg.what==SCALE) updateScale(msg.arg1);
         else if(msg.what==CONTROL) updateControl(msg.arg1!=0);
         else if(msg.what==CROP_RESET) rescanCrop();
         else if(msg.what==LAUNCH_APP) launchApp(msg.getData().getString("component",""));
         else if(msg.what==DISCONNECT)disconnectReceiver(msg.getData().getLong("session"));
         else if(msg.what==RESTORE_DISPLAY)restorePanel();
-        return true;
-    }));
+    }
     private final ArrayList<String> logs = new ArrayList<>();
     private MediaProjection projection;
     private VirtualDisplay display;
     private Surface encoderSurface;
     private AudioRecord audioRecord;
-    private AudioFeed audioFeed;
+    private volatile AudioFeed audioFeed;
     private LocalAudioMute localAudioMute;
     private RemoteInputController remoteInput;
     private RootInputBackend rootInput;
@@ -54,11 +62,13 @@ public final class HostService extends Service implements SunshineServer.Listene
     private NsdManager.RegistrationListener registration;
     private PowerManager.WakeLock wakeLock;
     private RootBackend root;
+    private volatile NativeHostConnection nativeHost;
     private volatile VideoPipeline pipeline;
     private int scaleMode=CropGeometry.VIDEO_REGION;
     private String state="", detail="", error="", hostName="MoonCast";
-    private boolean started, stopping, pinPending, sendAudio, audioPump, muteLocal;
-    private long session;
+    private volatile boolean stopping;
+    private boolean started, pinPending, sendAudio, audioPump, muteLocal;
+    private volatile long session;
     private record Receiver(int ordinal,int width,int height,int fps){}
     private final LinkedHashMap<Long,Receiver> receivers=new LinkedHashMap<>();
     private int receiverOrdinal,receiverLimit=1,audioPacketMs;
@@ -81,7 +91,7 @@ public final class HostService extends Service implements SunshineServer.Listene
     private final TrafficRate trafficRate=new TrafficRate();
 
     private void rescanCrop(){if(pipeline!=null)pipeline.rescan();if(root!=null)root.rescan();}
-    private void disconnectReceiver(long id){if(root!=null){if(receivers.containsKey(id))root.disconnect(id);}else if(receivers.containsKey(id))new Thread(()->NativeSessions.disconnect(id),"DisconnectReceiver").start();}
+    private void disconnectReceiver(long id){if(root!=null){if(receivers.containsKey(id))root.disconnect(id);}else if(receivers.containsKey(id))new Thread(()->{NativeHostConnection host=nativeHost;if(host!=null)host.disconnect(id);},"DisconnectReceiver").start();}
     private void launchApp(String component){if(independentDisplayId<0 || shizukuInput==null)return;ShizukuInputBackend backend=shizukuInput;int id=independentDisplayId;new Thread(()->{try{backend.launch(component,id);}catch(RuntimeException e){log(getString(R.string.ui_independent_app_rejected)+" "+e.getMessage());}},"LaunchIndependentApp").start();}
 
     private void updateScale(int value) {
@@ -101,7 +111,7 @@ public final class HostService extends Service implements SunshineServer.Listene
 
     @Override public IBinder onBind(Intent intent) { return binder.getBinder(); }
     @Override public void onCreate(){
-        super.onCreate();state=getString(R.string.ui_starting);rootControlStatus=getString(R.string.ui_waiting_for_root_connection);localAudioMute=new LocalAudioMute(this);
+        super.onCreate();commands.start();binder=new Messenger(new Handler(commands.getLooper(),this::handleCommand));state=getString(R.string.ui_starting);rootControlStatus=getString(R.string.ui_waiting_for_root_connection);localAudioMute=new LocalAudioMute(this);
         restoreLocalAudio();
     }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
@@ -153,14 +163,16 @@ public final class HostService extends Service implements SunshineServer.Listene
                         root=new RootBackend(this, this::rootEvent);
                         root.start(hostName,hevc,scaleMode,controlEnabled,frameLimit,watchParty,panelWanted);
                     } else {
-                        SunshineServer.listener=this;
-                        SunshineServer.setSunshineName(hostName);
-                        SunshineServer.setCertPath(new File(getFilesDir(),"host-cert.pem").getPath());
-                        SunshineServer.setPkeyPath(new File(getFilesDir(),"host-key.pem").getPath());
-                        SunshineServer.setFileStatePath(new File(getFilesDir(),"paired-clients.json").getPath());
-                        SunshineServer.setHevcSupported(hevc);
-                        if(watchParty && !NativeSessions.available())throw new IllegalStateException(getString(R.string.ui_session_bridge_unavailable));
-                        new Thread(SunshineServer::start,"Sunshine").start();
+                        NativeHostConnection host=new NativeHostConnection(this,hostName,hevc,this,count->{
+                            float[] pcm=new float[count];AudioFeed feed=audioFeed;
+                            if(feed!=null)feed.read(pcm,0,count,AudioRecord.READ_BLOCKING);
+                            else SystemClock.sleep(Math.max(1,count*1000L/96000));return pcm;
+                        },()->{
+                            // Death callbacks run on main; detach every output before releasing IPC Surfaces.
+                            audioPump=false;
+                            for(long receiver:new ArrayList<>(receivers.keySet()))stopDisplay(receiver);
+                        },()->{if(!stopping && receivers.isEmpty() && pipeline!=null){state=getString(R.string.ui_waiting_for_reconnection);log(state);}});
+                        nativeHost=host;host.start();
                     }
                     waitForServer();if(panelWanted)main.post(panelHeartbeat);
                 } catch (Exception | LinkageError e) { error(getString(R.string.ui_start_failed)+e.getMessage()); }
@@ -214,13 +226,19 @@ public final class HostService extends Service implements SunshineServer.Listene
     @Override public void uuid(String uuid) { log(getString(R.string.ui_host_identity_loaded)); }
     @Override public void createDisplay(long s,int w,int h,int fps,int packetMs,Surface surface,boolean captureAudio) {
         main.post(() -> {
-            if (stopping || !NativeSessions.active(s)) return;
-            if(receivers.size()>=receiverLimit || (pipeline!=null && packetMs!=audioPacketMs)){
-                log(getString(R.string.ui_receiver_rejected));new Thread(()->NativeSessions.disconnect(s),"RejectReceiver").start();return;
+            if (stopping || nativeHost==null || !nativeHost.active(s)) return;
+            if((watchParty && receivers.size()>=receiverLimit) || (audioPump && packetMs!=audioPacketMs)){
+                log(getString(R.string.ui_receiver_rejected));new Thread(()->{NativeHostConnection host=nativeHost;if(host!=null)host.disconnect(s);},"RejectReceiver").start();return;
             }
             try {
+                if(!watchParty && !receivers.isEmpty()){
+                    // A reconnect can precede ENet's old-peer timeout. The new negotiated
+                    // session takes ownership instead of being rejected by the stale slot.
+                    log(getString(R.string.ui_replacing_receiver));
+                    for(long old:new ArrayList<>(receivers.keySet()))new Thread(()->{NativeHostConnection host=nativeHost;if(host!=null)host.disconnect(old);},"ReplaceReceiver").start();
+                }
                 receivers.put(s,new Receiver(++receiverOrdinal,w,h,fps));
-                if(pipeline!=null){pipeline.addOutput(s,surface,w,h);startAudio(packetMs,captureAudio);updateReceivers();return;}
+                if(pipeline!=null){if(!watchParty || receivers.size()==1){session=s;audioPacketMs=packetMs;if(remoteInput!=null)remoteInput.begin(s);}pipeline.addOutput(s,surface,w,h);startAudio(packetMs,captureAudio);updateReceivers();return;}
                 session=s;audioPacketMs=packetMs;encoderSurface=surface;
                 if(remoteInput!=null)remoteInput.begin(s);
                 if (projection==null && captureSource!=2) throw new IllegalStateException(getString(R.string.ui_screen_capture_permission_expired_start_again));
@@ -274,18 +292,33 @@ public final class HostService extends Service implements SunshineServer.Listene
                 restoreLocalAudio();log(getString(R.string.ui_audio_capture_unavailable_video_continues)+e.getMessage());
             }
         } else log(getString(R.string.ui_video_only_sound_stays_on_the_phone));
-        if (!audioPump) { audioPump=true; SunshineServer.startAudioRecording(audioFeed,48*Math.max(1,packetMs)); }
+        if (!audioPump) { audioPump=true; if(nativeHost!=null)nativeHost.audio(48*Math.max(1,packetMs)); }
     }
     private void updateReceivers(){state=getString(R.string.ui_casting);detail=getString(R.string.ui_receivers_connected,receivers.size());}
     @Override public void stopDisplay(long s) {
-        // Detach EGL while the native encoder still owns its Surface, before this callback returns.
         VideoPipeline current=pipeline;
-        if(current!=null){java.util.concurrent.CountDownLatch removed=new java.util.concurrent.CountDownLatch(1);current.removeOutput(s,removed::countDown);try{removed.await(2,java.util.concurrent.TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}}
-        main.post(()->{if(stopping || receivers.remove(s)==null)return;if(receivers.isEmpty()){log(getString(R.string.ui_receiver_disconnected_next_session_needs_screen_capture_permission));stopHost();}else updateReceivers();});
+        if(current!=null){
+            java.util.concurrent.CountDownLatch removed=new java.util.concurrent.CountDownLatch(1);
+            current.removeOutput(s,removed::countDown);
+            try { if(!removed.await(2,java.util.concurrent.TimeUnit.SECONDS)){error("Encoder output detach timed out; restart casting");return;} }
+            catch(InterruptedException e){Thread.currentThread().interrupt();error("Encoder output detach interrupted");return;}
+        }
+        main.post(()->{
+            if(stopping || receivers.remove(s)==null)return;
+            if(receivers.isEmpty()){
+                session=0;if(remoteInput!=null)remoteInput.begin(0);
+                state=getString(R.string.ui_preparing_reconnection);detail="";
+                log(state);restorePanel();stopAudio();
+                // Keep the consent-owned display/input for Android 14+ reconnection.
+                // Restart only the pinned transport runtime; the projection owner stays alive.
+                audioPump=false;if(nativeHost!=null)nativeHost.restart();
+            }else{if(session==s){session=receivers.keySet().iterator().next();if(remoteInput!=null)remoteInput.begin(session);}updateReceivers();}
+        });
     }
-    @Override public void error(String text) { main.post(() -> { if (!stopping) { error=text; state=getString(R.string.ui_error); log(text); cleanupCapture(); } }); }
+    @Override public void error(String text) { if(!stopping){error=text;log(text);stopHost();} }
     private void rootEvent(String kind,String text) {
         main.post(() -> {
+            if(stopping)return;
             switch (kind) {
                 case "panel" -> {panelState=text;log(text);}
                 case "pin" -> pinRequested();
@@ -300,30 +333,49 @@ public final class HostService extends Service implements SunshineServer.Listene
         });
     }
     private void cleanupCapture() {
-        restorePanel();
-        if(remoteInput!=null){remoteInput.close();remoteInput=null;rootInput=null;}
-        if(shizukuInput!=null){shizukuInput.close();shizukuInput=null;}
-        restoreLocalAudio();
-        if(pipeline!=null){pipeline.close();pipeline=null;}independentDisplayId=-1;
-        if (display!=null) { display.release(); display=null; }
-        if (audioFeed!=null) audioFeed.set(null);
-        if (audioRecord!=null) { try { audioRecord.stop(); } catch (Exception ignored) {} audioRecord.release(); audioRecord=null; }
+        // Restore volume before a remote Binder or graphics driver can block cleanup.
+        stopAudio();releaseSafely(this::restorePanel);
+        RemoteInputController input=remoteInput;remoteInput=null;rootInput=null;
+        if(input!=null)releaseSafely(input::close);
+        ShizukuInputBackend privileged=shizukuInput;shizukuInput=null;
+        if(privileged!=null)releaseSafely(privileged::close);
+        VideoPipeline video=pipeline;pipeline=null;independentDisplayId=-1;
+        if(video!=null)releaseSafely(video::close);
+        NativeHostConnection host=nativeHost;nativeHost=null;if(host!=null)releaseSafely(host::close);
+        VirtualDisplay vd=display;display=null;if(vd!=null)releaseSafely(vd::release);
         // The native encoder owns the Surface. Do not release it from Java while it drains.
         encoderSurface=null;receivers.clear();
-        if (projection!=null) { MediaProjection old=projection; projection=null; old.stop(); }
+        MediaProjection old=projection;projection=null;if(old!=null)releaseSafely(old::stop);
+    }
+    private void releaseSafely(Runnable release){try{release.run();}catch(RuntimeException e){android.util.Log.w("MoonCast","Resource release failed",e);}}
+    private void stopAudio(){
+        restoreLocalAudio();if(audioFeed!=null)audioFeed.set(null);
+        AudioRecord old=audioRecord;audioRecord=null;
+        if(old!=null){try{old.stop();}catch(RuntimeException ignored){}try{old.release();}catch(RuntimeException ignored){}}
     }
     private void restoreLocalAudio(){
         if(localAudioMute!=null)try{localAudioMute.restore();}
         catch(RuntimeException e){log(getString(R.string.ui_volume_restoration_failed_retrying_on_next_launch)+e.getMessage());}
     }
-    private void stopHost() {
+    private synchronized void stopHost() {
         if (stopping) return;
-        stopping=true; state=getString(R.string.ui_stopped); cleanupCapture();
-        if (root!=null) root.stop();
-        if (nsd!=null && registration!=null) try { nsd.unregisterService(registration); } catch (Exception ignored) {}
-        if (wakeLock!=null && wakeLock.isHeld()) wakeLock.release();
-        stopForeground(STOP_FOREGROUND_REMOVE); stopSelf();
-        main.postDelayed(() -> android.os.Process.killProcess(android.os.Process.myPid()),250);
+        stopping=true;
+        // Armed before any resource cleanup and independent of every Android looper.
+        new Thread(() -> { SystemClock.sleep(4000); android.os.Process.killProcess(android.os.Process.myPid()); },"HostStopDeadline").start();
+        if(Looper.myLooper()==Looper.getMainLooper())finishStop();else main.post(this::finishStop);
+    }
+    private void finishStop(){
+        if(cleanupStarted)return;cleanupStarted=true;
+        state=getString(R.string.ui_stopped);detail="";
+        try { cleanupCapture(); }
+        catch(RuntimeException e){android.util.Log.w("MoonCast","Capture cleanup failed",e);}
+        finally {
+            try{if(root!=null)root.stop();}catch(RuntimeException ignored){}
+            if(nsd!=null && registration!=null)try{nsd.unregisterService(registration);}catch(RuntimeException ignored){}
+            try{if(wakeLock!=null && wakeLock.isHeld())wakeLock.release();}catch(RuntimeException ignored){}
+            stopForeground(STOP_FOREGROUND_REMOVE);stopSelf();
+            new Thread(()->{SystemClock.sleep(250);android.os.Process.killProcess(android.os.Process.myPid());},"HostExit").start();
+        }
     }
     @Override public void onDestroy() { stopHost(); super.onDestroy(); }
     private void log(String text) {
@@ -333,7 +385,7 @@ public final class HostService extends Service implements SunshineServer.Listene
         if (logs.size()>80) logs.remove(0);
     }
     private Bundle snapshot() {
-        Bundle b=new Bundle(); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
+        Bundle b=new Bundle(); b.putBoolean("stopping",stopping);b.putInt("pid",android.os.Process.myPid()); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
         long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.ui_receiver_label,r.ordinal())+" · "+r.width()+"×"+r.height()+" · "+r.fps()+" FPS";}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
         b.putString("panelState",panelState);b.putBoolean("panelOff",panelOff);b.putInt("displayId",independentDisplayId);b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
         b.putBoolean("control",remoteInput!=null?remoteInput.enabled():controlEnabled);

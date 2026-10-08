@@ -170,4 +170,9 @@
     <string name="ui_panel_off">本地屏幕已关闭 · 投屏继续</string>
     <string name="ui_panel_restored">本地屏幕已恢复</string>
     <string name="ui_panel_unavailable">屏幕电源控制不可用，已尝试恢复</string>
+    <string name="ui_stopping">正在停止投屏…</string>
+    <string name="ui_host_unresponsive">投屏服务未响应 · 请停止后重新开始</string>
+    <string name="ui_waiting_for_reconnection">接收端已断开 · 等待重新连接</string>
+    <string name="ui_preparing_reconnection">接收端已断开 · 正在准备重连…</string>
+    <string name="ui_replacing_receiver">用新连接替换上一次接收端会话</string>
 </resources>

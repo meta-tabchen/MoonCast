@@ -16,7 +16,7 @@ Download the APK from this repository's [Releases](https://github.com/meta-tabch
 3. Open Moonlight on the receiver. Discover the phone or add the **Phone LAN IP** shown in MoonCast.
 4. Initiate pairing in Moonlight and enter its four-digit PIN in MoonCast.
 5. Open **Desktop** in Moonlight, then switch the phone to the app you want to show.
-6. Stop using MoonCast or its notification. Ordinary capture ends when the receiver disconnects; start again for a new permission grant. Pairing survives app restarts.
+6. Stop using MoonCast or its notification. Ordinary capture stays shared when the receiver disconnects. Wait for the reconnect-ready state while the native transport restarts; a new connection can replace a previous session whose disconnect is still pending. Pairing survives app restarts.
 
 Start with 1080p60, H.264 or HEVC, and 30–50 Mbps in Moonlight. Resolution/FPS/bitrate come from the client negotiation, not a promise from MoonCast. Increase them only after your encoder, decoder, and network work reliably.
 

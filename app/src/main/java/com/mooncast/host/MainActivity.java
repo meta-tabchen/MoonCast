@@ -29,7 +29,8 @@ public final class MainActivity extends Activity {
     };
     private final Handler main=new Handler(Looper.getMainLooper());
     private Messenger remote;
-    private boolean bound, resumed;
+    private boolean bound, resumed, stopPending;
+    private long bindingSince,lastStatus;
     private TextView state, detail, logs, ip, metrics, scenarioHint;
     private Button start, stop, submit;
     private CompoundButton hevc, audio, root, muteLocal, control,watchParty,panelOff;
@@ -53,7 +54,8 @@ public final class MainActivity extends Activity {
     private boolean updatingScale;
     private final Messenger response=new Messenger(new Handler(Looper.getMainLooper(), msg -> {
         if (msg.what==HostService.STATUS) {
-            Bundle b=msg.getData(); state.setText(b.getString("state")); detail.setText(b.getString("detail"));
+            if(remote==null)return true;
+            Bundle b=msg.getData();lastStatus=SystemClock.elapsedRealtime();if(stopPending || b.getBoolean("stopping"))return true; state.setText(b.getString("state")); detail.setText(b.getString("detail"));
             panelState.setText(b.getString("panelState",getString(R.string.ui_off)));showReceivers(b);logs.setText(b.getString("logs"));metrics.setText(b.getString("metrics"));independentDisplay=b.getInt("displayId",-1);openApp.setEnabled(independentDisplay>=0); pinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
             updatingControl=true;control.setChecked(b.getBoolean("control",false));updatingControl=false;
             controlInfo.setText(b.getString("controlStatus",getString(R.string.ui_off)));running(true);
@@ -63,14 +65,23 @@ public final class MainActivity extends Activity {
         return true;
     }));
     private final ServiceConnection connection=new ServiceConnection() {
-        @Override public void onServiceConnected(ComponentName n,IBinder b) { remote=new Messenger(b); bound=true; query(); }
-        @Override public void onServiceDisconnected(ComponentName n) {
-            remote=null; if(bound) { unbindService(this); bound=false; }
-            running(false); state.setText(getString(R.string.ui_stopped)); detail.setText(getString(R.string.ui_starting_again_will_request_screen_sharing_permission));
-        }
+        @Override public void onServiceConnected(ComponentName n,IBinder b) { remote=new Messenger(b);bound=true;lastStatus=SystemClock.elapsedRealtime();if(stopPending)send(HostService.STOP,null);else query(); }
+        @Override public void onServiceDisconnected(ComponentName n) { hostGone(); }
+        @Override public void onBindingDied(ComponentName n) { hostGone(); }
+        @Override public void onNullBinding(ComponentName n) { hostGone(); }
     };
+    private void hostGone(){
+        remote=null;if(bound){unbindService(connection);bound=false;}stopPending=false;
+        running(false);state.setText(R.string.ui_stopped);detail.setText(R.string.ui_starting_again_will_request_screen_sharing_permission);
+        try{new LocalAudioMute(this).restore();}catch(RuntimeException ignored){}
+    }
+    private void requestStop(){
+        stopPending=true;state.setText(R.string.ui_stopping);detail.setText("");stop.setEnabled(false);
+        if(remote!=null)send(HostService.STOP,null);
+        else{stopService(new Intent(this,HostService.class));hostGone();}
+    }
     private final Runnable poll=new Runnable() {
-        @Override public void run() { if (!resumed) return; if (remote==null) bindExisting(); else query();if(!fileBound)fileBound=bindService(new Intent(MainActivity.this,FileCinemaService.class),fileConnection,0);else queryFile(); ip.setText(HostService.addresses(MainActivity.this)); main.postDelayed(this,1500); }
+        @Override public void run() { if (!resumed) return; if(bound && remote==null && SystemClock.elapsedRealtime()-bindingSince>3000)hostGone();if (remote==null) bindExisting(); else {query();if(!stopPending && SystemClock.elapsedRealtime()-lastStatus>6000)state.setText(R.string.ui_host_unresponsive);}if(!fileBound)fileBound=bindService(new Intent(MainActivity.this,FileCinemaService.class),fileConnection,0);else queryFile(); ip.setText(HostService.addresses(MainActivity.this)); main.postDelayed(this,1500); }
     };
     private static final int INK=0xff172338, MUTED=0xff778396, BLUE=0xff3868ed;
     @Override public void onCreate(Bundle b) {
@@ -183,7 +194,7 @@ public final class MainActivity extends Activity {
         advanced.addView(text(getString(R.string.ui_diagnostics),12,MUTED));logs=text(getString(R.string.ui_waiting_to_start_pending),11,MUTED);logs.setTextIsSelectable(true);advanced.addView(logs);
 
         start=button(getString(R.string.ui_start_casting),BLUE);hero.addView(start);start.setOnClickListener(v->begin());
-        stop=button(getString(R.string.ui_stop_casting),0xff8a97ad);hero.addView(stop);stop.setOnClickListener(v->send(HostService.STOP,null));stop.setEnabled(false);stop.setVisibility(View.GONE);
+        stop=button(getString(R.string.ui_stop_casting),0xff8a97ad);hero.addView(stop);stop.setOnClickListener(v->requestStop());stop.setEnabled(false);stop.setVisibility(View.GONE);
         pinBox=card(page);pinBox.setVisibility(View.GONE);section(pinBox,getString(R.string.ui_pair_receiver),getString(R.string.ui_enter_the_4_digit_pin_shown_in_moonlight));
         pin=new EditText(this);pin.setHint("0000");pin.setTextSize(26);pin.setTypeface(Typeface.MONOSPACE);pin.setInputType(InputType.TYPE_CLASS_NUMBER);pin.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});pinBox.addView(pin);
         submit=button(getString(R.string.ui_pair),BLUE);pinBox.addView(submit);submit.setOnClickListener(v->{String code=pin.getText().toString();if(!code.matches("[0-9]{4}")){toast(getString(R.string.ui_enter_a_4_digit_pin));return;}Bundle data=new Bundle();data.putString("pin",code);send(HostService.PIN,data);pin.setText("");});
@@ -294,12 +305,12 @@ public final class MainActivity extends Activity {
         if(grant!=null) i.putExtra("grant",grant);
         startForegroundService(i); state.setText(getString(R.string.ui_starting_pending)); main.postDelayed(this::bindExisting,300);
     }
-    private void bindExisting() { if(!bound) { bound=bindService(new Intent(this,HostService.class),connection,0);if(!bound)try{new LocalAudioMute(this).restore();}catch(RuntimeException ignored){} } }
+    private void bindExisting() { if(!bound) { bindingSince=SystemClock.elapsedRealtime();bound=bindService(new Intent(this,HostService.class),connection,0);if(!bound)hostGone(); } }
     private void query() { send(HostService.STATUS,null); }
     private void send(int what,Bundle data) {
         if(remote==null) return;
         try { Message m=Message.obtain(null,what); m.replyTo=response; if(data!=null)m.setData(data); remote.send(m); }
-        catch(RemoteException e){remote=null; running(false);}
+        catch(RemoteException e){hostGone();}
     }
     private void running(boolean yes) { panelOff.setEnabled(!yes);restoreDisplay.setEnabled(yes);if(!yes)panelState.setText(R.string.ui_off);profile.setEnabled(!yes);watchParty.setEnabled(!yes);if(!yes){receiverList.removeAllViews();shownReceivers=new long[0];}scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE); }
     @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();main.post(poll);}

@@ -170,4 +170,9 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_panel_off">Local panel off · casting continues</string>
     <string name="ui_panel_restored">Local display restored</string>
     <string name="ui_panel_unavailable">Panel power unavailable; restoration attempted</string>
+    <string name="ui_stopping">Stopping casting…</string>
+    <string name="ui_host_unresponsive">Host is not responding · Stop to restart</string>
+    <string name="ui_waiting_for_reconnection">Receiver disconnected · waiting for reconnection</string>
+    <string name="ui_preparing_reconnection">Receiver disconnected · preparing reconnection…</string>
+    <string name="ui_replacing_receiver">Replacing the previous receiver session with the new connection</string>
 </resources>

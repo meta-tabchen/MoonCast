@@ -32,6 +32,10 @@ final class MultiOutputChecks {
             pipeline.addOutput(3,third.getSurface(),640,480);
             removed=new CountDownLatch(1);pipeline.removeOutput(2,removed::countDown);if(!removed.await(2,TimeUnit.SECONDS))throw new AssertionError("second detach timeout");
             second.close();
+            removed=new CountDownLatch(1);pipeline.removeOutput(3,removed::countDown);if(!removed.await(2,TimeUnit.SECONDS))throw new AssertionError("last detach timeout");
+            // Idle has zero outputs; reconnect must use the same consent-owned input.
+            for(int i=0;i<4;i++){paint(input.get(),true,Color.BLUE);Thread.sleep(60);}
+            pipeline.addOutput(4,third.getSurface(),640,480);
             for(int i=0;i<8;i++){paint(input.get(),true,Color.WHITE);Thread.sleep(60);}
             try(Image c=third.acquireLatestImage()){if(c==null)throw new AssertionError("third output missing");requireColor(c,320,240,Color.WHITE);}
             if(captures.get()!=1 || failure.get()!=null)throw new AssertionError("single capture ownership: "+captures+" "+failure.get());

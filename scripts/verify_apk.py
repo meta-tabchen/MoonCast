@@ -46,6 +46,8 @@ with zipfile.ZipFile(apk) as z:
         assert not any('libmoonlight-core' in n for n in z.namelist()), 'test-client payload in release'
         assert b'com/mooncast/host/testclient' not in z.read('classes.dex'), 'test-client classes in release'
         assert b'com/mooncast/host/PanelPowerProbe' not in z.read('classes.dex'), 'debug root probe in release'
+        assert b'com/mooncast/host/HostLifecycleProbe' not in z.read('classes.dex'), 'debug lifecycle probe in release'
+        assert b'com/mooncast/host/CaptureConsentProbe' not in z.read('classes.dex'), 'debug consent probe in release'
     assert not any("libgojni" in n or "displaylink" in n.lower() for n in z.namelist())
     for relative, expected in manifest["libraries"].items():
         data = z.read("lib/" + relative)

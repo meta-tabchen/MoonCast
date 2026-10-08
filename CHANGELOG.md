@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-10-08 (preview)
+
+- End the host process with the last receiver. The native host only frees a peer-to-session entry once that session is marked stopping, and a session the host merely parked kept matching the next client to encoders that had already exited; the client then failed with an initial ping timeout instead of streaming. Reconnecting asks for screen capture consent again.
+- Deliver Stop through a separate command looper and arm a process-exit deadline before potentially blocked resource cleanup. Fatal capture failures also stop the native host.
+- Recover stale, dead and unanswered UI service bindings; show stopping immediately and restore local volume after host death.
+- Add debug-only blocked-main/blocked-cleanup lifecycle checks, zero-output GPU reconnect coverage and optional physical-phone Moonlight loopback checks. Native binaries remain unchanged.
+
 ## 0.3.0 — 2026-10-08 (preview)
 
 - Stable smart cinema acquire/lock/rescan alongside the four existing framing modes.

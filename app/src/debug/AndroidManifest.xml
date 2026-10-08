@@ -1,5 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
     <application>
+        <activity android:name=".CaptureConsentProbe" android:exported="true" />
+        <service android:name=".HostLifecycleProbe" android:process=":lifecycle_test" android:exported="false" />
         <!-- Repeat types for AGP 8.7's source-manifest lint inspection. -->
         <service android:name=".HostService" android:foregroundServiceType="mediaProjection|connectedDevice" tools:replace="android:foregroundServiceType" />
         <service android:name=".FileCinemaService" android:foregroundServiceType="connectedDevice" tools:replace="android:foregroundServiceType" />
