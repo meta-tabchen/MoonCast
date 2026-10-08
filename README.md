@@ -4,13 +4,13 @@
 
 <p align="center">
   <a href="https://github.com/meta-tabchen/MoonCast/actions/workflows/android.yml"><img src="https://github.com/meta-tabchen/MoonCast/actions/workflows/android.yml/badge.svg" alt="Android CI"></a>
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0"><img src="https://img.shields.io/badge/release-0.3.0%20preview-blue" alt="0.3.0 preview"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-0.3.1%20preview-blue" alt="0.3.1 preview"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0">Download APK</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/comparison.md">Compare alternatives</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1">Download APK</a> · <a href="docs/getting-started.md">Getting started</a> · <a href="docs/comparison.md">Compare alternatives</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
 
 # MoonCast
 
@@ -36,7 +36,7 @@ The protocol core comes from [Mirror](https://github.com/jqssun/android-display-
 
 ## Get a picture in five steps
 
-1. Install the [0.3.0 preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0) on an Android 8.0+ phone. It is a **debug-key-signed preview**, not a production-signed release.
+1. Install the [0.3.1 preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1) on an Android 8.0+ phone. It is a **debug-key-signed preview**, not a production-signed release.
 2. Install [official Moonlight](https://moonlight-stream.org/#) on the receiving device. Put both devices on the same trusted LAN.
 3. Tap **Start casting** (Chinese: **启动投屏**) on the phone and approve sharing the **entire screen**.
 4. In Moonlight, add the phone's LAN IP if discovery does not find it. Enter Moonlight's four-digit PIN in MoonCast.

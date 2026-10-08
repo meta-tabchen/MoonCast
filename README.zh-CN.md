@@ -7,11 +7,11 @@
 
 专注手机投屏：保留完整画面、内置视频区域裁切、同步播放声音，可选关闭手机本地声音，以及默认关闭的 Root／非 Root 反控。普通录屏无需 Root 或 ADB。
 
-当前为 **0.3.0 预览版**，APK 使用本地 debug 密钥签名。安卓 → iPad 基础投屏已有一次真机使用记录；用户试用 0.2.0 后反馈「貌似没啥问题」，但这不等于裁切、静音、反控已逐项验证。0.3.0 新功能已进行 MuMu 生成内容测试；多路完整串流、真机屏幕电源行为及实际播放器兼容性仍需真机验证。[逐项开发与测试记录](docs/feature-development.md)。主要界面跟随系统语言，底层诊断尚未完全翻译。
+当前为 **0.3.1 预览版**，APK 使用本地 debug 密钥签名。安卓 → iPad 基础投屏已有一次真机使用记录；用户试用 0.2.0 后反馈「貌似没啥问题」，但这不等于裁切、静音、反控已逐项验证。0.3.1 新功能已进行 MuMu 生成内容测试；多路完整串流、真机屏幕电源行为及实际播放器兼容性仍需真机验证。[逐项开发与测试记录](docs/feature-development.md)。主要界面跟随系统语言，底层诊断尚未完全翻译。
 
 ## 下载与开始
 
-1. 在 Android 8.0+ 手机安装 [0.3.0 Preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0)。
+1. 在 Android 8.0+ 手机安装 [0.3.1 Preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)。
 2. 接收端安装 [官方 Moonlight](https://moonlight-stream.org/)，两端连接同一可信局域网。
 3. 手机点击「启动投屏」，授权共享**整个屏幕**。
 4. Moonlight 添加手机 IP，将接收端显示的四位 PIN 输入手机配对框。
@@ -19,7 +19,7 @@
 
 建议先使用 1080p60、H.264/HEVC、30–50 Mbps 验证，设备编码器、解码器和网络决定上限。这不是性能承诺。
 
-[详细中文使用说明](docs/usage.zh-CN.md) · [英文快速入门](docs/getting-started.md) · [Release 下载](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.0)
+[详细中文使用说明](docs/usage.zh-CN.md) · [英文快速入门](docs/getting-started.md) · [Release 下载](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)
 
 ## 有什么特点？
 
