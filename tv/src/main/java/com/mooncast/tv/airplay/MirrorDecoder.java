@@ -196,15 +196,28 @@ final class MirrorDecoder {
         timing.reset();
     }
     static boolean hasNal(byte[] data, boolean h265, boolean config) {
-        for (int i = 0; i + 4 < data.length; i++) {
+        return containsNalType(data, h265, config ? 0 : 1);
+    }
+    /** Only VCL access units can produce a picture. SEI/AUD/EOS/filler must not arm the
+     * decoder-output watchdog; an access unit containing both config and VCL must arm it.
+     */
+    static boolean hasVcl(byte[] data, boolean h265) {
+        return containsNalType(data, h265, 2);
+    }
+    private static boolean containsNalType(byte[] data, boolean h265, int category) {
+        if (data == null) return false;
+        for (int i = 0; i + 3 < data.length; i++) {
             int offset;
             if (data[i] != 0 || data[i + 1] != 0) continue;
             if (data[i + 2] == 1) offset = i + 3;
             else if (data[i + 2] == 0 && data[i + 3] == 1) offset = i + 4;
             else continue;
+            // HEVC has a two-byte NAL header; AVC has one.
+            if (offset >= data.length || (h265 && offset + 1 >= data.length)) continue;
             int type = h265 ? ((data[offset] & 0xff) >> 1) & 63 : data[offset] & 31;
-            if (config && (h265 ? type >= 32 && type <= 34 : type == 7 || type == 8)) return true;
-            if (!config && (h265 ? type >= 16 && type <= 21 : type == 5)) return true;
+            if (category == 0 && (h265 ? type >= 32 && type <= 34 : type == 7 || type == 8)) return true;
+            if (category == 1 && (h265 ? type >= 16 && type <= 21 : type == 5)) return true;
+            if (category == 2 && (h265 ? type <= 31 : type >= 1 && type <= 5)) return true;
         }
         return false;
     }

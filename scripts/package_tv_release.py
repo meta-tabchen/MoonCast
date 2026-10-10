@@ -119,7 +119,7 @@ def main():
         'sourceCommit': revision, 'tag': tag, 'signing': 'ephemeral Android debug key',
         'distribution': 'experimental prerelease; not production-signed',
         'workflowRun': os.environ.get('GITHUB_RUN_ID'),
-        'verificationScope': 'Build, lint, portable behavior, APK payload, signature and ZIP alignment checks are CI gates. These are not physical-device interoperability tests.',
+        'verificationScope': 'Release verification requires Java 17 build/lint, portable protocol/framing/session/PCM behavior, actual Media3 pipeline/sink, APK payload, signature and ZIP alignment checks. This packaging helper does not run these checks. They are not physical-device interoperability or A/V synchronization tests.',
         'deviceTests': 'Not run by this workflow. Android TV, iOS AirPlay and DLNA sender compatibility need real-device validation.',
         'apkSha256': sha256(target_apk), 'sourceSha256': sha256(source),
     }
@@ -131,15 +131,48 @@ Source commit: `{revision}`.
 
 **Experimental, debug-key-signed preview.** This runner's ephemeral signing key
 can differ from earlier previews; Android may require uninstalling an older TV
-preview before installation, which removes that app's saved preferences.
+preview before installation, which removes that app's saved preferences and
+receiver pairing identity. A stable production upgrade/signing path is not configured.
 The phone sender application has a separate package name.
 
-CI gates: debug/release builds, Android lint, portable sender/receiver tests,
-native payload checks, APK signature and ZIP alignment. The Gradle unit-test
-task has no separate Android test sources; behavioral coverage is from the
-portable test runners.
+## v0.2 changes
+
+- Live remote framing over the visible picture: four independent 0–45% crop
+  edges (at least 20% retained per dimension), 100–300% proportional zoom and
+  horizontal/vertical position. Preview, save, cancel and full-image reset;
+  separate source/orientation profiles. Portrait defaults to full view.
+- Conservative cinema crop supports wider borders and expands locked crops
+  when repeated newly visible border content suggests captions or overlays.
+  This remains a heuristic; manual crop can hide burned-in subtitles.
+- Actual Media3 PCM audio calibration, −500…+500 ms in 50 ms steps. Positive
+  values insert silence; negative values discard leading audio. Applying
+  recreates media playback. PCM-only processing disables encoded passthrough,
+  offload and other bypass paths; some HDMI-only formats may no longer play.
+- Separate native AirPlay timing: movie defaults to 150 ms audio prebuffer
+  with PTS-paced video; low latency defaults to adaptive audio buffering and
+  immediate video output. Native signed audio offset is unavailable.
+- PIN changes restart reception. Disconnected-mirror recovery defaults to
+  15 seconds only after observed control TCP closure and continued video
+  silence; static/paused screens with open connections remain valid. Decoder
+  stalls are checked separately. Not every Wi-Fi failure is detected in 15
+  seconds, and the receiver cannot force phone reconnection.
+- Ordinary recovery keeps receiver identity. Only an explicitly confirmed
+  global identity reset deletes the receiver key; there is no native paired
+  device list or per-device revoke. Native client PIN keys are memory-only.
+
+## Verification and distribution
+
+Required release gates: Java 17 debug/release builds, Android lint, portable
+sender/receiver protocol, framing, session and PCM tests, the actual Media3
+1.5.1 pipeline/sink check, native payload checks, APK signature and ZIP
+alignment. This note lists the verification scope; it does not independently
+attest a CI result. The packaging helper does not run those checks. The Gradle
+unit-test task has no separate Android test sources; behavioral coverage is
+from the portable test runners.
 The corresponding-source archive includes retained native runtime source,
-provenance and licenses. `SHA256SUMS` covers the APK, source and build metadata.
+provenance and licenses. Pinned native source/binaries are unchanged, with
+AirPlay/UxPlay GPLv3 obligations retained. `SHA256SUMS` covers the APK, source
+and build metadata. Historical preview assets must not be overwritten.
 
 No physical Android TV or iOS sender was exercised by this workflow. Real AirPlay
 and DLNA interoperability, reconnect/stop behavior, audio/video synchronization,

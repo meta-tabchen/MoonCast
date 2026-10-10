@@ -441,7 +441,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     @Override public void onVideoData(byte[] bytes, long ntp, boolean hevc) {
         if (!running || recoveryPending || bytes == null || bytes.length < 5 || bytes.length > 16 * 1024 * 1024) return;
         beginMirror();
-        watchdog.videoPacket(SystemClock.elapsedRealtime(), !MirrorDecoder.hasNal(bytes, hevc, true));
+        watchdog.videoPacket(SystemClock.elapsedRealtime(), MirrorDecoder.hasVcl(bytes, hevc));
         final int expectedGeneration = generation, expectedMirror;
         synchronized (mirrorGate) {
             expectedMirror = mirrorEpoch;
