@@ -17,9 +17,12 @@ javac = str(bin_path / ('javac' + suffix)) if bin_path else 'javac'
 java = str(bin_path / ('java' + suffix)) if bin_path else 'java'
 sources = sorted(p for p in (source / 'net').glob('*.java') if p.name != 'ReceiverMediaSource.java')
 sources += [source / 'CropGeometry.java', source / 'CinemaCropTracker.java',
+            source / 'FramingSettings.java', source / 'FramingProfiles.java',
+            source / 'FramingSession.java', source / 'FramingTransform.java',
+            root / 'tests/TvFramingTest.java',
             root / 'tests/TvReceiverProtocolTest.java', root / 'tests/TvGeometryTest.java', root / 'tests/TvMediaHttpTest.java']
 with tempfile.TemporaryDirectory(prefix='mooncast-tv-tests-') as directory:
     subprocess.run([javac, '--release', '17', '-encoding', 'UTF-8', '-d', directory,
                     *map(str, sources)], check=True)
-    for test in ('com.mooncast.tv.net.TvReceiverProtocolTest', 'com.mooncast.tv.TvGeometryTest', 'com.mooncast.tv.net.TvMediaHttpTest'):
+    for test in ('com.mooncast.tv.net.TvReceiverProtocolTest', 'com.mooncast.tv.TvGeometryTest', 'com.mooncast.tv.TvFramingTest', 'com.mooncast.tv.net.TvMediaHttpTest'):
         subprocess.run([java, '-cp', directory, test], check=True, timeout=90)

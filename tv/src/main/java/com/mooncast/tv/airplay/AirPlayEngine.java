@@ -12,8 +12,11 @@ import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Surface;
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.security.SecureRandom;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -26,6 +29,38 @@ import io.github.jqssun.airplay.bridge.RaopCallbackHandler;
  * The supplied Surface belongs to the UI and is never released here. This is a LAN-only receiver.
  */
 public final class AirPlayEngine implements RaopCallbackHandler {
+    public enum PlaybackMode { MOVIE, LOW_LATENCY }
+    public enum SessionState { STOPPED, READY, MIRRORING, AUDIO_ONLY, MEDIA_URL, RECOVERING }
+    /** Requested values and actual decoder/audio observations are intentionally separate. */
+    public static final class RuntimeStats {
+        public final SessionState state;
+        public final PlaybackMode playbackMode;
+        public final int requestedWidth, requestedHeight, requestedFps, decodedWidth, decodedHeight;
+        public final String codec, decoderName, decoderImplementation, peerDescription;
+        public final float observedFps;
+        public final long decodedFrames, droppedFrames;
+        public final int controlConnections, watchdogSeconds, configuredAudioBufferMs;
+        public final boolean pinRequired, audioActive;
+        public final NativeAudioStats audio;
+        private RuntimeStats(AirPlayEngine engine) {
+            state = engine.sessionState; playbackMode = engine.playbackMode;
+            requestedWidth = engine.requestedWidth; requestedHeight = engine.requestedHeight;
+            requestedFps = engine.requestedFps;
+            synchronized (engine.decoder) {
+                decodedWidth = engine.decoder.decodedWidth(); decodedHeight = engine.decoder.decodedHeight();
+                codec = engine.decoder.codecMime(); decoderName = engine.decoder.decoderName();
+                decoderImplementation = engine.decoder.implementation(); observedFps = engine.decoder.observedFps();
+                decodedFrames = engine.decoder.frames(); droppedFrames = engine.decoder.drops();
+            }
+            controlConnections = engine.watchdog.connections(); watchdogSeconds = engine.watchdog.timeoutSeconds();
+            configuredAudioBufferMs = engine.effectiveAudioBufferMs();
+            pinRequired = engine.running ? engine.activePinRequired : engine.pinRequired;
+            audioActive = engine.audioOutputActive; audio = engine.audioStats;
+            // The ABI discards names/IDs. HTTP counts also include HLS proxy sockets.
+            peerDescription = state == SessionState.MIRRORING || state == SessionState.AUDIO_ONLY
+                    || state == SessionState.MEDIA_URL ? "AirPlay sender (identity unavailable)" : "";
+        }
+    }
     public interface Listener {
         void onStatus(String status);
         void onVideoSize(int width, int height);
@@ -37,6 +72,10 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         default void onMirrorStopped() {}
         default void onPin(String pin) {}
         default void onAudioStarted() {}
+        /** Hide/clear the UI-owned mirror Surface; stopping MediaCodec retains its last pixels. */
+        default void onSessionCleared(String reason) {}
+        /** Main-thread request: queue stop/start on the owner's serial lifecycle worker. */
+        default void onRecoveryRequired(String reason) {}
     }
     private final Context context;
     private final Listener listener;
@@ -49,8 +88,26 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         Thread thread = new Thread(r, "MoonCast-AirPlay-audio"); thread.setDaemon(true); return thread;
     });
     private AudioFocusRequest focusRequest;
-    private volatile boolean audioDesired, audioHasFocus;
+    private int focusGeneration = -1;
+    private volatile boolean audioDesired, audioHasFocus, audioOutputActive;
     private int audioCodecType, audioSamplesPerFrame;
+    private final SessionWatchdog watchdog = new SessionWatchdog();
+    private final ByteBuffer audioDebug = ByteBuffer.allocateDirect(64).order(ByteOrder.LITTLE_ENDIAN);
+    private volatile NativeAudioStats audioStats;
+    private volatile PlaybackMode playbackMode = PlaybackMode.MOVIE;
+    private volatile SessionState sessionState = SessionState.STOPPED;
+    private volatile int audioBufferMs = -1; // -1 = mode default, 0 = native adaptive tuner
+    private volatile boolean pinRequired = true, activePinRequired = true, recoveryPending;
+    private volatile int requestedWidth = 1920, requestedHeight = 1080;
+    private final Runnable healthTick = new Runnable() {
+        @Override public void run() {
+            if (!running) return;
+            pollAudioStats();
+            String reason = watchdog.check(SystemClock.elapsedRealtime());
+            if (reason != null) requestRecovery(reason);
+            if (running) main.postDelayed(this, 1000);
+        }
+    };
     private final List<NsdManager.RegistrationListener> registrations = new ArrayList<>();
     private final ArrayDeque<Frame> startupFrames = new ArrayDeque<>();
     private WifiManager.MulticastLock multicast;
@@ -58,7 +115,12 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     private volatile boolean running;
     private volatile int boundPort;
     private volatile int generation;
-    private boolean mirroring, mirrorReady;
+    private boolean mirroring, mirrorReady, mirrorUiReady, surfaceAvailable, startupScheduled;
+    private volatile int mirrorEpoch;
+    private static final java.util.concurrent.ExecutorService videoBootstrap = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "MoonCast-AirPlay-startup"); thread.setDaemon(true); return thread;
+    });
+    private volatile boolean audioUsingScreen;
     private int startupBytes, requestedFps = 60;
     private volatile String lastStatus = "";
     private static final class Frame {
@@ -71,11 +133,12 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         nsd = (NsdManager) this.context.getSystemService(Context.NSD_SERVICE);
         decoder = new MirrorDecoder(new MirrorDecoder.Events() {
             @Override public void size(int w, int h) { post(() -> listener.onVideoSize(w, h)); }
-            @Override public void failure() { status("AirPlay decoder error; reconnect the sender"); }
+            @Override public void failure() { requestRecovery("Video decoder failed"); }
+            @Override public void output() { watchdog.videoOutput(); }
         });
     }
     public void start(String name, int width, int height, int fps) throws Exception {
-        start(name, width, height, fps, true);
+        start(name, width, height, fps, pinRequired);
     }
     public void start(String name, int width, int height, int fps, boolean requirePin) throws Exception {
         if (running) return;
@@ -84,11 +147,16 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             name = name.substring(0, name.offsetByCodePoints(name.length(), -1));
         if (Looper.myLooper() == Looper.getMainLooper())
             throw new IllegalStateException("Start AirPlay on a background executor");
-        generation++; lastStatus = ""; audioDesired = false;
+        generation++; lastStatus = ""; audioDesired = false; audioHasFocus = false;
+        recoveryPending = false; audioStats = null; audioUsingScreen = false;
+        pinRequired = requirePin; activePinRequired = requirePin;
+        sessionState = SessionState.STOPPED; watchdog.reset(); decoder.resetStatistics();
         if (!MirrorDecoder.supports(MediaFormat.MIMETYPE_VIDEO_AVC))
             throw new IllegalStateException("This device has no H.264 decoder");
         width = Math.max(640, Math.min(width, 3840)); height = Math.max(360, Math.min(height, 2160));
+        requestedWidth = width; requestedHeight = height;
         requestedFps = Math.max(24, Math.min(fps, 60));
+        decoder.configureTiming(playbackMode == PlaybackMode.MOVIE, effectiveVideoCushionMs());
         decoder.setResolution(width, height, requestedFps);
         try {
             WifiManager wifi = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
@@ -111,12 +179,14 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             bridge.nativeSetPlist(created, "maxFPS", requestedFps);
             bridge.nativeSetPlist(created, "overscanned", 0);
             bridge.nativeSetDisplaySize(created, width, height, requestedFps);
-            bridge.nativeServerAudioConfigure(created, 0, 95, 0, false, true, true, false);
+            if (!configureNativeAudio(created)) throw new IllegalStateException("Audio configuration failed");
             int port = bridge.nativeStart(created, 7000);
             boundPort = port;
             if (port < 1) throw new IllegalStateException("AirPlay could not listen on TCP 7000");
             register(bridge.nativeGetRaopServiceName(created), "_raop._tcp", port, bridge.nativeGetRaopTxtRecords(created));
             register(bridge.nativeGetServerName(created), "_airplay._tcp", port, bridge.nativeGetAirplayTxtRecords(created));
+            sessionState = SessionState.READY;
+            main.removeCallbacks(healthTick); main.post(healthTick);
             status("AirPlay listening; discovery registering");
         } catch (Exception | LinkageError failure) {
             stop();
@@ -125,8 +195,15 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     }
     public void stop() {
         long previous;
-        audioDesired = false; audioHasFocus = false;
+        audioDesired = false; audioHasFocus = false; audioOutputActive = false;
         synchronized (gate) { running = false; previous = handle; handle = 0; generation++; }
+        main.removeCallbacks(healthTick); watchdog.reset(); audioStats = null;
+        recoveryPending = false; sessionState = SessionState.STOPPED;
+        endMirror(); decoder.stopSession();
+        final int clearingGeneration = generation;
+        main.post(() -> {
+            if (generation == clearingGeneration) listener.onSessionCleared("Receiver stopped");
+        });
         // Never hold gate while joining native callbacks: callbacks themselves can need gate.
         for (NsdManager.RegistrationListener registration : registrations) {
             try { nsd.unregisterService(registration); } catch (RuntimeException ignored) {}
@@ -134,7 +211,9 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         registrations.clear();
         final int stoppedGeneration = generation;
         main.post(() -> {
-            if (generation == stoppedGeneration && focusRequest != null) audio.abandonAudioFocusRequest(focusRequest);
+            if (focusRequest != null && focusGeneration < stoppedGeneration) {
+                audio.abandonAudioFocusRequest(focusRequest); focusRequest = null; focusGeneration = -1;
+            }
         });
         if (previous != 0) {
             try {
@@ -144,15 +223,109 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             finally { NativeBridge.INSTANCE.nativeDestroy(previous); }
         }
         boundPort = 0;
-        endMirror(); decoder.stopSession();
         if (multicast != null) {
             if (multicast.isHeld()) multicast.release(); multicast = null;
         }
     }
     public int getPort() { return boundPort; }
+    public RuntimeStats getRuntimeStats() { return new RuntimeStats(this); }
+    public void setWatchdogTimeoutSeconds(int seconds) { watchdog.setTimeoutSeconds(seconds); }
+    public void setPlaybackMode(PlaybackMode mode) {
+        if (mode == null) throw new IllegalArgumentException("Playback mode required");
+        playbackMode = mode;
+        decoder.configureTiming(mode == PlaybackMode.MOVIE, effectiveVideoCushionMs());
+        applyAudioConfiguration();
+    }
+    /** Real native jitter prebuffer, not a signed audio-sync offset. 0 selects adaptive buffering. */
+    public void setAudioBufferMs(int milliseconds) {
+        if (milliseconds < 0 || milliseconds > 500 || milliseconds % 50 != 0)
+            throw new IllegalArgumentException("Audio buffer must be 0–500 ms in 50 ms steps");
+        audioBufferMs = milliseconds;
+        decoder.configureTiming(playbackMode == PlaybackMode.MOVIE, effectiveVideoCushionMs());
+        applyAudioConfiguration();
+    }
+    public void useModeDefaultAudioBuffer() {
+        audioBufferMs = -1;
+        decoder.configureTiming(playbackMode == PlaybackMode.MOVIE, effectiveVideoCushionMs());
+        applyAudioConfiguration();
+    }
+    /** PIN mode is fixed at nativeInit. The owner must restart on its serial executor if true. */
+    public boolean requestPinMode(boolean required) {
+        boolean changed = pinRequired != required; pinRequired = required;
+        return changed && running;
+    }
+    /** Explicit destructive UI action only. Automatic recovery must never call this method.
+     * Rotates receiver identity, not a per-device revoke (the ABI has no peer database).
+     */
+    public void resetIdentityAfterConfirmation(boolean confirmed) throws java.io.IOException {
+        if (!confirmed) throw new SecurityException("Explicit identity-reset confirmation required");
+        if (Looper.myLooper() == Looper.getMainLooper())
+            throw new IllegalStateException("Reset identity on the serial lifecycle worker");
+        synchronized (gate) {
+            if (running || handle != 0) throw new IllegalStateException("Stop AirPlay before resetting identity");
+            File identity = new File(context.getFilesDir(), "airplay-identity.pem");
+            if (identity.exists() && !identity.delete()) throw new java.io.IOException("Receiver identity could not be removed");
+            if (!context.getSharedPreferences("airplay", Context.MODE_PRIVATE).edit().remove("identity").commit())
+                throw new java.io.IOException("Receiver address could not be reset");
+        }
+    }
+    private int effectiveAudioBufferMs() {
+        return audioBufferMs >= 0 ? audioBufferMs : playbackMode == PlaybackMode.MOVIE ? 150 : 0;
+    }
+    private int effectiveVideoCushionMs() {
+        return playbackMode == PlaybackMode.MOVIE ? effectiveAudioBufferMs() : 0;
+    }
+    private boolean configureNativeAudio(long nativeHandle) {
+        boolean lowLatency = playbackMode == PlaybackMode.LOW_LATENCY;
+        return NativeBridge.INSTANCE.nativeServerAudioConfigure(nativeHandle, effectiveAudioBufferMs(),
+                95, 0, false, true, lowLatency, false);
+    }
+    private void applyAudioConfiguration() {
+        final int expected = generation;
+        audioControl.execute(() -> {
+            synchronized (gate) {
+                if (handle != 0 && generation == expected && !configureNativeAudio(handle))
+                    status("AirPlay audio configuration unavailable");
+            }
+        });
+    }
+    private void pollAudioStats() {
+        final int expected = generation;
+        audioControl.execute(() -> {
+            synchronized (gate) {
+                if (handle == 0 || generation != expected) return;
+                audioDebug.clear();
+                if (NativeBridge.INSTANCE.nativeServerAudioDebug(handle, audioDebug))
+                    audioStats = NativeAudioStats.read(audioDebug);
+            }
+        });
+    }
+    private void requestRecovery(String reason) {
+        final boolean wasMirroring;
+        synchronized (mirrorGate) {
+            if (!running || recoveryPending) return;
+            recoveryPending = true; sessionState = SessionState.RECOVERING;
+            wasMirroring = mirroring; mirroring = mirrorReady = mirrorUiReady = false;
+            mirrorEpoch++; startupFrames.clear(); startupBytes = 0;
+        }
+        // The owner's lifecycle worker releases MediaCodec/native sockets, never this callback.
+        audioDesired = false; controlAudio(); watchdog.endMirror();
+        post(() -> {
+            if (wasMirroring) listener.onMirrorStopped();
+            listener.onSessionCleared(reason); listener.onRecoveryRequired(reason);
+        });
+        status("AirPlay reconnecting: " + reason);
+    }
     public boolean isRunning() { return running; }
-    public void setSurface(Surface surface) { decoder.setSurface(surface); }
-    public void clearSurface() { decoder.setSurface(null); }
+    public void setSurface(Surface surface) {
+        decoder.setSurface(surface);
+        synchronized (mirrorGate) { surfaceAvailable = surface != null && surface.isValid(); }
+        drainStartup();
+    }
+    public void clearSurface() {
+        synchronized (mirrorGate) { surfaceAvailable = false; mirrorReady = false; }
+        decoder.setSurface(null);
+    }
     public long getDecodedFrames() { return decoder.frames(); }
     public long getDroppedFrames() { return decoder.drops(); }
     public void updatePlaybackInfo(float position, float duration, float rate, boolean ready) {
@@ -202,56 +375,108 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         lastStatus = message; post(() -> listener.onStatus(message));
     }
     private void beginMirror() {
+        final int expectedMirror;
         synchronized (mirrorGate) {
-            if (mirroring) return;
-            mirroring = true; mirrorReady = false;
+            if (mirroring || !running || recoveryPending) return;
+            mirroring = true; mirrorReady = mirrorUiReady = false; expectedMirror = ++mirrorEpoch;
+            sessionState = SessionState.MIRRORING;
+            watchdog.beginMirror(SystemClock.elapsedRealtime());
         }
         post(() -> {
+            synchronized (mirrorGate) { if (!mirroring || mirrorEpoch != expectedMirror || recoveryPending) return; }
             listener.onMirrorStarted();
-            synchronized (mirrorGate) { if (mirroring) mirrorReady = true; }
+            synchronized (mirrorGate) { if (mirroring && mirrorEpoch == expectedMirror) mirrorUiReady = true; }
+            drainStartup();
+        });
+    }
+    /** Drain startup immediately after UI/surface readiness, even if sender then stays static.
+     * Keep mirrorReady false until every older packet has been fed, preserving codec order.
+     */
+    private void drainStartup() {
+        final int expectedGeneration, expectedMirror;
+        synchronized (mirrorGate) {
+            if (!running || recoveryPending || !mirroring || !mirrorUiReady || !surfaceAvailable || startupScheduled) return;
+            startupScheduled = true; expectedGeneration = generation; expectedMirror = mirrorEpoch;
+        }
+        videoBootstrap.execute(() -> {
+            try {
+                while (true) {
+                    Frame frame;
+                    synchronized (mirrorGate) {
+                        if (generation != expectedGeneration || mirrorEpoch != expectedMirror || !running
+                                || recoveryPending || !mirroring || !surfaceAvailable) return;
+                        frame = startupFrames.poll();
+                        if (frame == null) { mirrorReady = true; return; }
+                        startupBytes -= frame.bytes.length;
+                    }
+                    synchronized (decoder) {
+                        if (generation != expectedGeneration || mirrorEpoch != expectedMirror || !running || recoveryPending) return;
+                        decoder.feed(frame.bytes, frame.ntp, frame.hevc);
+                    }
+                }
+            } finally {
+                boolean queued;
+                synchronized (mirrorGate) { startupScheduled = false; queued = !startupFrames.isEmpty(); }
+                // A newer session may have reached readiness while the old task was finishing.
+                if (queued) drainStartup();
+            }
         });
     }
     private void endMirror() {
-        boolean wasMirroring;
+        final boolean wasMirroring;
+        final int endedMirror;
         synchronized (mirrorGate) {
-            wasMirroring = mirroring; mirroring = false; mirrorReady = false;
+            wasMirroring = mirroring; mirroring = mirrorReady = mirrorUiReady = false; endedMirror = ++mirrorEpoch;
             startupFrames.clear(); startupBytes = 0;
         }
-        decoder.stopSession();
-        if (wasMirroring) post(listener::onMirrorStopped);
+        watchdog.endMirror(); decoder.stopSession();
+        if (wasMirroring) {
+            if (running && !recoveryPending) sessionState = SessionState.READY;
+            post(() -> {
+                synchronized (mirrorGate) { if (mirrorEpoch != endedMirror || mirroring) return; }
+                listener.onMirrorStopped(); listener.onSessionCleared("Mirror ended");
+            });
+        }
     }
     @Override public void onVideoData(byte[] bytes, long ntp, boolean hevc) {
-        if (!running) return;
+        if (!running || recoveryPending || bytes == null || bytes.length < 5 || bytes.length > 16 * 1024 * 1024) return;
         beginMirror();
-        List<Frame> buffered = new ArrayList<>();
+        watchdog.videoPacket(SystemClock.elapsedRealtime(), !MirrorDecoder.hasNal(bytes, hevc, true));
+        final int expectedGeneration = generation, expectedMirror;
         synchronized (mirrorGate) {
+            expectedMirror = mirrorEpoch;
             if (!mirrorReady) {
                 if (startupBytes + bytes.length <= 4 * 1024 * 1024) {
                     startupFrames.add(new Frame(bytes, ntp, hevc)); startupBytes += bytes.length;
                 }
                 return;
             }
-            while (!startupFrames.isEmpty()) buffered.add(startupFrames.remove());
-            startupBytes = 0;
         }
-        for (Frame frame : buffered) decoder.feed(frame.bytes, frame.ntp, frame.hevc);
-        decoder.feed(bytes, ntp, hevc);
+        synchronized (decoder) {
+            if (generation == expectedGeneration && mirrorEpoch == expectedMirror && running && !recoveryPending)
+                decoder.feed(bytes, ntp, hevc);
+        }
     }
+
     @Override public void onAudioFormat(int ct, int spf, boolean usingScreen) {
         synchronized (gate) {
-            if (handle == 0) return;
-            audioCodecType = ct; audioSamplesPerFrame = spf; audioDesired = true;
+            if (handle == 0 || recoveryPending) return;
+            audioCodecType = ct; audioSamplesPerFrame = spf; audioDesired = true; audioUsingScreen = usingScreen;
         }
-        if (usingScreen) beginMirror();
+        if (usingScreen) beginMirror(); else sessionState = SessionState.AUDIO_ONLY;
         post(() -> {
+            if (!audioDesired || recoveryPending) return;
             // Relinquish the app's other media session before native audio takes focus.
             if (!usingScreen) listener.onAudioStarted();
-            if (focusRequest == null) {
+            if (focusRequest == null || focusGeneration != generation) {
+                if (focusRequest != null) audio.abandonAudioFocusRequest(focusRequest);
+                final int requestGeneration = generation; focusGeneration = requestGeneration;
                 focusRequest = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
                     .setAudioAttributes(new AudioAttributes.Builder()
                         .setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MOVIE).build())
                     .setWillPauseWhenDucked(true)
                     .setOnAudioFocusChangeListener(change -> {
+                        if (!running || requestGeneration != generation) return;
                         audioHasFocus = change == AudioManager.AUDIOFOCUS_GAIN;
                         if (change == AudioManager.AUDIOFOCUS_LOSS) audioDesired = false;
                         controlAudio();
@@ -269,11 +494,14 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             synchronized (gate) {
                 if (handle == 0 || generation != expected) return;
                 if (audioDesired && audioHasFocus) {
-                    if (!NativeBridge.INSTANCE.nativeServerAudioStart(handle)) {
+                    audioOutputActive = NativeBridge.INSTANCE.nativeServerAudioStart(handle);
+                    if (!audioOutputActive) {
                         status("AirPlay audio output unavailable"); return;
                     }
                     NativeBridge.INSTANCE.nativeServerAudioFormat(handle, audioCodecType, audioSamplesPerFrame);
-                } else NativeBridge.INSTANCE.nativeServerAudioStop(handle);
+                } else {
+                    NativeBridge.INSTANCE.nativeServerAudioStop(handle); audioOutputActive = false;
+                }
             }
         });
     }
@@ -291,25 +519,38 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         return current == 0 || max == 0 ? -144f : -30f + 30f * current / max;
     }
     @Override public void onAudioTeardown() {
+        if (!running) return;
         audioDesired = false;
+        if (sessionState == SessionState.AUDIO_ONLY) {
+            sessionState = SessionState.READY; post(() -> listener.onSessionCleared("Audio ended"));
+        }
         controlAudio();
         post(() -> { if (focusRequest != null) audio.abandonAudioFocusRequest(focusRequest); audioHasFocus = false; });
     }
-    @Override public void onConnectionInit() { /* also fires for local HLS proxy requests */ }
-    @Override public void onConnectionDestroy() { /* TCP close alone is not mirror-session end */ }
-    @Override public void onConnectionReset(int reason) { endMirror(); }
+    @Override public void onConnectionInit() { if (running) watchdog.connectionOpened(); }
+    @Override public void onConnectionDestroy() {
+        if (running) watchdog.connectionClosed(SystemClock.elapsedRealtime());
+    }
+    @Override public void onConnectionReset(int reason) { requestRecovery("Native session reset (" + reason + ")"); }
     @Override public void onDisplayPin(String pin) { post(() -> listener.onPin(pin)); }
     @Override public void onMetadata(byte[] data) {}
     @Override public void onCoverArt(byte[] data) {}
     @Override public void onProgress(long start, long current, long end) {}
     @Override public void onDacpId(String id, String remote) {}
-    @Override public void onMirrorRunning(boolean active) { if (active) beginMirror(); else endMirror(); }
+    @Override public void onMirrorRunning(boolean active) {
+        if (!running || recoveryPending) return;
+        if (active) beginMirror(); else { endMirror(); if (audioUsingScreen) onAudioTeardown(); }
+    }
     @Override public void onVideoPlay(String url, float start) {
-        endMirror(); post(() -> listener.onVideoPlay(url, start));
+        if (!running || recoveryPending) return;
+        endMirror(); sessionState = SessionState.MEDIA_URL; post(() -> listener.onVideoPlay(url, start));
     }
     @Override public void onVideoScrub(float seconds) { post(() -> listener.onVideoScrub(seconds)); }
     @Override public void onVideoRate(float rate) { post(() -> listener.onVideoRate(rate)); }
-    @Override public void onVideoStop() { post(listener::onVideoStop); }
+    @Override public void onVideoStop() {
+        if (running && !recoveryPending) sessionState = SessionState.READY;
+        post(listener::onVideoStop);
+    }
     @Override public void onVideoSessionPoll() { /* host periodically supplies playback info */ }
     @Override public void onLog(String message) { /* Do not forward native URLs or pairing identities to UI. */ }
 }

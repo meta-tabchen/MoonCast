@@ -6,6 +6,7 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.view.Surface;
+import android.os.Build;
 import java.nio.ByteBuffer;
 
 /** Synchronous bounded MediaCodec path. Native supplies Annex-B access units, not a media URL. */
@@ -13,6 +14,7 @@ final class MirrorDecoder {
     interface Events {
         void size(int width, int height);
         void failure();
+        void output();
     }
     private static final java.util.concurrent.ScheduledExecutorService DRAINER =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
@@ -24,7 +26,12 @@ final class MirrorDecoder {
     private MediaCodec codec;
     private int width = 1920, height = 1080, fps = 60;
     private boolean hevc;
-    private long ptsAnchor = Long.MIN_VALUE, wallAnchor;
+    private final VideoTiming timing = new VideoTiming();
+    private boolean movie = true;
+    private String decoderName = "", implementation = "unknown";
+    private int decodedWidth, decodedHeight;
+    private long fpsWindowNs, fpsFrames, lastOutputNs;
+    private float observedFps;
     private long frameCount, droppedFrames;
     private byte[] codecConfig;
     private boolean errorReported;
@@ -51,6 +58,22 @@ final class MirrorDecoder {
         width = w; height = h;
         // A codec-config packet follows orientation changes; avoid stale geometry.
         stopCodec(); codecConfig = null;
+    }
+    synchronized void configureTiming(boolean movieMode, int cushionMs) {
+        movie = movieMode; timing.configure(movieMode, cushionMs);
+    }
+    synchronized String decoderName() { return decoderName; }
+    synchronized String implementation() { return implementation; }
+    synchronized String codecMime() { return decoderName.isEmpty() ? "" : hevc ? MediaFormat.MIMETYPE_VIDEO_HEVC : MediaFormat.MIMETYPE_VIDEO_AVC; }
+    synchronized int decodedWidth() { return decodedWidth; }
+    synchronized int decodedHeight() { return decodedHeight; }
+    synchronized boolean active() { return codec != null; }
+    synchronized float observedFps() {
+        return lastOutputNs == 0 || System.nanoTime() - lastOutputNs > 2_000_000_000L ? 0 : observedFps;
+    }
+    synchronized void resetStatistics() {
+        frameCount = droppedFrames = fpsFrames = fpsWindowNs = lastOutputNs = 0;
+        observedFps = 0; decodedWidth = decodedHeight = 0; decoderName = ""; implementation = "unknown";
     }
     synchronized long frames() { return frameCount; }
     synchronized long drops() { return droppedFrames; }
@@ -87,9 +110,16 @@ final class MirrorDecoder {
                 MediaFormat format = MediaFormat.createVideoFormat(mime, width, height);
                 format.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
                 format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, Math.max(1024 * 1024, width * height));
+                if (!movie && Build.VERSION.SDK_INT >= 30
+                        && info.getCapabilitiesForType(mime).isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency))
+                    format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
                 candidate = MediaCodec.createByCodecName(info.getName());
                 candidate.configure(format, surface, null, 0);
                 candidate.start(); codec = candidate; errorReported = false;
+                decoderName = info.getName();
+                implementation = Build.VERSION.SDK_INT >= 29
+                        ? (info.isHardwareAccelerated() ? "hardware" : info.isSoftwareOnly() ? "software" : "unknown")
+                        : "unknown";
                 // Drain even when the sender is showing a static screen or has just paused.
                 drainTask = DRAINER.scheduleWithFixedDelay(() -> {
                     synchronized (MirrorDecoder.this) {
@@ -137,17 +167,23 @@ final class MirrorDecoder {
                     w = format.getInteger("crop-right") - format.getInteger("crop-left") + 1;
                 if (format.containsKey("crop-bottom") && format.containsKey("crop-top"))
                     h = format.getInteger("crop-bottom") - format.getInteger("crop-top") + 1;
-                events.size(w, h); continue;
+                decodedWidth = w; decodedHeight = h; events.size(w, h); continue;
             }
             if (index < 0) return;
-            long now = System.nanoTime();
-            if (ptsAnchor == Long.MIN_VALUE) { ptsAnchor = info.presentationTimeUs; wallAnchor = now; }
-            long target = wallAnchor + (info.presentationTimeUs - ptsAnchor) * 1000;
-            // Timestamp discontinuity must not queue frames seconds into the future.
-            if (target < now - 250_000_000L || target > now + 250_000_000L) {
-                ptsAnchor = info.presentationTimeUs; wallAnchor = now; target = now;
+            if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+                codec.releaseOutputBuffer(index, false); continue;
             }
-            codec.releaseOutputBuffer(index, Math.max(now, target)); frameCount++;
+            long now = System.nanoTime();
+            if (movie) codec.releaseOutputBuffer(index, timing.target(info.presentationTimeUs, now));
+            else codec.releaseOutputBuffer(index, true);
+            frameCount++; lastOutputNs = now;
+            if (fpsWindowNs == 0) fpsWindowNs = now;
+            fpsFrames++;
+            if (now - fpsWindowNs >= 1_000_000_000L) {
+                observedFps = fpsFrames * 1_000_000_000f / (now - fpsWindowNs);
+                fpsWindowNs = now; fpsFrames = 0;
+            }
+            events.output();
         }
     }
     private void stopCodec() {
@@ -157,7 +193,7 @@ final class MirrorDecoder {
             try { codec.release(); } catch (RuntimeException ignored) {}
             codec = null;
         }
-        ptsAnchor = Long.MIN_VALUE;
+        timing.reset();
     }
     static boolean hasNal(byte[] data, boolean h265, boolean config) {
         for (int i = 0; i + 4 < data.length; i++) {
