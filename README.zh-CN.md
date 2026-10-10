@@ -1,3 +1,5 @@
+> **TV 接收端分支：** 此分支新增独立 **MoonCast TV** 应用（`tv/`），包含真实 AirPlay / UxPlay 与 DLNA 播放。请下载 `tv-v…` 预览发布的 TV APK；下方原手机发送端保持不变。[接收端使用说明与限制](docs/tv-receiver.zh-CN.md)。
+
 <p align="center"><img src="docs/assets/banner.svg" alt="MoonCast — 安卓手机作为 Moonlight 发射端" width="920"></p>
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
 

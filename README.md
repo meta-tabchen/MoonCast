@@ -1,3 +1,5 @@
+> **TV receiver branch:** This branch also contains the separate **MoonCast TV** Android TV receiver (`tv/`), with real AirPlay/UxPlay and DLNA playback. Download its `tv-v…` prerelease APK; the existing phone sender below is unchanged. [Receiver guide and compatibility limits](docs/tv-receiver.md) · [中文说明](docs/tv-receiver.zh-CN.md).
+
 <p align="center">
   <img src="docs/assets/banner.svg" alt="MoonCast — Your Android phone, on a bigger screen" width="920">
 </p>

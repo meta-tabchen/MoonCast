@@ -1,0 +1,106 @@
+name: TV receiver preview
+
+on:
+  push:
+    branches: [receiver/android-tv]
+  pull_request:
+    paths:
+      - 'tv/**'
+      - 'native/airplay/**'
+      - 'scripts/*tv*'
+      - 'scripts/prepare_airplay*'
+      - '.github/workflows/tv-receiver.yml'
+      - '*gradle*'
+      - 'gradle/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-receiver-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Restore hash-pinned receiver runtime and corresponding source
+        run: |
+          python3 scripts/prepare_airplay_native.py
+          python3 scripts/prepare_airplay_source.py
+      - name: Portable host and receiver behavior tests
+        run: |
+          python3 scripts/run_unit_tests.py
+          python3 scripts/run_tv_unit_tests.py
+          python3 scripts/run_airplay_unit_tests.py
+      - name: Build receiver and run Android static checks
+        run: ./gradlew :tv:assembleDebug :tv:assembleRelease :tv:lintDebug :tv:lintRelease :tv:testDebugUnitTest --no-daemon --console=plain
+      - name: Verify receiver payload, signature and alignment
+        run: |
+          python3 scripts/verify_tv_apk.py tv/build/outputs/apk/release/tv-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs tv/build/outputs/apk/release/tv-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 tv/build/outputs/apk/release/tv-release.apk
+      - name: Package immutable preview with corresponding source
+        id: package
+        run: python3 scripts/package_tv_release.py --apk tv/build/outputs/apk/release/tv-release.apk --output tv/build/release-assets
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-tv-release-${{ github.sha }}
+          path: tv/build/release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve check reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-tv-checks-${{ github.sha }}
+          path: |
+            tv/build/reports/
+            tv/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish:
+    needs: verify
+    if: github.repository == 'meta-tabchen/MoonCast' && github.ref == 'refs/heads/receiver/android-tv' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.verify.outputs.tag }}
+    steps:
+      - name: Download verified assets from this exact run
+        run: gh run download "$GITHUB_RUN_ID" --name "mooncast-tv-release-$GITHUB_SHA" --dir release-assets
+      - name: Check assets and create new prerelease
+        run: |
+          cd release-assets
+          sha256sum --check SHA256SUMS
+          test -n "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "MoonCast TV $RELEASE_TAG (debug-key preview)" --notes-file RELEASE_NOTES.md \
+            ./*.apk ./*-source.zip ./SHA256SUMS ./BUILD_INFO.json
+      - name: Re-download published assets and verify their hashes
+        run: |
+          gh release download "$RELEASE_TAG" --dir published-assets
+          cd published-assets
+          sha256sum --check SHA256SUMS
+          printf 'Published and re-downloaded: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,32 @@
+{
+  "upstream": "https://github.com/jqssun/android-airplay-server/releases/download/v0.0.31/app-release.apk",
+  "commit": "c8defdd70d7e6a04f4f1b71d353653682d594106",
+  "apkSha256": "c5dce5c29ab52157bdaa406e485f9bfaab7d8d59c523d93622a33b253a28f410",
+  "libraries": {
+    "arm64-v8a/libairplay_native.so": "7ba7916a57d3a444ca9056ba55e8a526b1da1f70ae99205f4aa2ad597a03b09a",
+    "arm64-v8a/libcrypto.so": "4dac710631af83b6f995b0d85c212138d83086742e3946c01e049765351fc1f4",
+    "arm64-v8a/liboboe.so": "979d14353e7e95de1047fbe7321da6c07bc47e30ee2b2cb8b57a1a58ef026587",
+    "arm64-v8a/libc++_shared.so": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839",
+    "armeabi-v7a/libairplay_native.so": "cd0f5f1a85de362aeac27d7caafb3627303ee4de6bed42dc81481d7bb9489716",
+    "armeabi-v7a/libcrypto.so": "307b4a36602a65cf65d123024b0e75986cf8a0aae52a24c3d1d21497b8b6a9ad",
+    "armeabi-v7a/liboboe.so": "599f988dfbc3793d7c6bc2621c02f179eac3b091a9181f65ead1cf30bb570e11",
+    "armeabi-v7a/libc++_shared.so": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7",
+    "x86_64/libairplay_native.so": "c0036d6eb7d9d30213e451daae3359f28f8ccefa0ed63d4f2ede69fb4f729525",
+    "x86_64/libcrypto.so": "c0c066eab8d83e4c0f82f8c7c4ccd406f2bed7ce6b4031cb2f2a1883b6b644e5",
+    "x86_64/liboboe.so": "d6a207245a61531f17209721bf4168264c176af0c6d10d37ca778119d4833c5e",
+    "x86_64/libc++_shared.so": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2"
+  },
+  "sources": {
+    "upstream-source.tar.gz": "108c33e8cd096167e85ffeb1fddf1a6122944ff13b7c4509a3768da7d66698ef",
+    "oboe-source.tar.gz": "8e5385c82d8f2b5bf87024a02b769d5a413025816879c202fce2f6a31ad974ce",
+    "openssl-3.4.4.tar.gz": "7bdf55ac20f2779e99e5eca306f824fad2b37dee5a06cc35ed5a8b85a6060010"
+  },
+  "sourceCommits": {
+    "android-airplay-server": "c8defdd70d7e6a04f4f1b71d353653682d594106",
+    "oboe": "b15f5e39c01a7ada306d959e5129620b145fb8b4",
+    "app/src/main/cpp/third_party/UxPlay": "462153392f2e30937424922039ff9f0cda5e7b1a",
+    "app/src/main/cpp/third_party/ffmpeg": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+    "app/src/main/cpp/third_party/libplist": "f41b1ea67045e0c09339974d83e389972d84f166",
+    "app/src/main/cpp/third_party/openssl-cmake": "4edd36a8dab5f85a8f92650b5bdf6e0cab13aab8"
+  }
+}

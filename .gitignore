@@ -14,3 +14,7 @@ host-cert.pem
 host-key.pem
 paired-clients.json
 app/src/debug/jniLibs/
+
+# Reproducibly restored TV receiver inputs; hashes and source recipes are committed.
+tv/src/main/jniLibs/
+native/airplay/*.tar.gz
