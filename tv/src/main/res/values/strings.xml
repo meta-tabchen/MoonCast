@@ -16,10 +16,10 @@
     <string name="instructions">1  Start receiver\n2  Connect your phone to the same network\n3  Choose MoonCast TV in Screen Mirroring or a DLNA app</string>
     <string name="controls_hint">OK / Menu: show controls · Back: controls or exit · Media keys: playback</string>
     <string name="frame">Framing</string>
-    <string name="fit">Fit · preserve all content</string>
-    <string name="fill">Fill · crop edges</string>
-    <string name="cinema">Smart cinema · detect and lock bars</string>
-    <string name="manual">Live crop / zoom / position</string>
+    <string name="fit">Fit · full picture</string>
+    <string name="fill">Fill · crop to screen</string>
+    <string name="cinema">Auto · remove black bars</string>
+    <string name="manual">Manual · zoom and crop</string>
     <string name="rescan">Rescan black bars</string>
     <string name="crop_horizontal">Left / right crop: %1$d%% each</string>
     <string name="crop_vertical">Top / bottom crop: %1$d%% each</string>
@@ -61,14 +61,14 @@
     <string name="crop_four_values">L %1$d%% · T %2$d%% · R %3$d%% · B %4$d%% · Zoom %5$d%% · X %6$d%% · Y %7$d%%</string>
     <string name="live_crop_keys" formatted="false">Up/down: select · Left/right: 1% (hold: 5%) · OK: save · Back: cancel · Menu: reset</string>
     <string name="crop_subtitle_warning">Burned-in subtitles move with the picture. Crop carefully; Menu restores the whole image.</string>
-    <string name="framing_profile">Saved by source and orientation; portrait defaults to full view.</string>
+    <string name="framing_profile">One app-wide choice. Auto detects fresh borders for each video; it never reuses another video’s detected coordinates.</string>
     <string name="frame_reset">Restore full image</string>
     <string name="auto_progress">Cinema: %1$d / %2$d stable samples</string>
     <string name="auto_locked_detail">Cinema locked · rescan for new content</string>
     <string name="picture_settings">Media resolution limit</string>
     <string name="mirror_settings">AirPlay mirror settings</string>
     <string name="media_sound">Media playback / audio calibration</string>
-    <string name="recovery_settings">Recovery / PIN / pairing</string>
+    <string name="recovery_settings">Connection recovery</string>
     <string name="mode_movie">Movie · smoother buffering</string>
     <string name="mode_low_latency">Low latency · smaller buffers</string>
     <string name="mirror_resolution">Mirror request: resolution / FPS</string>
@@ -88,22 +88,18 @@
     <string name="watchdog">Disconnected-session recovery</string>
     <string name="watchdog_note">Recover after control connections close and media remains silent. Static or paused video alone is not disconnection. Recovery keeps receiver identity and cannot force the phone to reconnect.</string>
     <string name="off">Off</string>
-    <string name="pin_enabled">PIN required for AirPlay</string>
-    <string name="pin_disabled">PIN off (trusted LAN only)</string>
-    <string name="pin_disable_warning">Without a PIN, LAN devices can request AirPlay access. Use only on a trusted private network.</string>
-    <string name="reset_pairing">Reset receiver identity / pair again</string>
-    <string name="reset_pairing_warning">This disconnects playback and permanently deletes this app receiver key and network identity. All senders must pair again; remove an old entry on the phone if needed. No per-device pairing list is available. Automatic recovery never does this.</string>
+    <string name="reset_pairing">Reset receiver identity</string>
+    <string name="reset_pairing_warning">This disconnects playback and permanently resets this receiver key and network identity. Senders may need to find this TV again. No PIN is required. Automatic recovery never deletes identity.</string>
     <string name="reset_confirm">Reset identity</string>
-    <string name="reset_done">Receiver identity reset. Pair again from the phone.</string>
+    <string name="reset_done">Receiver identity reset. Select this TV again on your phone.</string>
     <string name="resetting">Resetting receiver identity…</string>
     <string name="recovery_ready">Session cleared; ready for a new connection</string>
     <string name="current_session">Current session: %1$s</string>
-    <string name="peer_limit">Sender name / per-device revocation unavailable. Session PIN keys are memory-only.</string>
+    <string name="peer_limit">Sender names and per-device revocation are unavailable. This receiver accepts devices on your trusted LAN without a PIN.</string>
     <string name="idle_session">Waiting</string>
     <string name="audio_session">AirPlay audio</string>
     <string name="dlna_session">DLNA media</string>
     <string name="airplay_media_session">AirPlay media</string>
-    <string name="pin_value">AirPlay PIN: %1$s</string>
     <string name="media_runtime">Media: %1$s · %2$d × %3$d · %4$s · %5$s</string>
     <string name="unknown_spec">not reported</string>
     <string name="restore_identity_failed">Identity reset failed; receiver stays stopped</string>
@@ -113,4 +109,13 @@
     <string name="recover_now">Reset current session (keep identity)</string>
     <string name="mirror_requested">Mirror request: %1$d × %2$d @ %3$d fps · audio prebuffer %4$d ms (0 = adaptive)</string>
     <string name="auto_safety_expanded">Framing widened to protect newly visible content</string>
+    <string name="advanced_title">Advanced settings</string>
+    <string name="diagnostics_title">Receiver diagnostics</string>
+    <string name="ready_simple">Ready to cast</string>
+    <string name="home_no_video">Choose this TV from your phone. Playback appears here automatically.</string>
+    <string name="airplay_partial">AirPlay needs attention</string>
+    <string name="airplay_partial_hint">AirPlay is not fully ready. Check Advanced → Diagnostics.</string>
+    <string name="playback_controls">Playback controls</string>
+    <string name="pause_action">Pause playback</string>
+    <string name="resume_action">Resume playback</string>
 </resources>

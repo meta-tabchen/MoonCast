@@ -135,12 +135,19 @@ preview before installation, which removes that app's saved preferences and
 receiver pairing identity. A stable production upgrade/signing path is not configured.
 The phone sender application has a separate package name.
 
-## v0.2 changes
+## v0.3 changes
+
+- Open the app and reception starts automatically. No PIN is requested; only
+  use it on a trusted home LAN because other reachable devices can connect.
+- Redesigned TV home with clear remote focus and diagnostics in Advanced.
+- Auto black-bar removal is the first-use default. Your chosen mode and manual
+  adjustments are saved app-wide across sources/orientations. Detected video
+  coordinates remain transient and are recalculated for each video/size.
 
 - Live remote framing over the visible picture: four independent 0–45% crop
   edges (at least 20% retained per dimension), 100–300% proportional zoom and
   horizontal/vertical position. Preview, save, cancel and full-image reset;
-  separate source/orientation profiles. Portrait defaults to full view.
+  one app-wide preference. Auto never forces a portrait image to fill the TV.
 - Conservative cinema crop supports wider borders and expands locked crops
   when repeated newly visible border content suggests captions or overlays.
   This remains a heuristic; manual crop can hide burned-in subtitles.
@@ -151,14 +158,14 @@ The phone sender application has a separate package name.
 - Separate native AirPlay timing: movie defaults to 150 ms audio prebuffer
   with PTS-paced video; low latency defaults to adaptive audio buffering and
   immediate video output. Native signed audio offset is unavailable.
-- PIN changes restart reception. Disconnected-mirror recovery defaults to
+- Disconnected-mirror recovery defaults to
   15 seconds only after observed control TCP closure and continued video
   silence; static/paused screens with open connections remain valid. Decoder
   stalls are checked separately. Not every Wi-Fi failure is detected in 15
   seconds, and the receiver cannot force phone reconnection.
 - Ordinary recovery keeps receiver identity. Only an explicitly confirmed
   global identity reset deletes the receiver key; there is no native paired
-  device list or per-device revoke. Native client PIN keys are memory-only.
+  device list or per-device revoke. This build does not request a PIN.
 
 ## Verification and distribution
 

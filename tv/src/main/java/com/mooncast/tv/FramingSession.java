@@ -9,46 +9,53 @@ class FramingSession {
     protected final CinemaCropTracker tracker=new CinemaCropTracker();
     private final FramingProfiles profiles;
     protected FramingSettings settings=FramingSettings.DEFAULT;
-    private String source,profileKey;
+    private FramingSettings committed;
     protected int width=1920,height=1080;
     protected boolean editing;
-    private long profileEpoch;
+    // An edit belongs to one video/size and one transaction, despite the global storage key.
+    private long profileEpoch=1;
 
-    FramingSession(FramingProfiles profiles,String source){this.profiles=profiles;this.source=source;selectProfile();}
+    FramingSession(FramingProfiles profiles,String source){this.profiles=profiles;settings=committed=profiles.load();}
+    /** Begin a new video, including another video from the same protocol/source class. */
     void sourceProfile(String value){
-        String key=FramingProfiles.key(value,width,height);source=value;
-        if(!key.equals(profileKey)){selectProfile();apply();}
+        newVideoGeometry();apply();
     }
-    private void selectProfile(){
-        profileKey=FramingProfiles.key(source,width,height);profileEpoch++;
-        settings=profiles.load(profileKey);editing=false;tracker.reset();
+    private void newVideoGeometry(){
+        settings=committed=profiles.load();profileEpoch++;editing=false;tracker.reset();
+    }
+    /** Called when either renderer commits the one shared application preference. */
+    void refreshGlobalSettings(){
+        FramingSettings latest=profiles.load();
+        if(latest.equals(committed))return;
+        settings=committed=latest;profileEpoch++;editing=false;tracker.reset();apply();
     }
     void videoSize(int w,int h){
         if(w<=0||h<=0||(w==width&&h==height))return;
         width=w;height=h;
-        if(!FramingProfiles.key(source,w,h).equals(profileKey))selectProfile();
-        else tracker.reset();
+        newVideoGeometry();
         apply();
     }
     FramingSettings settings(){return settings;}
-    Snapshot snapshot(){editing=true;return new Snapshot(profileKey,profileEpoch,width,height,settings,tracker.snapshot());}
+    Snapshot snapshot(){refreshGlobalSettings();profileEpoch++;editing=true;return new Snapshot(profileKey(),profileEpoch,width,height,settings,tracker.snapshot());}
     void preview(FramingSettings value){
         if(value==null)return;
         if(settings.mode()!=value.mode())tracker.reset();
         settings=value;apply();
     }
-    void applyEdits(){profiles.save(profileKey,settings);editing=false;apply();}
+    void applyEdits(){committed=settings;editing=false;profileEpoch++;profiles.save(settings);apply();}
     void cancel(Snapshot before){
-        editing=false;
-        // Epoch also prevents an obsolete edit surviving landscape -> portrait -> landscape.
-        if(before!=null&&profileEpoch==before.profileEpoch()&&profileKey.equals(before.profileKey())){
+        // A source/size change already discarded the preview. An obsolete Cancel must
+        // neither restore an old detector lock nor overwrite a newer global choice/edit.
+        if(before!=null&&editing&&profileEpoch==before.profileEpoch()&&profileKey().equals(before.profileKey())){
+            editing=false;profileEpoch++;
             settings=before.settings();
             if(width==before.sourceWidth()&&height==before.sourceHeight())tracker.restore(before.cinema());
             else tracker.reset();
         }
         apply();
     }
-    void resetProfile(){settings=FramingSettings.DEFAULT;tracker.reset();apply();}
+    /** Explicit full-image choice, distinct from the first-launch Auto default. */
+    void resetProfile(){settings=FramingSettings.FULL_IMAGE;tracker.reset();apply();}
     void mode(int value){
         FramingSettings preset=settings.withMode(value);
         if(value!=MANUAL)preset=preset.withZoom(100).withPan(0,0);
@@ -59,15 +66,15 @@ class FramingSession {
     void manual(int x,int y){preview(new FramingSettings(MANUAL,x,y,x,y,settings.zoom(),settings.panX(),settings.panY()));}
     int horizontal(){return settings.left();}
     int vertical(){return settings.top();}
-    /** Rescan only; it does not discard saved manual framing. */
-    void reset(){tracker.reset();apply();}
+    /** Rescan only; it does not discard the committed global user framing. */
+    void reset(){newVideoGeometry();apply();}
     boolean locked(){return tracker.locked();}
     boolean safetyExpanded(){return tracker.safetyExpanded();}
     int stableSamples(){return tracker.stableSamples();}
     int requiredSamples(){return tracker.requiredSamples();}
     int sourceWidth(){return width;}
     int sourceHeight(){return height;}
-    String profileKey(){return profileKey;}
+    String profileKey(){return FramingProfiles.GLOBAL_KEY;}
     long profileEpoch(){return profileEpoch;}
     boolean portrait(){return height>width;}
     CropGeometry.Bounds effectiveBounds(){return switch(settings.mode()){

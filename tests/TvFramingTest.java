@@ -7,8 +7,8 @@ import java.util.Random;
 /** Generated content only; pure source geometry/model evidence, not a device rendering test. */
 public final class TvFramingTest {
     public static void main(String[] args){
-        edgesAndTransforms();profilesAndTransactions();wideBarsAndSafety();
-        System.out.println("PASS: TV independent 4-edge crop, 1% zoom/pan, uniform transforms, source/orientation profiles, Apply/Cancel/Reset and conservative wide bars");
+        edgesAndTransforms();globalPreferences();migrationAndMalformedPreferences();transactionsAndVideoBoundaries();wideBarsAndSafety();
+        System.out.println("PASS: TV independent 4-edge crop, 1% zoom/pan, uniform transforms, global Auto default/persistence, source/rotation isolation, transactional Apply/Cancel/Reset and conservative wide bars");
     }
     private static void edgesAndTransforms(){
         FramingSettings s=FramingSettings.DEFAULT.withEdge(FramingSettings.LEFT,10)
@@ -54,57 +54,151 @@ public final class TvFramingTest {
                     &&a.clipRight()>a.clipLeft()&&a.clipBottom()>a.clipTop(),"bounded nonempty clip");
         }
     }
-    private static void profilesAndTransactions(){
-        Map<String,String> values=new HashMap<>();
-        FramingProfiles profiles=new FramingProfiles(new FramingProfiles.Store(){
+    private static FramingProfiles profiles(Map<String,String> values){
+        return new FramingProfiles(new FramingProfiles.Store(){
             public String read(String key){return values.get(key);}
             public void write(String key,String value){values.put(key,value);}
         });
-        FramingSession session=new FramingSession(profiles,"airplay_mirror");
-        check(session.settings().equals(FramingSettings.DEFAULT),"new profile safe fit");
+    }
+    private static void globalPreferences(){
+        Map<String,String> values=new HashMap<>();
+        FramingProfiles preferences=profiles(values);
+        FramingSession session=new FramingSession(preferences,"airplay_mirror");
+        check(session.mode()==FramingSettings.CINEMA,"first launch defaults to Auto black-bar removal");
+        check(session.settings().equals(FramingSettings.DEFAULT),"first launch has neutral manual settings");
+        check(!session.locked()&&session.effectiveBounds().near(CropGeometry.Bounds.FULL),"Auto starts with full image until stable evidence");
+        check(values.isEmpty(),"opening app never invents an explicit user choice");
+        String[] sources={"airplay_mirror","airplay_media","dlna_media","media","other-phone"};
+        int[][] sizes={{1920,1080},{1080,1920},{1280,720},{720,1280},{1080,1080}};
+        for(String source:sources)for(int[] size:sizes){
+            check(FramingProfiles.GLOBAL_KEY.equals(FramingProfiles.key(source,size[0],size[1])),"every source/orientation uses one key");
+            session.sourceProfile(source);session.videoSize(size[0],size[1]);
+            check(session.mode()==FramingSettings.CINEMA,"Auto default follows every source/orientation");
+        }
+        for(int mode=FramingSettings.FIT;mode<=FramingSettings.MANUAL;mode++){
+            FramingSettings choice=new FramingSettings(mode,12,7,22,4,123,-21,13);
+            session.snapshot();session.preview(choice);session.applyEdits();
+            check(values.size()==1&&values.containsKey(FramingProfiles.GLOBAL_KEY),"only global user choice is stored");
+            for(String source:sources)for(int[] size:sizes){
+                session.sourceProfile(source);session.videoSize(size[0],size[1]);
+                check(session.settings().equals(choice),"mode and all chosen manual values survive source and rotation");
+                FramingSession restarted=new FramingSession(profiles(values),source);
+                restarted.videoSize(size[0],size[1]);
+                check(restarted.settings().equals(choice),"all global values survive process restart for every source/size");
+                check(!restarted.locked(),"restart never restores detected coordinates");
+            }
+        }
         session.preview(FramingSettings.DEFAULT.withEdge(0,1));
         check(session.sourceCropped(),"crop status reports even 1% source removal");
         session.preview(FramingSettings.DEFAULT.withZoom(200).withPan(50,-50));
         session.mode(FramingSettings.FIT);
-        check(session.settings().zoom()==100&&session.settings().panX()==0&&session.settings().panY()==0,"Fit preset restores full picture");
-        session.mode(FramingSettings.FILL);
-        session.videoSize(1080,1920);
-        check(session.mode()==FramingSettings.FIT,"landscape fill never leaks to portrait");
-        FramingSettings portrait=FramingSettings.DEFAULT.withEdge(0,12).withEdge(1,7).withZoom(123).withPan(-21,13);
-        var before=session.snapshot();session.preview(portrait);session.cancel(before);
-        check(session.settings().equals(FramingSettings.DEFAULT),"cancel restores all fields");
-        check(!values.containsKey(session.profileKey()),"cancel does not persist preview");
-        session.snapshot();session.preview(portrait);session.applyEdits();
-        FramingSession restored=new FramingSession(profiles,"airplay_mirror");restored.videoSize(1080,1920);
-        check(restored.settings().equals(portrait),"process reload portrait persistence");
-        session.videoSize(1920,1080);check(session.mode()==FramingSettings.FILL,"landscape separately restored");
-        session.sourceProfile("dlna_media");check(session.settings().equals(FramingSettings.DEFAULT),"media separated from mirror");
-        session.preview(FramingSettings.DEFAULT.withZoom(147));session.applyEdits();
-        session.sourceProfile("airplay_media");check(session.settings().equals(FramingSettings.DEFAULT),"AirPlay URL and DLNA separated");
-        session.sourceProfile("dlna_media");check(session.settings().zoom()==147,"DLNA saved profile");
-        before=session.snapshot();session.resetProfile();check(session.settings().equals(FramingSettings.DEFAULT),"reset previews safe defaults");
-        session.cancel(before);check(session.settings().zoom()==147,"cancel reset restores old settings");
+        check(session.mode()==FramingSettings.FIT&&session.settings().zoom()==100
+                &&session.settings().panX()==0&&session.settings().panY()==0,"explicit Fit restores full picture");
+        session.sourceProfile("airplay_media");session.videoSize(1920,1080);
+        session.sourceProfile("dlna_media");session.videoSize(1080,1920);
+        check(session.mode()==FramingSettings.FIT,"explicit Fit survives source and orientation changes");
+        check(new FramingSession(profiles(values),"airplay_mirror").mode()==FramingSettings.FIT,"explicit Fit remains Fit after restart");
+        session.mode(FramingSettings.CINEMA);
+        check(new FramingSession(profiles(values),"dlna_media").mode()==FramingSettings.CINEMA,"explicit Auto is persisted too");
+        FramingProfiles memoryOnly=new FramingProfiles(null);
+        FramingSession withoutAndroid=new FramingSession(memoryOnly,"media");
+        withoutAndroid.mode(FramingSettings.FILL);withoutAndroid.sourceProfile("airplay_mirror");
+        check(withoutAndroid.mode()==FramingSettings.FILL,"in-memory sessions also retain global choice");
+    }
+    private static void migrationAndMalformedPreferences(){
+        Map<String,String> values=new HashMap<>();
+        values.put("framing.v2.airplay_mirror.landscape","1,0,0,0,0,100,0,0");
+        values.put("framing.v2.airplay_mirror.portrait","3,12,7,22,4,123,-21,13");
+        values.put("framing.v2.dlna_media.landscape","0,0,0,0,0,100,0,0");
+        FramingProfiles preferences=profiles(values);
+        for(String source:new String[]{"airplay_mirror","airplay_media","dlna_media"}){
+            FramingSession upgraded=new FramingSession(preferences,source);
+            upgraded.videoSize(1080,1920);
+            check(upgraded.settings().equals(FramingSettings.DEFAULT),"legacy untimestamped profiles never determine global preference");
+        }
+        FramingSession upgraded=new FramingSession(preferences,"dlna_media");
+        upgraded.mode(FramingSettings.FIT);
+        check(new FramingSession(profiles(values),"airplay_mirror").mode()==FramingSettings.FIT,"new explicit choice supersedes all old profiles");
+        for(String invalid:new String[]{"", "broken,values", "2,0,0,0,0,100,0,NaN", "2,0,0,0,0,100,0,0,0",
+                "2147483648,0,0,0,0,100,0,0", "-1,0,0,0,0,100,0,0", "4,0,0,0,0,100,0,0"}){
+            values.put(FramingProfiles.GLOBAL_KEY,invalid);
+            check(preferences.load().equals(FramingSettings.DEFAULT),"malformed record safely falls back to Auto: "+invalid);
+        }
+        values.put(FramingProfiles.GLOBAL_KEY,"3,100,-2,100,100,999,-900,400");
+        FramingSettings bounded=preferences.load();
+        check(bounded.left()==45&&bounded.top()==0&&bounded.right()==35&&bounded.bottom()==45
+                &&bounded.zoom()==300&&bounded.panX()==-100&&bounded.panY()==100,"numeric global values are validated");
+        check(!FramingProfiles.key("https://private.invalid/token",1,2).contains("private"),"preference key excludes URLs and phone identities");
+    }
+    private static void transactionsAndVideoBoundaries(){
+        Map<String,String> values=new HashMap<>();
+        FramingProfiles preferences=profiles(values);
+        FramingSession session=new FramingSession(preferences,"airplay_mirror");
+        FramingSession other=new FramingSession(profiles(values),"dlna_media");
+        FramingSettings manual=FramingSettings.DEFAULT.withEdge(0,12).withEdge(1,7)
+                .withEdge(2,22).withEdge(3,4).withZoom(123).withPan(-21,13);
+        var before=session.snapshot();session.preview(manual);
+        check(other.settings().equals(FramingSettings.DEFAULT),"uncommitted preview is private to editor");
+        session.cancel(before);
+        check(session.settings().equals(FramingSettings.DEFAULT)&&!session.editing,"Cancel restores all fields");
+        check(values.isEmpty(),"Cancel never persists preview");
+        session.snapshot();session.preview(manual);session.applyEdits();
+        other.refreshGlobalSettings();
+        check(other.settings().equals(manual),"other existing renderer follows the committed global preference");
+        before=session.snapshot();session.resetProfile();
+        check(session.settings().equals(FramingSettings.FULL_IMAGE),"Reset previews Fit and neutral manual values");
+        other.refreshGlobalSettings();check(other.settings().equals(manual),"Reset preview never changes another renderer");
+        session.cancel(before);
+        check(session.settings().equals(manual),"Cancel Reset restores committed manual settings");
         session.snapshot();session.resetProfile();session.applyEdits();
-        check(new FramingSession(profiles,"dlna_media").settings().equals(FramingSettings.DEFAULT),"apply reset persists");
-        session.sourceProfile("airplay_mirror");
-        before=session.snapshot();session.preview(FramingSettings.DEFAULT.withZoom(188));
-        session.videoSize(1080,1920);session.cancel(before);
-        check(session.settings().equals(portrait),"cancel cannot overwrite rotated profile");
-        session.videoSize(1920,1080);
-        before=session.snapshot();session.videoSize(1080,1920);session.videoSize(1920,1080);
-        session.preview(FramingSettings.DEFAULT.withZoom(155));session.cancel(before);
-        check(session.settings().zoom()==155,"obsolete snapshot rejected after round-trip rotation");
+        check(new FramingSession(profiles(values),"dlna_media").settings().equals(FramingSettings.FULL_IMAGE),"Apply Reset persists full-image Fit globally");
+        for(int i=0;i<4;i++){
+            session.snapshot();session.preview(manual);session.applyEdits();
+            before=session.snapshot();session.preview(manual.withZoom(188));
+            if(i==0)session.videoSize(1080,1920);
+            else if(i==1)session.videoSize(2160,3840);
+            else if(i==2)session.sourceProfile("dlna_media");
+            else session.sourceProfile("dlna_media");
+            check(!session.editing&&session.profileEpoch()!=before.profileEpoch(),"source/size boundary invalidates open edit");
+            check(session.settings().equals(manual),"source/size boundary discards preview without changing global choice");
+            session.cancel(before);
+            check(session.settings().equals(manual)&&preferences.load().equals(manual),"obsolete Cancel cannot overwrite global choice");
+        }
+        before=session.snapshot();session.preview(manual.withZoom(188));
+        session.videoSize(1920,1080);session.videoSize(1080,1920);
+        var newer=session.snapshot();session.preview(manual.withZoom(155));session.cancel(before);
+        check(session.editing&&session.settings().zoom()==155,"old Cancel cannot affect a newer transaction after round-trip rotation");
+        session.cancel(newer);check(session.settings().equals(manual),"newer Cancel still restores its own transaction");
+        before=session.snapshot();session.preview(manual.withZoom(177));
+        other.mode(FramingSettings.FIT);session.refreshGlobalSettings();session.cancel(before);
+        check(session.mode()==FramingSettings.FIT&&!session.editing,"new committed global preference wins over stale Cancel");
         session.mode(FramingSettings.CINEMA);
         CropGeometry.Bounds bounds=new CropGeometry.Bounds(.1f,0,.9f,1);
-        for(int i=0;i<8;i++)session.tracker.consider(bounds);
-        check(session.locked(),"fixture acquired cinema");
-        before=session.snapshot();session.preview(FramingSettings.DEFAULT);session.cancel(before);
-        check(session.locked()&&session.effectiveBounds().near(bounds),"cancel preserves pre-editor cinema lock");
-        before=session.snapshot();session.videoSize(2560,1440);session.cancel(before);
-        check(!session.locked(),"cancel after same-orientation resize does not restore stale detector crop");
-        values.put(session.profileKey(),"broken,values");
-        check(profiles.load(session.profileKey()).equals(FramingSettings.DEFAULT),"bad persisted record falls back safely");
-        check(!FramingProfiles.key("https://private.invalid/token",1,2).contains("private"),"profile keys exclude URLs");
+        acquire(session,bounds);
+        before=session.snapshot();session.preview(manual);session.cancel(before);
+        check(session.locked()&&session.effectiveBounds().near(bounds),"Cancel on same video preserves pre-editor automatic lock");
+        for(int i=0;i<4;i++){
+            acquire(session,bounds);before=session.snapshot();session.preview(manual);
+            if(i==0)session.videoSize(2560,1440);
+            else if(i==1)session.sourceProfile("dlna_media");
+            else if(i==2)session.sourceProfile("dlna_media");
+            else session.reset();
+            session.cancel(before);
+            check(session.mode()==FramingSettings.CINEMA&&!session.locked()
+                    &&session.effectiveBounds().near(CropGeometry.Bounds.FULL),"new geometry/video/rescan cannot restore stale detector coordinates");
+        }
+        acquire(session,bounds);session.snapshot();session.applyEdits();
+        check(new FramingSession(profiles(values),"dlna_media").effectiveBounds().near(CropGeometry.Bounds.FULL),"Auto saves mode, never the detected crop");
+        other.refreshGlobalSettings();
+        check(!other.locked()&&other.effectiveBounds().near(CropGeometry.Bounds.FULL),"automatic crop is never shared with another video renderer");
+        session.sourceProfile("dlna_media");
+        for(int i=0;i<7;i++)session.tracker.consider(bounds);
+        session.videoSize(640,360);session.tracker.consider(bounds);
+        check(!session.locked()&&session.stableSamples()==1,"resize discards acquisition evidence as well as locked coordinates");
+    }
+    private static void acquire(FramingSession session,CropGeometry.Bounds bounds){
+        session.reset();for(int i=0;i<8;i++)session.tracker.consider(bounds);
+        check(session.locked(),"fixture acquired automatic crop");
     }
     private static void wideBarsAndSafety(){
         int w=320,h=180;

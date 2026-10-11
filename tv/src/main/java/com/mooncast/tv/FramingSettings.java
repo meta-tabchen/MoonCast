@@ -6,7 +6,9 @@ public record FramingSettings(int mode, int left, int top, int right, int bottom
     public static final int FIT=0, FILL=1, CINEMA=2, MANUAL=3;
     public static final int LEFT=0, TOP=1, RIGHT=2, BOTTOM=3;
     public static final int MAX_EDGE=45, MIN_CONTENT=20, MIN_ZOOM=100, MAX_ZOOM=300;
-    public static final FramingSettings DEFAULT=new FramingSettings(FIT,0,0,0,0,100,0,0);
+    public static final FramingSettings FULL_IMAGE=new FramingSettings(FIT,0,0,0,0,100,0,0);
+    // Start with the complete image while Auto acquires stable black-border evidence.
+    public static final FramingSettings DEFAULT=FULL_IMAGE.withMode(CINEMA);
     public FramingSettings {
         mode=clamp(mode,FIT,MANUAL);
         left=clamp(left,0,MAX_EDGE); right=clamp(right,0,MAX_EDGE);

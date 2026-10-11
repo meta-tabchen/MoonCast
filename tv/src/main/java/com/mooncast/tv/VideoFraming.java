@@ -6,16 +6,22 @@ import android.graphics.Matrix;
 import android.graphics.Rect;
 import android.view.TextureView;
 
-/** Uniform source-space framing with transactional preview and source/orientation profiles. */
+/** Global user framing with transactional previews and per-video automatic crop detection. */
 final class VideoFraming extends FramingSession {
     private final TextureView texture;
+    private final SharedPreferences preferences;
+    private final SharedPreferences.OnSharedPreferenceChangeListener preferenceListener;
     private Bitmap sample;
     private final int[] pixels=new int[160*90];
     private final byte[] rgba=new byte[160*90*4];
     VideoFraming(TextureView texture){this(texture,null,"media");}
     VideoFraming(TextureView texture,SharedPreferences preferences,String sourceKey){
         super(profiles(preferences),sourceKey);
-        this.texture=texture;texture.setOpaque(false);
+        this.texture=texture;texture.setOpaque(false);this.preferences=preferences;
+        preferenceListener=(store,key)->{
+            if(key==null||FramingProfiles.GLOBAL_KEY.equals(key))refreshGlobalSettings();
+        };
+        if(preferences!=null)preferences.registerOnSharedPreferenceChangeListener(preferenceListener);
     }
     private static FramingProfiles profiles(SharedPreferences preferences){
         return new FramingProfiles(preferences==null?null:new FramingProfiles.Store(){
@@ -66,5 +72,8 @@ final class VideoFraming extends FramingSession {
         texture.setTransform(matrix);
         texture.setClipBounds(new Rect(t.clipLeft(),t.clipTop(),t.clipRight(),t.clipBottom()));
     }
-    void release(){if(sample!=null){sample.recycle();sample=null;}}
+    void release(){
+        if(preferences!=null)preferences.unregisterOnSharedPreferenceChangeListener(preferenceListener);
+        if(sample!=null){sample.recycle();sample=null;}
+    }
 }
