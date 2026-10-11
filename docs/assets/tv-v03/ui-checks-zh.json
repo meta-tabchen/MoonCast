@@ -1,0 +1,133 @@
+{
+  "scope": "Actual APK on Android; generated media fixture only; no physical-device or AirPlay interoperability claim",
+  "mode": "offline UI with explicitly simulated session state",
+  "language": "zh-CN",
+  "sdk": 33,
+  "model": "Android SDK built for x86_64",
+  "checks": [
+    {
+      "check": "Requested language is active",
+      "passed": true
+    },
+    {
+      "check": "Activity automatically requested receiver startup",
+      "passed": true
+    },
+    {
+      "check": "Actual Activity window has focus",
+      "passed": true
+    },
+    {
+      "check": "AirPlay engine is configured with PIN disabled",
+      "passed": true
+    },
+    {
+      "check": "Fresh install defaults to automatic black-bar removal",
+      "passed": true
+    },
+    {
+      "check": "Idle home starts focused on Framing",
+      "passed": true
+    },
+    {
+      "check": "D-pad Right moves from Framing to Settings",
+      "passed": true
+    },
+    {
+      "check": "UI shows 高级设置",
+      "passed": true
+    },
+    {
+      "check": "Back dismisses advanced settings without stopping receiver",
+      "passed": true
+    },
+    {
+      "check": "UI shows 手动 · 缩放与裁剪",
+      "passed": true
+    },
+    {
+      "check": "Manual editor opened",
+      "passed": true
+    },
+    {
+      "check": "D-pad changes live crop zoom",
+      "passed": true
+    },
+    {
+      "check": "Back cancels crop preview",
+      "passed": true
+    },
+    {
+      "check": "UI shows 手动 · 缩放与裁剪",
+      "passed": true
+    },
+    {
+      "check": "Framing choice is shared by both pipelines",
+      "passed": true
+    },
+    {
+      "check": "Receiver auto-starts again after reopening",
+      "passed": true
+    },
+    {
+      "check": "App-wide framing choice survives Activity restart",
+      "passed": true
+    },
+    {
+      "check": "UI shows 手动 · 缩放与裁剪",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: Back from home hides controls",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: Back opens home without stopping receiver",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: Return to playback has default focus",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: second Back returns without exit",
+      "passed": true
+    },
+    {
+      "check": "UI shows 手动 · 缩放与裁剪",
+      "passed": true
+    },
+    {
+      "check": "Simulated session crop editor opened",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: crop Back cancels and hides controls",
+      "passed": true
+    },
+    {
+      "check": "UI shows 高级设置",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: nested Back preserves home",
+      "passed": true
+    },
+    {
+      "check": "Simulated session: home Back hides controls",
+      "passed": true
+    },
+    {
+      "check": "UI shows 停止接收并退出？",
+      "passed": true
+    },
+    {
+      "check": "Idle exit confirmation Back keeps Activity and receiver request",
+      "passed": true
+    }
+  ],
+  "actualLocales": "zh-CN,en-US",
+  "receiverListening": "not tested: offline mode does not require a LAN",
+  "liveMedia": "NOT RUN: no decoding, AirPlay session or DLNA playback. Test-only reflection marks playingMirror=true solely to exercise navigation.",
+  "passed": true
+}

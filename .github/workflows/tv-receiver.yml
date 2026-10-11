@@ -50,7 +50,7 @@ jobs:
           python3 scripts/run_tv_audio_tests.py
           python3 scripts/run_airplay_unit_tests.py
       - name: Build receiver and run Android static checks
-        run: ./gradlew :tv:assembleDebug :tv:assembleRelease :tv:lintDebug :tv:lintRelease :tv:testDebugUnitTest --no-daemon --console=plain
+        run: ./gradlew :tv:assembleDebug :tv:assembleDebugAndroidTest :tv:assembleRelease :tv:lintDebug :tv:lintRelease :tv:testDebugUnitTest --no-daemon --console=plain
       - name: Verify PCM calibration through actual Media3 pipeline
         run: python3 scripts/run_tv_media3_audio_tests.py
       - name: Verify receiver payload, signature and alignment

@@ -10,6 +10,10 @@ This is a **separate Android TV receiver application**, package `com.mooncast.tv
 4. In a DLNA-capable application, select MoonCast TV as the renderer and play an unprotected supported URL. DLNA is media URL playback, not Android screen mirroring.
 5. Press OK or Menu to show TV-remote controls. The redesigned home offers **Framing**, **Advanced settings**, and returning to playback. Picture/sound, connection recovery and technical diagnostics live under Advanced settings. During playback, Back opens the home controls with Return to playback focused; Back again returns to the picture without stopping. Nested settings close first, and Back in the live editor cancels its preview. Only idle home offers stop-and-exit. Leaving the app stops listeners, discovery and audio; it does not continue as a hidden background receiver.
 
+## Android system casting
+
+Android’s built-in wireless-display menu is different from a DLNA video-app target. This release fixes burst/MX compatibility in actual DLNA discovery, but does not implement Miracast or generic Google Cast mirroring. See the [Android system casting assessment and verified OEM paths](tv-android-system-casting.md). The home guide makes this distinction explicit.
+
 ## Implemented compatibility matrix
 
 | Protocol / feature | Implementation | Validation / limitations |
@@ -81,7 +85,7 @@ python3 scripts/run_tv_media3_audio_tests.py
 python3 scripts/verify_tv_apk.py tv/build/outputs/apk/release/tv-release.apk
 ```
 
-These are verification steps, not a statement that the final v0.3 CI run has passed. The release gate must include Java 17 builds/lint, portable framing/session/protocol/PCM tests, the actual Media3 pipeline/sink check, native/APK payload verification, `apksigner` and `zipalign`. The Gradle unit-test task has no separate Android test sources; behavioral coverage comes from the portable runners. Generated PCM tests cover all 21 signed offsets, sample rates, channel layouts, chunk boundaries and lifecycle changes. The Media3 integration runner uses the pinned 1.5.1 classes to exercise pipeline flush/reset/end-of-stream and prevent audio-processing bypass. Neither runner opens physical audio output or measures A/V sync.
+These are verification steps, not a statement that the final v0.3 CI run has passed. The release gate must include Java 17 builds/lint, portable framing/session/protocol/PCM tests, the actual Media3 pipeline/sink check, native/APK payload verification, `apksigner` and `zipalign`. The Gradle JVM unit-test task has no src/test sources; the portable runners provide host coverage. The separate androidTest UI suite is compiled by CI and must be executed on an emulator/device separately. Generated PCM tests cover all 21 signed offsets, sample rates, channel layouts, chunk boundaries and lifecycle changes. The Media3 integration runner uses the pinned 1.5.1 classes to exercise pipeline flush/reset/end-of-stream and prevent audio-processing bypass. Neither runner opens physical audio output or measures A/V sync.
 
 See `native/airplay/` for exact upstream commits, runtime/source SHA-256 and retained licenses. The pinned native source and binaries are unchanged in v0.3; the receiver uses the existing JNI interface, not a newly rebuilt native engine. AirPlay is based on jqssun/android-airplay-server / UxPlay under GPLv3; Media3 is Apache-2.0. The generated corresponding-source archive accompanies APK and SHA256SUMS in each prerelease. Preview releases are immutable and identified by CI run and commit. Build steps and source fetching must finish before release publication. `scripts/package_tv_release.py` packages a clean, committed checkout only after verification; it does not build, run the checks or publish by itself. The workflow verifies published asset hashes again after download.
 
@@ -93,8 +97,29 @@ No physical-device, latency or A/V-synchronization validation is claimed. Instal
 - Cinema acquisition on ordinary/wide bars, dark scenes, and new subtitles/overlays after lock; Rescan and full-image recovery.
 - PIN-free startup and reconnect; session reset, identity-reset cancel/confirm, iPhone portrait/landscape video with audible audio, pause/resume/reconnect.
 - Static/paused mirroring longer than the watchdog timeout, interrupted Wi-Fi, decoder recovery and sender-initiated disconnect; verify old video/audio is cleared.
-- DLNA MP4/HLS seek/pause/volume, AirPlay HLS, AirPlay↔DLNA takeover, network changes, and no audio/listener after Stop/Back/Home or re-entry.
+- DLNA MP4/HLS seek/pause/volume, AirPlay HLS, AirPlay↔DLNA takeover, network changes, and no residual media after Stop, no audio/listener after leaving the Activity/Home, and clean re-entry. Back during playback must keep playback running.
 - Audible clap/visible flash tests at −500/0/+500 ms on Media3; seek, completion, HDMI output, mode changes and native buffer changes. Measure actual lip sync/latency separately from software buffer values.
 - Sustained playback, frame drops and thermal behavior.
 
 Record TV model, Android version, sender model/OS, app, codec and content type. No personal capture is required.
+
+## Reproduce APK UI validation
+
+The separate `androidTest` APK contains framework instrumentation; it never enters the
+receiver release APK. Build `:tv:assembleDebug :tv:assembleDebugAndroidTest`, then run
+`scripts/run_tv_ui_validation.py --serial emulator-5554 --output <directory>
+--allow-clear-emulator-app-data --fixture <generated-H264.mp4>` with the Android SDK's
+`adb` on PATH. Use a disposable Android emulator (preferably Android TV): the script refuses a
+non-emulator and clears this test app's data between English and Chinese runs.
+It captures actual Android screenshots and a hashed evidence manifest, checks
+D-pad focus, automatic startup, PIN-disabled configuration, app-wide framing,
+Back/cancel/reopen behavior, and optional locally generated DLNA video decoding.
+This does not test a physical sender, Wi-Fi discovery across devices, HDMI output,
+AirPlay interoperability, or end-to-end latency. CI compiles the instrumentation APK;
+its device suite must be run separately and reported with its actual outcome.
+
+With `--offline`, the harness skips LAN/decode requirements and explicitly marks
+playback navigation as test-only injected session state. It still exercises the
+real Activity, D-pad, dialogs, global preferences and screenshots. This mode must
+not be counted as successful AirPlay, DLNA or video decoding. See
+[tv-ui-validation-v03.md](tv-ui-validation-v03.md) for the recorded run and images.

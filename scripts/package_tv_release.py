@@ -140,6 +140,11 @@ The phone sender application has a separate package name.
 - Open the app and reception starts automatically. No PIN is requested; only
   use it on a trusted home LAN because other reachable devices can connect.
 - Redesigned TV home with clear remote focus and diagnostics in Advanced.
+  Back during playback opens controls focused on Return to playback; Back
+  again returns fullscreen. Crop-editor Back still cancels the edit.
+- DLNA search bursts and large valid MX values are handled with bounded
+  response scheduling. This does not add Miracast/Google Cast system mirroring;
+  see docs/tv-android-system-casting.md for platform/OEM limits.
 - Auto black-bar removal is the first-use default. Your chosen mode and manual
   adjustments are saved app-wide across sources/orientations. Detected video
   coordinates remain transient and are recalculated for each video/size.
@@ -174,8 +179,12 @@ sender/receiver protocol, framing, session and PCM tests, the actual Media3
 1.5.1 pipeline/sink check, native payload checks, APK signature and ZIP
 alignment. This note lists the verification scope; it does not independently
 attest a CI result. The packaging helper does not run those checks. The Gradle
-unit-test task has no separate Android test sources; behavioral coverage is
-from the portable test runners.
+JVM unit-test task has no src/test sources; host behavioral coverage is
+from the portable test runners. CI also compiles the separate UI instrumentation
+APK; compilation alone does not mean its Android tests ran. The scoped local
+Android UI evidence and environment limitations are recorded in
+`docs/tv-ui-validation-v03.md`; injected offline session navigation is not a
+network playback or decoder test.
 The corresponding-source archive includes retained native runtime source,
 provenance and licenses. Pinned native source/binaries are unchanged, with
 AirPlay/UxPlay GPLv3 obligations retained. `SHA256SUMS` covers the APK, source

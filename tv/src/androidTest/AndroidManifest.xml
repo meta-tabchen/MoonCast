@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- This harness uses android.app.Instrumentation, not the obsolete android.test APIs. -->
+        <uses-library android:name="android.test.runner" tools:node="remove" />
+    </application>
+</manifest>

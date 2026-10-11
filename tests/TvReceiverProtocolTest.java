@@ -125,8 +125,29 @@ public final class TvReceiverProtocolTest {
         for(String time:new String[]{"-1:00:00","00:61:00","NaN","999999999999999:00:00"}) try { UpnpService.parseTime(time); throw new AssertionError("bad time"); } catch(UpnpService.Fault expected) {}
         String search="M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n";
         require(DlnaReceiver.parseSearch(search)!=null,"valid search");
-        require(DlnaReceiver.parseSearch(search.replace("MX: 1","MX: 0"))==null,"bad MX");
+        for (String mx : new String[]{"6", "10", "00030", "999999999999999999999999999999999"})
+            require(DlnaReceiver.parseSearch(search.replace("MX: 1", "MX: " + mx)).get("mx").equals("5"), "large MX clamped: " + mx);
+        for (String mx : new String[]{"0", "000", "-1", "1.5", "NaN", "", "1 5"})
+            require(DlnaReceiver.parseSearch(search.replace("MX: 1", "MX: " + mx)) == null, "invalid MX: " + mx);
+        require(DlnaReceiver.parseSearch(search.replace("MX: 1\r\n", "")) == null, "missing MX refused");
+        require(DlnaReceiver.parseSearch(search.replace("ST: ssdp:all", "ST: ")) == null, "empty target refused");
         require(DlnaReceiver.parseSearch(search.replace("ST: ssdp:all","ST: ssdp:all\r\nST: ssdp:all"))==null,"duplicate ST");
+        discoveryLimits();
+    }
+    private static void discoveryLimits() throws Exception {
+        DlnaReceiver.SearchLimiter limiter = new DlnaReceiver.SearchLimiter();
+        long now = 1_000_000_000L;
+        for (String target : discoveryTypes()) require(limiter.allow(LOOP, 20000, target, 1, now), "different targets share a search burst");
+        require(!limiter.allow(LOOP, 20000, "upnp:rootdevice", 1, now + 1), "duplicate peer/target is bounded");
+        require(limiter.allow(InetAddress.getByName("127.0.0.2"), 20000, "upnp:rootdevice", 1, now + 1), "another controller is not suppressed");
+        require(limiter.allow(LOOP, 20001, "upnp:rootdevice", 1, now + 1), "another control socket is not suppressed");
+        require(!limiter.allow(LOOP, 20000, "ssdp:all", 6, now + 2), "all replies charged to global packet budget");
+        require(limiter.allow(LOOP, 20000, "upnp:rootdevice", 1, now + 100_000_000L), "retry is accepted after duplicate interval");
+        limiter = new DlnaReceiver.SearchLimiter();
+        for (int i = 0; i < 12; i++) require(limiter.allow(LOOP, 20000 + i, "upnp:rootdevice", 1, now), "bounded initial burst");
+        require(!limiter.allow(LOOP, 30000, "upnp:rootdevice", 1, now), "rotating source ports cannot bypass global limit");
+        require(limiter.allow(LOOP, 30000, "ssdp:all", 6, now + 100_000_000L), "global budget replenishes at 60 datagrams per second");
+        require(!limiter.allow(LOOP, 30001, "upnp:rootdevice", 1, now + 100_000_000L), "replenished budget remains bounded");
     }
     private static void malformed(int port) throws Exception {
         String type="urn:schemas-upnp-org:service:AVTransport:1";
@@ -198,20 +219,50 @@ public final class TvReceiverProtocolTest {
             server.start(LOOP,8);
             try(DatagramSocket socket=new DatagramSocket(new InetSocketAddress(LOOP,0))) {
                 socket.setSoTimeout(3000);
-                byte[] search=("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: ssdp:all\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
-                socket.send(new DatagramPacket(search,search.length,LOOP,1900));
+                // Real controllers commonly burst multiple targets without a 100 ms gap.
+                for (String target : discoveryTypes()) search(socket, target, "1");
+                Set<String> burst = new HashSet<>();
+                for (int i = 0; i < 6; i++) burst.add(discoveryReply(socket, server));
+                require(burst.equals(new HashSet<>(discoveryTypes())), "all six distinct search targets answered in one burst");
+                search(socket, "ssdp:all", "1");
                 Set<String> types=new HashSet<>();
-                for(int i=0;i<6;i++) {
-                    byte[] bytes=new byte[4096]; DatagramPacket reply=new DatagramPacket(bytes,bytes.length); socket.receive(reply);
-                    String text=new String(bytes,0,reply.getLength(),StandardCharsets.US_ASCII);
-                    require(text.startsWith("HTTP/1.1 200 OK") && text.contains(server.getDescriptionUrl()),"live SSDP response");
-                    types.add(header(text,"st"));
-                }
-                require(types.size()==6 && types.contains("urn:schemas-upnp-org:device:MediaRenderer:1"),"SSDP root, uuid, renderer and 3 services");
+                for(int i=0;i<6;i++) types.add(discoveryReply(socket, server));
+                require(types.equals(burst),"ssdp:all returns the same root, uuid, renderer and 3 services");
+                search(socket, "urn:unsupported-device", "1");
+                search(socket, "upnp:rootdevice", "30");
+                require(discoveryReply(socket, server).equals("upnp:rootdevice"), "unsupported target does not suppress valid large-MX discovery");
+            }
+            try(DatagramSocket first=new DatagramSocket(new InetSocketAddress(LOOP,0));
+                DatagramSocket second=new DatagramSocket(new InetSocketAddress(LOOP,0))) {
+                first.setSoTimeout(3000); second.setSoTimeout(3000);
+                search(first, "upnp:rootdevice", "1"); search(second, "upnp:rootdevice", "1");
+                require(discoveryReply(first, server).equals("upnp:rootdevice")
+                        && discoveryReply(second, server).equals("upnp:rootdevice"), "two controller sockets receive simultaneous searches");
             }
             int port=server.getPort(); server.stop(); assertClosed(port);
             server.start(LOOP,8); require(server.isRunning(),"full discovery restart");
         }
+    }
+    private static List<String> discoveryTypes() {
+        return List.of("upnp:rootdevice", "uuid:" + ID, "urn:schemas-upnp-org:device:MediaRenderer:1",
+                "urn:schemas-upnp-org:service:AVTransport:1", "urn:schemas-upnp-org:service:RenderingControl:1",
+                "urn:schemas-upnp-org:service:ConnectionManager:1");
+    }
+    private static void search(DatagramSocket socket, String target, String mx) throws IOException {
+        byte[] request=("M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: "
+                + mx + "\r\nST: " + target + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII);
+        socket.send(new DatagramPacket(request,request.length,LOOP,1900));
+    }
+    private static String discoveryReply(DatagramSocket socket, DlnaReceiver server) throws IOException {
+        byte[] bytes=new byte[4096]; DatagramPacket reply=new DatagramPacket(bytes,bytes.length); socket.receive(reply);
+        String text=new String(bytes,0,reply.getLength(),StandardCharsets.US_ASCII);
+        require(text.startsWith("HTTP/1.1 200 OK\r\n") && text.endsWith("\r\n\r\n"), "live SSDP framing");
+        require(header(text,"location").equals(server.getDescriptionUrl()), "description reachable at advertised address");
+        require(header(text,"cache-control").equals("max-age=300") && header(text,"ext").isEmpty(), "discovery cache and EXT headers");
+        require(header(text,"server").contains("UPnP/1.0"), "discovery server version");
+        String type=header(text,"st");
+        require(header(text,"usn").equals(type.equals("uuid:" + ID) ? type : "uuid:" + ID + "::" + type), "target-specific USN");
+        return type;
     }
     private static Response soap(int port,String service,String action,String args) throws Exception {
         String type="urn:schemas-upnp-org:service:"+service+":1";

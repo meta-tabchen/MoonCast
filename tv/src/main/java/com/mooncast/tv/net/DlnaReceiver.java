@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -93,7 +94,7 @@ public final class DlnaReceiver implements AutoCloseable {
         NetworkInterface network;
         InetAddress group;
         Thread acceptThread, discoveryThread;
-        long lastSearchNanos;
+        final SearchLimiter searchLimiter = new SearchLimiter();
 
         Session(Inet4Address address, int prefix, boolean discovery) throws IOException {
             this.address = address; access = new LanAccess(address, prefix); this.discovery = discovery;
@@ -258,15 +259,22 @@ public final class DlnaReceiver implements AutoCloseable {
                 String message = new String(packet.getData(), packet.getOffset(), packet.getLength(), StandardCharsets.US_ASCII);
                 Map<String, String> headers = parseSearch(message);
                 if (headers == null) continue;
-                long now = System.nanoTime();
-                // Global cap also bounds amplification and work under spoofed/rotating source addresses.
-                if (now - lastSearchNanos < 100_000_000L) continue;
-                lastSearchNanos = now;
                 String target = headers.get("st");
-                for (String type : searchTypes()) if (target.equals("ssdp:all") || target.equals(type)) {
+                List<String> matches = new ArrayList<>();
+                for (String type : searchTypes()) if (target.equals("ssdp:all") || target.equals(type)) matches.add(type);
+                if (matches.isEmpty() || !searchLimiter.allow(packet.getAddress(), packet.getPort(), target,
+                        matches.size(), System.nanoTime())) continue;
+                InetAddress peer = packet.getAddress();
+                int port = packet.getPort();
+                // UDA permits a smaller MX. Keep discovery responsive while spreading the replies,
+                // without blocking subsequent targets or the HTTP/event workers during the wait.
+                int delayBoundMillis = Math.min(1000, Integer.parseInt(headers.get("mx")) * 1000);
+                for (String type : matches) {
                     String response = "HTTP/1.1 200 OK\r\nCACHE-CONTROL: max-age=300\r\nEXT:\r\nLOCATION: " + location
                             + "\r\nSERVER: " + SERVER + "\r\nST: " + type + "\r\nUSN: " + usn(type) + "\r\n\r\n";
-                    sendDatagram(response, packet.getAddress(), packet.getPort());
+                    timer.schedule(() -> {
+                        if (!closed) try { sendDatagram(response, peer, port); } catch (IOException ignored) {}
+                    }, ThreadLocalRandom.current().nextInt(delayBoundMillis), TimeUnit.MILLISECONDS);
                 }
             } catch (IOException | RuntimeException e) {
                 if (!closed) { error("DLNA discovery stopped: " + e.getClass().getSimpleName()); close(); }
@@ -358,9 +366,43 @@ public final class DlnaReceiver implements AutoCloseable {
             String name=lines[i].substring(0,colon).toLowerCase(Locale.ROOT);
             if(headers.put(name,lines[i].substring(colon+1).trim())!=null) return null;
         }
-        if(!"\"ssdp:discover\"".equalsIgnoreCase(headers.get("man")) || !headers.containsKey("st")
-                || !headers.getOrDefault("mx","").matches("[1-5]") || !"239.255.255.250:1900".equals(headers.get("host"))) return null;
+        if(!"\"ssdp:discover\"".equalsIgnoreCase(headers.get("man")) || headers.getOrDefault("st", "").isEmpty()
+                || !"239.255.255.250:1900".equals(headers.get("host"))) return null;
+        String mx = headers.getOrDefault("mx", "");
+        if (!mx.matches("[0-9]+")) return null;
+        int waitSeconds = 0;
+        // Clamp while parsing so even a bounded packet containing an enormous MX cannot overflow.
+        // UDA 1.1 section 1.3.3 says values above five should be treated as five or less.
+        for (int i = 0; i < mx.length(); i++) waitSeconds = Math.min(5, waitSeconds * 10 + mx.charAt(i) - '0');
+        if (waitSeconds == 0) return null;
+        headers.put("mx", Integer.toString(waitSeconds));
         return headers;
+    }
+    /** One discovery thread owns this bounded per-peer/target duplicate filter and global reply budget. */
+    static final class SearchLimiter {
+        private static final int BURST_REPLIES = 12, REPLIES_PER_SECOND = 60, MAX_KEYS = 128;
+        private final Map<String, Long> recent = new LinkedHashMap<>();
+        private static final long ONE_REPLY = 1_000_000_000L;
+        private long tokens = BURST_REPLIES * ONE_REPLY;
+        private long lastRefill;
+        private boolean initialized;
+        boolean allow(InetAddress peer, int port, String target, int replies, long now) {
+            if (replies < 1 || replies > 6) return false;
+            String key = peer.getHostAddress() + ":" + port + "/" + target;
+            Long previous = recent.get(key);
+            if (previous != null && now - previous < 100_000_000L) return false;
+            if (initialized) tokens = Math.min(BURST_REPLIES * ONE_REPLY,
+                    tokens + Math.min(ONE_REPLY, Math.max(0, now - lastRefill)) * REPLIES_PER_SECOND);
+            lastRefill = now;
+            initialized = true;
+            long cost = replies * ONE_REPLY;
+            if (tokens < cost) return false;
+            tokens -= cost;
+            recent.remove(key);
+            recent.put(key, now);
+            if (recent.size() > MAX_KEYS) recent.remove(recent.keySet().iterator().next());
+            return true;
+        }
     }
     private static void quietClose(Socket socket) { try { socket.close(); } catch(IOException ignored) {} }
 }

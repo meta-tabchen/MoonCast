@@ -1,0 +1,26 @@
+{
+  "scope": "Actual APK on disposable Android emulator; not physical-TV or remote-sender interoperability evidence",
+  "mode": "offline UI and simulated session state; LAN/decode NOT tested",
+  "apk_sha256": "d915038cfa363b0b037334b1caaaaf46edd969032109d61b3684d10a0da2bede",
+  "test_apk_sha256": "293378c7d17521475a321f410892f23e8330b7dd3bd72db7d99ae5249c85bf34",
+  "fingerprint": "Android/sdk_phone64_x86_64/emulator64_x86_64:13/TE1A.220922.034/10940250:userdebug/test-keys",
+  "display_size": "Physical size: 1280x720",
+  "display_density": "Physical density: 213",
+  "locales": [
+    "zh-CN"
+  ],
+  "results": [
+    {
+      "locale": "zh-CN",
+      "passed": true
+    }
+  ],
+  "report_files": {
+    "ui-checks-zh.json": "cf4a5b793e746c53934051d00b1d988ebd8d9e05707e500c0c5d57ba7253ac24"
+  },
+  "private_screenshots_not_published": {
+    "return-to-playback-simulated-zh.png": "49cbeacfd37d9d7b83604ac626923348cee55c4235578c03f4f25a598cb95fb7",
+    "home-zh.png": "9d4ecb5243cd995f995f11a730d884e4f36d7a21f57af250e7bd50eeae069311",
+    "advanced-zh.png": "ed681f552b032596562743a700be4b2fab8f8b9a66e731149b55c5d2b622f916"
+  }
+}

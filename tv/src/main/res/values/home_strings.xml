@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_status_line">●  %1$s</string>
     <string name="home_brand">MoonCast TV</string>
     <string name="home_hero">Small screen.\nBigger moments.</string>
     <string name="home_hero_compact">Make room for more.</string>
-    <string name="home_instructions">On the same Wi-Fi, open Screen Mirroring\nor your casting app and choose this TV.</string>
-    <string name="home_instructions_compact">On the same Wi-Fi, choose this TV\nin Screen Mirroring or your casting app.</string>
+    <string name="home_instructions">Choose this TV in iPhone Screen Mirroring\nor a DLNA-compatible video app.</string>
+    <string name="home_instructions_compact">Choose this TV in iPhone Screen Mirroring\nor a DLNA-compatible video app.</string>
     <string name="home_waiting">Ready to begin</string>
     <string name="home_framing">Framing</string>
-    <string name="home_framing_detail">Fit · keep the whole picture</string>
+    <string name="home_framing_detail">Auto crop · preserve aspect</string>
     <string name="home_advanced">Settings</string>
     <string name="home_advanced_detail">Picture, sound &amp; connection</string>
     <string name="home_return_playback">Return to playback</string>
-    <string name="home_hide">Hide controls</string>
-    <string name="home_hide_detail">A clear view while casting</string>
+    <string name="home_hide">How to cast</string>
+    <string name="home_hide_detail">AirPlay &amp; DLNA</string>
     <string name="home_hide_active">Back to your picture</string>
-    <string name="home_trusted">Trusted network · No PIN required</string>
+    <string name="home_trusted">Same trusted network · No PIN required</string>
     <string name="home_stop">Stop receiver</string>
     <string name="home_start">Start receiver</string>
     <string name="home_receiver_accessibility">Choose %1$s on your phone to cast</string>

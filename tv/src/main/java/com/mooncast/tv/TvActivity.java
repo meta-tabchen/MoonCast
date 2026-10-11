@@ -57,7 +57,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private String mediaDecoder="";
     private Player.Listener mediaListener;
     private TvHomeView panel;
-    private boolean receiverReady,airplayProblem;
+    private boolean receiverReady,airplayProblem,dlnaProblem;
     private TextView status,details,runtimeView;
     private TextureView mirrorTexture,mediaTexture;
     private VideoFraming mirrorFraming,mediaFraming;
@@ -106,7 +106,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         createUi();
         createMediaPlayer();
         airplay=new AirPlayEngine(this,new AirPlayEngine.Listener(){
-            @Override public void onStatus(String value){if(requested&&!dlnaOwnsAudio){details.setText(value);if(value.equals("AirPlay ready")&&!airplayProblem){receiverReady=true;showStatus(getString(R.string.ready_simple));panel.setHint("");}if(value.contains("error")||value.contains("failed")||value.contains("unavailable")){airplayProblem=true;receiverReady=false;showStatus(getString(R.string.airplay_partial));panel.setHint(getString(R.string.airplay_partial_hint));showPanel();}}}
+            @Override public void onStatus(String value){if(airplayOwns()){details.setText(value);if(value.equals("AirPlay ready")){showProtocolStatus();}if(value.contains("error")||value.contains("failed")||value.contains("unavailable")){airplayProblem=true;showProtocolStatus();showPanel();}}}
             @Override public void onVideoSize(int w,int h){mirrorFraming.videoSize(w,h);}
             @Override public void onMirrorStarted(){if(!airplayOwns())return;mediaPresentationEnabled=false;allowedMediaProxyPort=-1;dlnaOwnsAudio=false;cancelCropEdit();++mediaEpoch;preparingMedia=false;wantPlay=false;uri="";metadata="";player.stop();player.clearMediaItems();playingMirror=true;mirrorHasFrame=false;blackout.setVisibility(View.VISIBLE);mediaTexture.setVisibility(View.INVISIBLE);mirrorTexture.setVisibility(View.VISIBLE);mirrorFraming.sourceProfile("airplay_mirror");details.setText(R.string.source_mirror);hidePanel();}
             @Override public void onMirrorStopped(){if(!airplayOwns()||mediaPresentationEnabled&&mediaFromAirplay&&!uri.isEmpty())return;cancelCropEdit();playingMirror=false;mirrorHasFrame=false;blackout.setVisibility(View.VISIBLE);if(uri.isEmpty()){showPanel();details.setText(R.string.instructions);}}
@@ -145,7 +145,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
             public void onFraming(){framingDialog();}
             public void onAdvanced(){advancedDialog();}
             public void onStopStart(){if(requested)stopReceiver();else startReceiver();}
-            public void onHide(){if(hasPlayback())hidePanel();else panel.setHint(getString(R.string.home_no_video));}
+            public void onHide(){if(hasPlayback())hidePanel();else notice(R.string.cast_guide);}
         });
         panel.setReceiverName(receiverName);root.addView(panel,new FrameLayout.LayoutParams(-1,-1));
         cropEditor=new CropEditorOverlay(this,applied->{if(requested&&hasPlayback())hidePanel();else showPanel();});root.addView(cropEditor,new FrameLayout.LayoutParams(-1,-1));
@@ -157,6 +157,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void playbackDialog(){boolean media=mediaPresentationEnabled&&!uri.isEmpty();String[] choices=media?new String[]{getString(player.isPlaying()?R.string.pause_action:R.string.resume_action),getString(R.string.stop_media)}:new String[]{getString(R.string.stop_media)};new AlertDialog.Builder(this).setTitle(R.string.playback_controls).setItems(choices,(d,w)->{if(media&&w==0){if(player.isPlaying())pause();else play();}else stop();}).setNegativeButton(R.string.close,null).show();}
     private void diagnosticsDialog(){updateRuntime();new AlertDialog.Builder(this).setTitle(R.string.diagnostics_title).setMessage(status.getText()+"\n\n"+details.getText()+"\n\n"+runtimeView.getText()+"\n\n"+getString(R.string.trusted)).setPositiveButton(R.string.close,null).show();}
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
+    private void showProtocolStatus(){receiverReady=!airplayProblem&&!dlnaProblem;showStatus(getString(receiverReady?R.string.ready_simple:airplayProblem&&dlnaProblem?R.string.receiver_partial:dlnaProblem?R.string.dlna_partial:R.string.airplay_partial));panel.setHint(receiverReady?"":getString(dlnaProblem?R.string.dlna_partial_hint:R.string.airplay_partial_hint));}
     private void showStatus(String value){status.setText(value);panel.setStatus(value,receiverReady);panel.setReceiving(requested);}
     private void showPanel(){if(cropEditor!=null&&cropEditor.isEditing())return;panel.setVisibility(View.VISIBLE);panel.setPlaybackActive(hasPlayback());panel.requestPrimaryFocus();}
     private boolean hasPlayback(){return playingMirror||(mediaPresentationEnabled&&!uri.isEmpty());}
@@ -190,7 +191,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void recoveryDialog(){
         new AlertDialog.Builder(this).setTitle(R.string.recovery_settings).setItems(new String[]{getString(R.string.watchdog),getString(R.string.recover_now),getString(R.string.reset_pairing),getString(R.string.peer_limit)},(d,w)->{
             if(w==0){int[] secs={0,15,30,60};String[] labels={getString(R.string.off),getString(R.string.seconds_value,15),getString(R.string.seconds_value,30),getString(R.string.seconds_value,60)};int selected=1;for(int i=0;i<secs.length;i++)if(secs[i]==preferences.getInt("airplay.watchdog",15))selected=i;new AlertDialog.Builder(this).setTitle(R.string.watchdog).setSingleChoiceItems(labels,selected,(a,v)->{preferences.edit().putInt("airplay.watchdog",secs[v]).apply();airplay.setWatchdogTimeoutSeconds(secs[v]);a.dismiss();}).setNeutralButton(R.string.about,(a,v)->notice(R.string.watchdog_note)).setNegativeButton(R.string.cancel,null).show();}
-            else if(w==1){stop();showStatus(getString(R.string.recovery_ready));}
+            else if(w==1){stop();}
             else if(w==2)new AlertDialog.Builder(this).setTitle(R.string.reset_pairing).setMessage(R.string.reset_pairing_warning).setPositiveButton(R.string.reset_confirm,(a,v)->resetReceiverIdentity()).setNegativeButton(R.string.cancel,null).show();else notice(R.string.peer_limit);
         }).show();
     }
@@ -231,18 +232,18 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private Lan findLan(){Network network=connectivity.getActiveNetwork();if(network==null)return null;NetworkCapabilities caps=connectivity.getNetworkCapabilities(network);if(caps==null||caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)||(!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;LinkProperties props=connectivity.getLinkProperties(network);if(props==null)return null;for(LinkAddress a:props.getLinkAddresses())if(a.getAddress() instanceof Inet4Address ip&&!ip.isLoopbackAddress()&&!ip.isLinkLocalAddress())return new Lan(ip,a.getPrefixLength(),network+":"+ip.getHostAddress());return null;}
     private void networkChanged(){main.postDelayed(()->{if(!requested||!foreground)return;Lan lan=findLan();String key=lan==null?"":lan.key();if(!key.equals(activeNetwork)){showStatus(getString(R.string.network_change));startReceiver();}},750);}
     private void startReceiver(){
-        if(identityResetting)return;receiverReady=false;airplayProblem=false;panel.setHint("");stopMediaOnly();airplaySuspended=true;
-        requested=true;int epoch=++generation;Lan lan=findLan();activeNetwork=lan==null?"":lan.key();showStatus(getString(R.string.starting));panel.setReceiving(true);
+        if(identityResetting)return;receiverReady=false;airplayProblem=false;dlnaProblem=false;panel.setHint("");stopMediaOnly();airplaySuspended=true;
+        requested=true;int epoch=++generation;Lan lan=findLan();activeNetwork=lan==null?"":lan.key();showStatus(getString(R.string.starting));panel.setReceiving(true);if(panel.getVisibility()==View.VISIBLE)panel.requestPrimaryFocus();
         networkWorker.execute(()->{
             closeServers();if(epoch!=generation||!requested)return;
             if(lan==null){main.post(()->{if(epoch==generation)showStatus(getString(R.string.network_missing));});return;}
             try{
                 WifiManager wifi=(WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);if(wifi!=null){multicast=wifi.createMulticastLock("mooncast-tv-discovery");multicast.setReferenceCounted(false);multicast.acquire();}
-                dlna=new DlnaReceiver(sessionTarget(epoch),receiverName,uuid,new DlnaReceiver.Listener(){public void onStatus(String value){}public void onError(String value){main.post(()->{if(epoch==generation)details.setText(value);});}});
+                dlna=new DlnaReceiver(sessionTarget(epoch),receiverName,uuid,new DlnaReceiver.Listener(){public void onStatus(String value){}public void onError(String value){main.post(()->{if(epoch==generation){details.setText(value);dlnaProblem=true;showProtocolStatus();}});}});
                 dlna.start(lan.address(),lan.prefix());
                 String airplayStatus="";try{if(!dlnaOwnsAudio){configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}}catch(Exception error){airplayStatus="AirPlay unavailable: "+error.getClass().getSimpleName();}
                 if(epoch!=generation||!requested){closeServers();return;}
-                String result=airplayStatus;main.post(()->{if(epoch!=generation)return;receiverReady=result.isEmpty()&&!airplayProblem;showStatus(getString(receiverReady?R.string.ready_simple:R.string.airplay_partial));panel.setHint(receiverReady?"":getString(R.string.airplay_partial_hint));details.setText(result.isEmpty()?getString(R.string.instructions):result+"\nDLNA ready");});
+                String result=airplayStatus;main.post(()->{if(epoch!=generation)return;airplayProblem|=!result.isEmpty();showProtocolStatus();if(!result.isEmpty())details.setText(result+(dlnaProblem?"":"\nDLNA ready"));else if(!airplayProblem&&!dlnaProblem)details.setText(R.string.instructions);});
             }catch(Exception error){closeServers();main.post(()->{if(epoch==generation){requested=false;receiverReady=false;panel.setReceiving(false);showStatus(error.getClass().getSimpleName()+": receiver unavailable");}});}
         });
     }
@@ -293,8 +294,8 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     @Override public void play(){onPlayer(()->{if(!uri.isEmpty()){if((!mediaPresentationEnabled&&!preparingMedia)||(!mediaFromAirplay&&!airplaySuspended))loadMedia(uri,metadata,mediaFromAirplay);wantPlay=true;if(!preparingMedia){if(player.getPlaybackState()==Player.STATE_IDLE)player.prepare();player.play();}hidePanel();}});}
     @Override public void pause(){onPlayer(()->{wantPlay=false;player.pause();});}
     private void restartAirplay(){
-        if(!requested||!foreground||identityResetting)return;int epoch=generation;airplaySuspended=true;airplayProblem=false;receiverReady=false;showStatus(getString(R.string.starting));
-        networkWorker.execute(()->{airplay.stop();if(epoch!=generation||!requested||dlnaOwnsAudio)return;try{configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}catch(Exception e){main.post(()->{if(epoch==generation){details.setText("AirPlay restart failed");airplayProblem=true;receiverReady=false;showStatus(getString(R.string.airplay_partial));panel.setHint(getString(R.string.airplay_partial_hint));}});}});
+        if(!requested||!foreground||identityResetting)return;Lan current=findLan();if(current==null||!current.key().equals(activeNetwork)){startReceiver();return;}int epoch=generation;airplaySuspended=true;airplayProblem=false;receiverReady=false;showStatus(getString(R.string.starting));
+        networkWorker.execute(()->{airplay.stop();if(epoch!=generation||!requested||dlnaOwnsAudio)return;try{configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}catch(Exception e){main.post(()->{if(epoch==generation){details.setText("AirPlay restart failed");airplayProblem=true;showProtocolStatus();}});}});
     }
     private void stopTransport(){onPlayer(()->{cancelCropEdit();dlnaOwnsAudio=false;mediaHasFrame=false;mediaPresentationEnabled=false;blackout.setVisibility(View.VISIBLE);++mediaEpoch;preparingMedia=false;wantPlay=false;player.stop();playingMirror=false;showPanel();if(airplaySuspended){airplaySuspended=false;restartAirplay();}});}
     private void stopMediaOnly(){

@@ -24,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /** A deliberately quiet, overscan-safe ten-foot UI. Receiver diagnostics live elsewhere. */
+@android.annotation.SuppressLint("ViewConstructor") // Constructed with its required Activity callbacks.
 public final class TvHomeView extends FrameLayout {
     public interface Listener {
         void onFraming();
@@ -38,6 +39,8 @@ public final class TvHomeView extends FrameLayout {
     private static final int MINT = 0xff81dfcf;
     private static final int LIME = 0xffd7edb0;
     private final Map<View, Rect> positions = new LinkedHashMap<>();
+    private final Paint backdropPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Shader backdropGlow;
     private final BrandView brand;
     private final TextView status, heading, instruction, receiver, trusted;
     private final CastArtwork artwork;
@@ -125,16 +128,18 @@ public final class TvHomeView extends FrameLayout {
     }
 
     public void setStatus(String value, boolean isReady) {
-        status.setText("●  " + value);
+        status.setText(getResources().getString(R.string.home_status_line, value));
         status.setTextColor(isReady ? MINT : MUTED);
         artwork.setReady(isReady);
     }
 
     /** Receiving is the requested receiver state, not an assertion that video is playing. */
     public void setReceiving(boolean value) {
+        boolean startedFromFooter = value && !receiving && toggle.hasFocus();
         receiving = value;
         toggle.setText(value ? R.string.home_stop : R.string.home_start);
         toggle.updateStyle();
+        if (startedFromFooter) requestPrimaryFocus();
     }
 
     public void setModeLabel(String value) { framing.setSubtitle(value); }
@@ -180,7 +185,6 @@ public final class TvHomeView extends FrameLayout {
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
         int w = MeasureSpec.getSize(widthSpec), h = MeasureSpec.getSize(heightSpec);
         setMeasuredDimension(w, h);
-        positions.clear();
         float width = toDp(w), height = toDp(h);
         // Android TV's standard 48 dp horizontal / vertical safe area, including compact TVs.
         float inset = 48, cw = Math.max(1, width - inset * 2), ch = Math.max(1, height - inset * 2);
@@ -197,12 +201,27 @@ public final class TvHomeView extends FrameLayout {
         float footerY = cardY + cardH + footerGap;
         float leftW = cw * 0.555f;
         float artLeft = inset + leftW + (compact ? 4 : 12);
-        float titleH = compact ? 37 : 108;
         float instructionH = compact ? 32 : 43;
-        float instructionY = heroY + titleH + (compact ? 4 : 17);
-        float receiverY = instructionY + instructionH + (compact ? 7 : 12);
+        float titleGap = compact ? 4 : 17;
+        float receiverGap = compact ? 7 : 12;
+        float receiverH = compact ? 30 : 38;
         heading.setText(compact ? R.string.home_hero_compact : R.string.home_hero);
-        heading.setTextSize(compact ? 29 : 47);
+        // CJK fallback fonts have taller line metrics than the Latin wordmark font.
+        // Measure Android's actual text layout before allocating the heading box.
+        // Keep the remaining hero content reserved rather than pushing it into the cards.
+        float titleBudget = Math.max(1, heroH - titleGap - instructionH - receiverGap - receiverH);
+        float titleSize = compact ? 29 : 47;
+        float titleH;
+        do {
+            heading.setTextSize(titleSize);
+            heading.measure(MeasureSpec.makeMeasureSpec(dp(leftW), MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            titleH = Math.max(compact ? 37 : 108, toDp(heading.getMeasuredHeight()) + 2);
+            if (titleH <= titleBudget || titleSize <= (compact ? 22 : 34)) break;
+            titleSize -= 1;
+        } while (true);
+        float instructionY = heroY + titleH + titleGap;
+        float receiverY = instructionY + instructionH + receiverGap;
         instruction.setTextSize(compact ? 12 : 15);
         instruction.setLineSpacing(dp(compact ? 2 : 3), 1);
         receiver.setTextSize(compact ? 22 : 29);
@@ -213,7 +232,7 @@ public final class TvHomeView extends FrameLayout {
         place(status, inset + cw * 0.53f, inset, cw * 0.47f, headerH);
         place(heading, inset, heroY, leftW, titleH);
         place(instruction, inset, instructionY, leftW, instructionH);
-        place(receiver, inset, receiverY, leftW, compact ? 30 : 38);
+        place(receiver, inset, receiverY, leftW, receiverH);
         place(artwork, artLeft, heroY - (compact ? 5 : 9), width - inset - artLeft, heroH + (compact ? 8 : 12));
         float gap = compact ? 10 : 14;
         float itemW = (cw - gap * 2) / 3;
@@ -227,8 +246,9 @@ public final class TvHomeView extends FrameLayout {
         place(toggle, inset + cw - toggleW, footerY, toggleW, footerH);
     }
     private void place(View view, float x, float y, float w, float h) {
-        Rect rect = new Rect(dp(x), dp(y), dp(x + w), dp(y + h));
-        positions.put(view, rect);
+        Rect rect = positions.get(view);
+        if (rect == null) { rect = new Rect(); positions.put(view, rect); }
+        rect.set(dp(x), dp(y), dp(x + w), dp(y + h));
         view.measure(MeasureSpec.makeMeasureSpec(Math.max(0, rect.width()), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(Math.max(0, rect.height()), MeasureSpec.EXACTLY));
     }
     @Override protected void onLayout(boolean changed, int l, int t, int r, int b) {
@@ -236,11 +256,15 @@ public final class TvHomeView extends FrameLayout {
             Rect p = entry.getValue(); entry.getKey().layout(p.left, p.top, p.right, p.bottom);
         }
     }
+    @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (w > 0) backdropGlow = new RadialGradient(w * .80f, h * .37f, w * .52f,
+                new int[]{0xff152a30, 0xff111e25, INK}, new float[]{0, .52f, 1}, Shader.TileMode.CLAMP);
+    }
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setShader(new RadialGradient(getWidth() * .80f, getHeight() * .37f, getWidth() * .52f,
-                new int[]{0xff152a30, 0xff111e25, INK}, new float[]{0, .52f, 1}, Shader.TileMode.CLAMP));
+        Paint p = backdropPaint;
+        p.setShader(backdropGlow);
         canvas.drawRect(0, 0, getWidth(), getHeight(), p);
         p.setShader(null); p.setColor(0xff263339); p.setStrokeWidth(dp(.6f));
         Rect footer = positions.get(trusted);
@@ -249,6 +273,7 @@ public final class TvHomeView extends FrameLayout {
 
     private final class BrandView extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Typeface wordmark = Typeface.create("sans-serif-medium", Typeface.NORMAL);
         BrandView(Context context) { super(context); }
         @Override protected void onDraw(Canvas canvas) {
             float h = getHeight(), unit = h / 28f;
@@ -261,7 +286,7 @@ public final class TvHomeView extends FrameLayout {
             p.setStyle(Paint.Style.STROKE); p.setStrokeCap(Paint.Cap.ROUND); p.setStrokeWidth(1.8f);
             canvas.drawArc(-4, 14, 10, 28, -90, 90, false, p);
             canvas.drawArc(-9, 9, 15, 33, -90, 90, false, p);
-            p.setStyle(Paint.Style.FILL); p.setColor(CREAM); p.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            p.setStyle(Paint.Style.FILL); p.setColor(CREAM); p.setTypeface(wordmark);
             p.setTextSize(20); canvas.drawText("MoonCast", 37, 21, p);
             float tagX = 37 + p.measureText("MoonCast") + 9;
             p.setColor(0xff273a40); canvas.drawRoundRect(tagX, 8, tagX + 22, 22, 4, 4, p);
@@ -277,6 +302,7 @@ public final class TvHomeView extends FrameLayout {
         ActionCard(Context context, int kind, int titleResource, int subtitleResource) {
             super(context);
             setFocusable(true); setClickable(true); setClipChildren(false);
+            setDefaultFocusHighlightEnabled(false); // This view draws its own rounded focus state.
             setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);
             title = label(getResources().getString(titleResource), 17, CREAM);
             title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
@@ -341,6 +367,7 @@ public final class TvHomeView extends FrameLayout {
     private final class ReceiverButton extends TextView {
         ReceiverButton(Context context) {
             super(context); setFocusable(true); setClickable(true); setGravity(Gravity.CENTER);
+            setDefaultFocusHighlightEnabled(false);
             setIncludeFontPadding(false); setSingleLine(true);
             setOnFocusChangeListener((v, focus) -> updateStyle());
         }
@@ -370,7 +397,7 @@ public final class TvHomeView extends FrameLayout {
                 canvas.drawLine(15, 21, 21, 21, p); canvas.drawLine(21, 21, 21, 15, p);
                 canvas.drawRoundRect(7, 8, 17, 16, 1.8f, 1.8f, p);
             } else if (kind == 1) {
-                for (int y : new int[]{5, 12, 19}) canvas.drawLine(3, y, 21, y, p);
+                for (int y = 5; y <= 19; y += 7) canvas.drawLine(3, y, 21, y, p);
                 p.setStyle(Paint.Style.FILL); p.setColor(((View) getParent()).hasFocus() ? LIME : 0xff18252c);
                 canvas.drawCircle(8, 5, 3, p); canvas.drawCircle(16, 12, 3, p); canvas.drawCircle(10, 19, 3, p);
                 p.setStyle(Paint.Style.STROKE); p.setColor(color);
@@ -388,16 +415,26 @@ public final class TvHomeView extends FrameLayout {
     private final class CastArtwork extends View {
         private final Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
+        private final RectF screenClip = new RectF(31, 45, 315, 198);
+        private final Shader halo = new RadialGradient(186, 123, 170, new int[]{0x253f9383, 0x062d786e, 0x002d786e}, null, Shader.TileMode.CLAMP);
+        private final Shader shadow = new RadialGradient(180, 1150, 138, new int[]{0x6002090c, 0x0002090c}, null, Shader.TileMode.CLAMP);
+        private final Shader bezel = new LinearGradient(23, 30, 314, 210, new int[]{0xff648f93, 0xff29464e, 0xff456267}, null, Shader.TileMode.CLAMP);
+        private final Shader sky = new LinearGradient(55, 33, 285, 197, new int[]{0xff153740, 0xff347774, 0xffa4b883}, new float[]{0, .57f, 1}, Shader.TileMode.CLAMP);
+        private final Shader sunlight = new RadialGradient(250, 58, 124, new int[]{0xffcbdcb0, 0x2084b69b, 0x00000000}, null, Shader.TileMode.CLAMP);
+        private final Shader farRidge = new LinearGradient(165, 108, 165, 199, 0xff6ea395, 0xff224f53, Shader.TileMode.CLAMP);
+        private final Shader nearRidge = new LinearGradient(168, 151, 168, 207, 0xff224e51, 0xff153239, Shader.TileMode.CLAMP);
+        private final Shader phoneBezel = new LinearGradient(250, 117, 311, 226, 0xff8bb7ad, 0xff466465, Shader.TileMode.CLAMP);
+        private final Shader phoneScreen = new LinearGradient(258, 130, 304, 219, 0xff417f79, 0xff163c45, Shader.TileMode.CLAMP);
         private boolean active, online;
         CastArtwork(Context context) { super(context); }
-        void setReady(boolean value) { online = value; invalidate(); }
-        void setPlaybackActive(boolean value) { active = value; invalidate(); }
+        void setReady(boolean value) { if (online != value) { online = value; invalidate(); } }
+        void setPlaybackActive(boolean value) { if (active != value) { active = value; invalidate(); } }
         @Override protected void onDraw(Canvas canvas) {
             float scale = Math.min(getWidth() / 360f, getHeight() / 250f);
             canvas.save(); canvas.translate((getWidth() - 360 * scale) / 2, (getHeight() - 250 * scale) / 2); canvas.scale(scale, scale);
             // Soft orbital glow and two quiet ellipses give the picture room to breathe.
             p.setStyle(Paint.Style.FILL);
-            p.setShader(new RadialGradient(186, 123, 170, new int[]{0x253f9383, 0x062d786e, 0x002d786e}, null, Shader.TileMode.CLAMP));
+            p.setShader(halo);
             canvas.drawCircle(186, 123, 170, p); p.setShader(null);
             p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(.75f); p.setColor(0xff294047);
             canvas.save(); canvas.rotate(-18, 183, 132); canvas.drawOval(15, 25, 350, 229, p); canvas.restore();
@@ -405,31 +442,31 @@ public final class TvHomeView extends FrameLayout {
             p.setStyle(Paint.Style.FILL); p.setColor(LIME); canvas.drawCircle(309, 49, 3, p);
             p.setColor(0xff7aafaa); canvas.drawCircle(30, 159, 2, p);
             // A single luminous display, subtly lifted from its shadow.
-            p.setShader(new RadialGradient(180, 226, 138, new int[]{0x6002090c, 0x0002090c}, null, Shader.TileMode.CLAMP));
+            p.setShader(shadow);
             canvas.save(); canvas.scale(1, .19f); canvas.drawCircle(180, 1150, 138, p); canvas.restore(); p.setShader(null);
             p.setColor(0xff101b23); canvas.drawRoundRect(25, 44, 327, 218, 13, 13, p);
-            p.setShader(new LinearGradient(23, 30, 314, 210, new int[]{0xff648f93, 0xff29464e, 0xff456267}, null, Shader.TileMode.CLAMP));
+            p.setShader(bezel);
             canvas.drawRoundRect(22, 36, 324, 212, 13, 13, p); p.setShader(null);
             p.setColor(0xff142a32); canvas.drawRoundRect(24, 38, 322, 209, 11, 11, p);
-            canvas.save(); path.reset(); path.addRoundRect(new RectF(31, 45, 315, 198), 6, 6, Path.Direction.CW); canvas.clipPath(path);
-            p.setShader(new LinearGradient(55, 33, 285, 197, new int[]{0xff153740, 0xff347774, 0xffa4b883}, new float[]{0, .57f, 1}, Shader.TileMode.CLAMP));
+            canvas.save(); path.reset(); path.addRoundRect(screenClip, 6, 6, Path.Direction.CW); canvas.clipPath(path);
+            p.setShader(sky);
             canvas.drawRect(31, 45, 315, 198, p); p.setShader(null);
-            p.setShader(new RadialGradient(250, 58, 124, new int[]{0xffcbdcb0, 0x2084b69b, 0x00000000}, null, Shader.TileMode.CLAMP));
+            p.setShader(sunlight);
             canvas.drawCircle(250, 58, 124, p); p.setShader(null);
             p.setColor(0xffdfe8b6); canvas.drawCircle(253, 77, 22, p);
             // The wide, flowing ridgeline mirrors the screen's cinematic proportions.
             path.reset(); path.moveTo(14, 146); path.cubicTo(93, 116, 113, 182, 188, 137); path.cubicTo(243, 105, 286, 121, 333, 104); path.lineTo(333, 207); path.lineTo(14, 207); path.close();
-            p.setShader(new LinearGradient(165, 108, 165, 199, 0xff6ea395, 0xff224f53, Shader.TileMode.CLAMP)); canvas.drawPath(path, p); p.setShader(null);
+            p.setShader(farRidge); canvas.drawPath(path, p); p.setShader(null);
             path.reset(); path.moveTo(17, 188); path.cubicTo(79, 144, 139, 132, 200, 163); path.cubicTo(243, 185, 284, 152, 338, 158); path.lineTo(338, 213); path.lineTo(17, 213); path.close();
-            p.setShader(new LinearGradient(168, 151, 168, 207, 0xff224e51, 0xff153239, Shader.TileMode.CLAMP)); canvas.drawPath(path, p); p.setShader(null);
+            p.setShader(nearRidge); canvas.drawPath(path, p); p.setShader(null);
             canvas.restore();
             p.setColor(online ? MINT : 0xff59767c); canvas.drawCircle(174, 204, 1.2f, p);
             // Phone with matching art: obvious casting, without protocol logos or tutorial clutter.
             canvas.save(); canvas.rotate(9, 282, 181);
             p.setColor(0x65040c10); canvas.drawRoundRect(258, 123, 322, 232, 11, 11, p);
-            p.setShader(new LinearGradient(250, 117, 311, 226, 0xff8bb7ad, 0xff466465, Shader.TileMode.CLAMP)); canvas.drawRoundRect(252, 118, 312, 229, 11, 11, p); p.setShader(null);
+            p.setShader(phoneBezel); canvas.drawRoundRect(252, 118, 312, 229, 11, 11, p); p.setShader(null);
             p.setColor(0xff10252d); canvas.drawRoundRect(254, 120, 310, 227, 9, 9, p);
-            p.setShader(new LinearGradient(258, 130, 304, 219, 0xff417f79, 0xff163c45, Shader.TileMode.CLAMP)); canvas.drawRoundRect(259, 129, 305, 216, 5, 5, p); p.setShader(null);
+            p.setShader(phoneScreen); canvas.drawRoundRect(259, 129, 305, 216, 5, 5, p); p.setShader(null);
             p.setColor(0xffd3dfb1); canvas.drawCircle(292, 146, 8, p);
             path.reset(); path.moveTo(259, 180); path.cubicTo(281, 163, 285, 188, 305, 173); path.lineTo(305, 216); path.lineTo(259, 216); path.close(); p.setColor(0xff2d5b5b); canvas.drawPath(path, p);
             p.setColor(0xff93b4ae); canvas.drawRoundRect(275, 123, 289, 125, 1, 1, p); canvas.drawRoundRect(275, 220, 290, 222, 1, 1, p);

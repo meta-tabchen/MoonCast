@@ -13,7 +13,7 @@
     <string name="protocols">AirPlay 镜像与声音 · DLNA 媒体播放</string>
     <string name="limits">AirPlay 兼容性为实验性。不支持 Google Cast、Miracast、DRM 或 AirPlay 2 多房间。请保持本应用打开；离开应用即停止接收。</string>
     <string name="trusted">仅在可信局域网使用。同网设备可请求播放，请勿将接收端口暴露到互联网。</string>
-    <string name="instructions">1  启动接收\n2  手机与电视连接同一网络\n3  在屏幕镜像或 DLNA 应用中选择 MoonCast TV</string>
+    <string name="instructions">打开应用即自动接收。在 iPhone 屏幕镜像或支持 DLNA 的视频 App 中选择这台电视。</string>
     <string name="controls_hint">确认 / 菜单：显示控制 · 返回：控制或退出 · 媒体键：播放</string>
     <string name="frame">画面裁剪</string>
     <string name="fit">完整 · 保留全画面</string>
@@ -32,7 +32,7 @@
     <string name="stop_media">停止媒体</string>
     <string name="hide">隐藏控制</string>
     <string name="about">兼容性</string>
-    <string name="about_body">AirPlay：基于 UxPlay 的真实视频与音频接收，具体 iOS / 设备兼容性为实验性。\nDLNA：SSDP 发现，播放 / 定位，音量 / 静音及事件。\n媒体：Media3 播放未加密 HTTP(S) MP4、HLS、DASH 与设备支持的音频 / 编码。\n裁剪：等比适应、铺满、手动、采样黑边锁定；忽略暗场。\n不支持：Google Cast、Miracast、AirPlay 2 多房间、DRM 及应用私有限制。\n尚未完成真实 iPhone 与 Android TV 互通验证。\nGPLv3，上游与对应源码随 GitHub 发布提供。预览版使用调试签名。</string>
+    <string name="about_body">安卓系统无线投屏通常使用 Miracast 或 Google Cast，请使用电视自带的接收功能；本应用当前不接收这两种协议。视频 App 需支持 DLNA，并非所有 TV / 投屏按钮都兼容。\n\nAirPlay：基于 UxPlay 的真实视频与音频接收，具体 iOS / 设备兼容性为实验性。\nDLNA：SSDP 发现，播放 / 定位，音量 / 静音及事件。\n媒体：Media3 播放未加密 HTTP(S) MP4、HLS、DASH 与设备支持的音频 / 编码。\n裁剪：等比适应、铺满、手动、采样黑边锁定；忽略暗场。\n不支持：Google Cast、Miracast、AirPlay 2 多房间、DRM 及应用私有限制。\n尚未完成真实 iPhone 与 Android TV 互通验证。\nGPLv3，上游与对应源码随 GitHub 发布提供。预览版使用调试签名。</string>
     <string name="close">关闭</string>
     <string name="exit_title">停止接收并退出？</string>
     <string name="exit_yes">停止并退出</string>
@@ -118,4 +118,8 @@
     <string name="playback_controls">播放控制</string>
     <string name="pause_action">暂停播放</string>
     <string name="resume_action">继续播放</string>
+    <string name="dlna_partial">DLNA 暂未就绪</string>
+    <string name="dlna_partial_hint">重新打开应用可重试，原因见「高级设置 → 接收器诊断」。</string>
+    <string name="receiver_partial">接收服务暂未就绪</string>
+    <string name="cast_guide">手机与电视连接同一可信家庭网络。\n\niPhone / iPad：屏幕镜像 → 选择这台电视。\n视频 App：选择支持 DLNA 的投屏入口。\n\n安卓系统自带无线投屏通常使用 Miracast 或 Google Cast，请使用电视自带的接收功能；本应用当前不接收这两种协议。</string>
 </resources>

@@ -13,7 +13,7 @@
     <string name="protocols">AirPlay mirroring + audio · DLNA media playback</string>
     <string name="limits">Experimental AirPlay compatibility. No Google Cast, Miracast, DRM or AirPlay 2 multiroom. Keep this app open; all receivers stop when you leave.</string>
     <string name="trusted">Use a trusted local network. Nearby devices on this network can request playback. Do not expose receiver ports to the Internet.</string>
-    <string name="instructions">1  Start receiver\n2  Connect your phone to the same network\n3  Choose MoonCast TV in Screen Mirroring or a DLNA app</string>
+    <string name="instructions">Open the app to receive automatically. Select this TV in iPhone Screen Mirroring or a DLNA-compatible video app.</string>
     <string name="controls_hint">OK / Menu: show controls · Back: controls or exit · Media keys: playback</string>
     <string name="frame">Framing</string>
     <string name="fit">Fit · full picture</string>
@@ -32,7 +32,7 @@
     <string name="stop_media">Stop media</string>
     <string name="hide">Hide controls</string>
     <string name="about">Compatibility</string>
-    <string name="about_body">AirPlay: real UxPlay-based video/audio receiver, experimental per iOS/device.\nDLNA: SSDP discovery, AVTransport playback/seek, volume/mute and events.\nMedia: clear HTTP(S) MP4, HLS, DASH and device-supported audio/codecs via Media3.\nCrop: proportional fit/fill/manual, sampled black-bar lock; dark frames are ignored.\nUnsupported: Google Cast, Miracast, AirPlay 2 multiroom, DRM and proprietary app restrictions.\nNo physical iPhone/Android TV interoperability test is claimed.\nGPLv3; upstream and source details are included with the GitHub release. Preview uses a debug signing key.</string>
+    <string name="about_body">Android system wireless-display menus usually use Miracast or Google Cast; those need the TV’s built-in receiver, not this app. A video app must offer DLNA, not just a generic Cast button.\n\nAirPlay: real UxPlay-based video/audio receiver, experimental per iOS/device.\nDLNA: SSDP discovery, AVTransport playback/seek, volume/mute and events.\nMedia: clear HTTP(S) MP4, HLS, DASH and device-supported audio/codecs via Media3.\nCrop: proportional fit/fill/manual, sampled black-bar lock; dark frames are ignored.\nUnsupported: Google Cast, Miracast, AirPlay 2 multiroom, DRM and proprietary app restrictions.\nNo physical iPhone/Android TV interoperability test is claimed.\nGPLv3; upstream and source details are included with the GitHub release. Preview uses a debug signing key.</string>
     <string name="close">Close</string>
     <string name="exit_title">Stop receiving and exit?</string>
     <string name="exit_yes">Stop and exit</string>
@@ -118,4 +118,8 @@
     <string name="playback_controls">Playback controls</string>
     <string name="pause_action">Pause playback</string>
     <string name="resume_action">Resume playback</string>
+    <string name="dlna_partial">DLNA needs attention</string>
+    <string name="dlna_partial_hint">Reopen the app to retry DLNA. Details are in Advanced → Diagnostics.</string>
+    <string name="receiver_partial">Receiver needs attention</string>
+    <string name="cast_guide">Connect both devices to the same trusted home network.\n\niPhone / iPad: Screen Mirroring → select this TV.\nVideo apps: choose a DLNA playback target.\n\nAndroid system wireless display usually uses Miracast or Google Cast. Use the TV’s built-in receiver for those; this app does not implement them.</string>
 </resources>
