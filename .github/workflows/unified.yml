@@ -54,7 +54,9 @@ jobs:
       - name: Inspect combined APK
         run: python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi arm64-v8a
       - name: Verify fixed public community identity
-        run: python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
+        run: |
+          python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
       - name: Build and verify community ARMv7
         run: |
           mkdir -p "$RUNNER_TEMP/community-release"
@@ -62,6 +64,7 @@ jobs:
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=armeabi-v7a
           python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi armeabi-v7a
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.5.1-community-armeabi-v7a.apk"
       - name: Complete corresponding source (no signing material)
         run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.5.1-community-complete-source.zip"
@@ -124,16 +127,29 @@ jobs:
       - name: Start disposable emulator without changing host permissions
         shell: bash
         run: |
-          echo no | avdmanager create avd --force --name mooncast --package 'system-images;android-${{ matrix.api }};google_apis;x86_64' --device pixel_2
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/mooncast-avd"
+          export ANDROID_EMULATOR_HOME="$RUNNER_TEMP/mooncast-emulator"
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" "$RUNNER_TEMP/mooncast-device/evidence"
+          echo no | avdmanager create avd --force --name mooncast --path "$ANDROID_AVD_HOME/mooncast.avd" --package 'system-images;android-${{ matrix.api }};google_apis;x86_64' --device pixel_2
+          test -f "$ANDROID_AVD_HOME/mooncast.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee "$RUNNER_TEMP/mooncast-device/evidence/avds.txt"
+          grep -Fx mooncast "$RUNNER_TEMP/mooncast-device/evidence/avds.txt"
           accel=off
           if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
           echo "Emulator acceleration: $accel (no chmod, udev or privilege changes)"
           mkdir -p "$RUNNER_TEMP/mooncast-device/evidence"
           "$ANDROID_HOME/emulator/emulator" -avd mooncast -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt" 2>&1 &
+          emulator_pid=$!
           for i in $(seq 1 120); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt"
+              echo 'Emulator exited before Android boot; no UI/device validation is claimed.' >&2
+              exit 1
+            fi
             if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
             sleep 5
           done
+          tail -100 "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt"
           echo 'Emulator did not boot within 10 minutes; no UI/device validation is claimed.' >&2
           exit 1
       - name: Actual update, locale and screenshot checks
