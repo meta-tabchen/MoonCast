@@ -1,8 +1,8 @@
 # Community 0.5.1 validation / 社区版验证
 
-**Overall CI: failed.** The aggregate build-verification job passed, but device jobs did not complete successfully. This is a preview with partial emulator evidence, not a fully validated UI or physical-device release.
+**Overall CI: failed.** The aggregate build-verification job passed, but device jobs did not complete successfully. The historical failed CI remains unchanged. A later physical-tablet UI test is documented below; full end-to-end device compatibility is not established.
 
-**整轮 CI 失败。** 聚合构建验证任务通过，但设备任务未全部成功。这是具有部分模拟器证据的预览版，不是已完成 UI 或实机验收的版本。
+**整轮 CI 失败。** 聚合构建验证任务通过，但设备任务未全部成功。历史 CI 失败结论不变；下方补充了后续平板真机界面测试，不能等同完整双端兼容性验收。
 
 ## Exact build / 对应构建
 
@@ -44,7 +44,7 @@ The emulator lost its package-manager service during installation. One standard 
 ## Not established / 未建立的证据
 
 - Complete locale/UI/cancellation regression / 完整语言、页面与取消交互回归。
-- Actual UI screenshot or GIF: **none usable from this run**. README images are model-generated concept art. / 本轮**没有可用真实界面截图或 GIF**；README 图片为模型概念图。
+- Actual UI screenshot or GIF: **none usable from this run**. The later tablet GIF is separate evidence, not a result of this CI run. / 该次 CI **没有可用真实界面截图或 GIF**；后续平板 GIF 属于独立证据。
 - Phone-to-physical-TV/iPhone interoperability, audio/video continuity, real-content cropping, latency, power savings and final device installer behavior. / 手机到真实电视／iPhone 互通、音画连续性、实际内容裁剪、延迟、省电及实机系统安装流程。
 
 ## Language behavior and remaining boundary / 语言行为与边界
@@ -67,10 +67,31 @@ The dependency bootstrap still downloads hash-pinned legacy native inputs from t
 
 The first cold `verify/system` start failed before any `select/system` language change. The captured main thread was **Runnable**, in Android's `Security.increaseVersion` → `insertProviderAt` → `NetworkSecurityConfigProvider.install` → `ActivityThread.handleBindApplication`, with no MoonCast frame in that stack. Its scheduler statistics showed approximately **2.294 seconds running versus 30.152 seconds waiting on the run queue**. CPU pressure was 89.59%; system phone, Google services and keyboard processes also reported startup ANRs. Even before installing MoonCast, the captured system CPU sample was 99% busy. The held class lock in the stack is not evidence of a monitor-wait deadlock.
 
-Taken together, this strongly supports software-emulator scheduling starvation for this observed failure. It does not establish that every application path is correct, or that physical devices behave the same way. No production-code fix was isolated, no ANR threshold was relaxed, and the same configuration was not repeatedly rerun until green. The original failed CI result remains a failure. Full UI regression, real-device casting, screenshots and GIFs are still pending; this diagnosis does not turn them into passed checks.
+Taken together, this strongly supports software-emulator scheduling starvation for this observed failure. It does not establish that every application path is correct, or that physical devices behave the same way. No production-code fix was isolated, no ANR threshold was relaxed, and the same configuration was not repeatedly rerun until green. The original failed CI result remains a failure. At this diagnostic checkpoint, full UI regression, real-device casting and actual media were still pending. The later tablet test below supplies limited real UI evidence; this diagnosis itself does not turn any failed check into a pass.
 
 The run retains reconstructed fixtures, full logcat, ANR/exit diagnostics and an exact-byte manifest as Actions artifacts. [Linux scheduler field definitions](https://www.kernel.org/doc/html/v6.12/scheduler/sched-stats.html) explain the runtime/run-queue-wait interpretation. Artifact retention is finite; a missing or expired artifact is not additional verification.
 
 中文：上述独立诊断只重建已发布提交的 x86_64 debug 与测试 APK，两个文件均与原始 SHA-256 完全一致，且在启动模拟器前保存。第一次冷启动 `verify/system` 就失败，尚未执行语言切换。主线程处于 Runnable，在 Android 安全配置初始化调用链中，没有 MoonCast 方法栈；实际运行约 2.294 秒、排队等待约 30.152 秒，CPU 压力 89.59%。系统电话、Google 服务及输入法也发生启动 ANR，安装 MoonCast 前的系统采样已达 99% CPU。
 
-这些证据强烈支持本次软件模拟器发生严重调度饥饿；不代表已经排除所有应用问题，更不能代替真机验证。没有定位到需要修改的产品代码，没有放宽 ANR 阈值，也没有重复跑到通过为止。原 CI 失败事实保留。完整 UI、真实设备投屏、截图和 GIF 仍待验证。原始 APK、完整日志和诊断清单已保存为该次 Actions 产物，须注意其保留期限。
+这些证据强烈支持本次软件模拟器发生严重调度饥饿；不代表已经排除所有应用问题，更不能代替真机验证。没有定位到需要修改的产品代码，没有放宽 ANR 阈值，也没有重复跑到通过为止。原 CI 失败事实保留。在该诊断时间点，完整 UI、真实设备投屏及真实演示素材仍待验证；后续平板测试见下方，不能据此改写旧诊断结果。原始 APK、完整日志和诊断清单已保存为该次 Actions 产物，须注意其保留期限。
+
+## Physical-tablet UI check, 2026-10-12 / 平板真机界面检查
+
+- Xiaomi Pad 8, Android 17 / API 37, arm64-v8a; the published `com.mooncast.community` 0.5.1-community / versionCode 51. This is one physical tablet, **not a phone plus a TCL TV test**.
+- Seven cold starts: **509, 277, 268, 293, 366, 393 and 382 ms** (`am start` TotalTime); no startup ANR observed in those checks. These are samples, not a performance guarantee.
+- Passed in the tested scope: phone/TV role persistence; system/en/zh language persistence after reopening in both roles; language-menu Cancel and same-choice behavior; Settings Back and TV directional focus.
+- **Failed and still present in published 0.5.1:** device-role menu Cancel or same-role selection recreates phone MainActivity; on the TV role it tears down/recreates the receiver process. Do not describe role cancellation as session-preserving. A fix is separate development, not part of this tag.
+- Not tested: two-end discovery/casting, AirPlay audio, TCL hardware playback, real-content crop quality, APK transfer/installation or coexistence with an older package. A single tablet showing the TV interface cannot prove any of these.
+- No root, data clearing, downgrade, automatic permission grants or device-security changes were used. Private device identifiers, network details and raw logs are not included in this public documentation.
+
+中文：小米平板 8（Android 17 / API 37，ARM64）运行已发布 0.5.1 社区版。7 次冷启动为 **268–509 毫秒**，该范围内未观察到启动 ANR；这些只是实测样本，不是性能承诺。手机／电视角色记忆、两角色的跟随系统／中／英语言重开保留、语言菜单取消／同选项、设置返回与方向焦点通过。
+
+**仍未修复的 0.5.1 缺陷：** 设备角色菜单取消或重复选择当前角色，会重建手机 MainActivity，电视角色会拆除并重建接收进程。后续开发修复不属于当前发布标签。本次没有第二个真实投屏端，没有验证双端发现、AirPlay 音频、TCL 播放、真实内容裁剪、APK 推送安装或旧包并存。未使用 Root、清数据、降级、自动授权或安全设置修改；公开资料不包含设备唯一标识、局域网地址或原始私有日志。
+
+### Published media provenance / 公开演示来源
+
+[Actual UI GIF](assets/mooncast-0.5.1-xiaomi-pad8-ui.gif): 960 × 694, 160 frames, 16.00 seconds, 3,069,105 bytes. SHA-256: `a5f31a0ede02fe1604b03aa660677778336b5e5d715ecf3cedf81e6192260627`.
+
+The real screen recording was trimmed only to remove waiting intervals, kept at original speed, and labeled outside the app area. System status/navigation edges were removed; no generated application frames or simulated casting footage were inserted. The GIF shows language selection, switching to TV role, focus movement and opening settings. Its ending stays in settings: it does not demonstrate returning from settings, cold-start timing, audio or a successfully received stream. Model-generated README illustrations remain separately labeled.
+
+GIF 来自真实屏幕录制，仅剪去等待段、保留原速，说明条位于应用区域外；移除了系统状态／导航边缘，没有加入生成界面或伪造投屏画面。画面只证明其中可见的语言选择、切电视角色、焦点移动与打开设置；结尾仍在设置页，不证明设置返回、冷启动耗时、声音或成功接收到投屏。README 模型概念图继续单独标注。

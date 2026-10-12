@@ -18,7 +18,15 @@
 
 A video can already have black bars inside the phone's captured screen. Fitting that entire capture onto a TV adds another layer of empty space. MoonCast helps you reclaim that space: detect stable black borders, keep the useful picture in proportion, and adjust the framing when automatic detection is uncertain.
 
-**0.5.1 preview limitations:** Builds, signing and a synthetic same-certificate emulator upgrade passed, but [the overall CI failed](https://github.com/meta-tabchen/MoonCast/actions/runs/38203238592): Android 15 hit a startup ANR in a later locale process, and Android 11 lost its package-manager service during installation. CPU saturation was recorded; the ANR root cause is unknown. Full UI regression, actual screenshots/GIFs and physical-device casting remain unverified. [Full validation](docs/community-validation.md) · [Previous 0.5.0 download](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
+**0.5.1 preview limitations:** Builds, signing and a synthetic same-certificate emulator upgrade passed, but [the overall CI failed](https://github.com/meta-tabchen/MoonCast/actions/runs/38203238592): Android 15 hit a startup ANR in a later locale process, and Android 11 lost its package-manager service during installation. Follow-up traces support severe software-emulator scheduling starvation. Physical-tablet UI checks are now available below; full two-device casting remains unverified. A known role-menu bug rebuilds the current role even on Cancel or the same selection. [Full validation](docs/community-validation.md) · [Previous 0.5.0 download](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
+
+## Actual UI demo
+
+![MoonCast 0.5.1 real tablet UI: change language, switch to TV mode and open settings](docs/assets/mooncast-0.5.1-xiaomi-pad8-ui.gif)
+
+*Xiaomi Pad 8 · Android 17 / API 37 · MoonCast 0.5.1-community. Actual tablet UI, 16 seconds at original speed with waiting time removed. Shows Chinese-to-English language selection, phone-to-TV role switching and TV settings/focus. The TV interface is running on the tablet; no end-to-end cast or audio is shown.*
+
+Seven tested cold launches took 268–509 ms with no observed ANR. System/English/Chinese preferences persisted after reopening in both roles; language Cancel/same-choice, Settings Back and directional focus passed. **Known issue in 0.5.1:** Cancel or reselecting the current **device role** recreates the phone screen or TV receiver. This differs from the passing language-menu checks. AirPlay audio, a TCL TV session, discovery and APK transfer were not tested in this one-device run.
 
 ## Why MoonCast
 
@@ -133,7 +141,7 @@ See the [community signing policy](signing/community/README.md) for the fixed id
 
 ## Language
 
-0.5.1 includes the in-app language picker; old 0.5.0 does not. Only part of the system-language resource checks completed in this run; full locale and UI regression did not pass.
+0.5.1 includes the in-app language picker; old 0.5.0 does not. Only part of the system-language resource checks completed in the historical CI run; that full locale/UI regression did not pass. Later physical-tablet language results and remaining limits are recorded above.
 
 Choose **Follow system**, **English** or **简体中文** in phone settings or TV advanced settings. Cancel and choosing the current language keep the session running; accepting another language stops the old session before reopening the selected role. Android 13+ also supports the system app-language selector. See the [language guide](docs/unified-guide.md) for the active-notification refresh limitation when changing language outside MoonCast.
 
