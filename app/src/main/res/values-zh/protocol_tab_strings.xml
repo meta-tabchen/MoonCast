@@ -1,0 +1,6 @@
+<resources>
+    <string name="phone_tab_airplay">AirPlay</string>
+    <string name="phone_host_failed_stage">GameStream 在 %1$s 阶段停止：%2$s</string>
+    <string name="phone_host_exit_stage">GameStream 在 %1$s 阶段意外停止。反馈时请提供此阶段和应用版本。</string>
+    <string name="phone_host_unexpected_exit">GameStream 意外停止，请在诊断中查看启动错误。</string>
+</resources>

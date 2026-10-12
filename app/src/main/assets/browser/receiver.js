@@ -33,7 +33,8 @@
       invalidAnswer: 'MoonCast returned an invalid connection response. Stop and restart browser sharing on Android.',
       mediaTimeout: 'No video arrived. Check Android sharing and local network device access.',
       playbackError: 'Playback could not start. Select Play video, or reconnect.',
-      fullscreenError: 'Fullscreen is unavailable here. You can still resize the browser window.',
+      fullscreenError: 'Using an immersive page view. Browser and system bars may remain visible.',
+      backToPage: 'Connection page', options: 'Options', closeOptions: 'Close options', moreControls: 'More controls', exitImmersive: 'Exit immersive view',
       statsTitle: 'Media stats', statsTargetTitle: 'Sender limits', statsActualTitle: 'Received video',
       statsTargetResolutionLabel: 'Resolution', statsTargetFpsLabel: 'Frame rate', statsTargetBitrateLabel: 'Video bitrate budget',
       statsResolutionLabel: 'Video pixels', statsCodecLabel: 'Codec', statsFpsLabel: 'Decoded frame rate', statsBitrateLabel: 'Video RTP received',
@@ -70,7 +71,8 @@
       invalidAnswer: 'MoonCast 返回了无效的连接响应。请在 Android 上停止并重新开启浏览器分享。',
       mediaTimeout: '尚未收到画面。请检查 Android 分享状态及局域网设备互访设置。',
       playbackError: '无法开始播放。请点击“播放画面”，或重新连接。',
-      fullscreenError: '当前无法进入全屏，仍可调整浏览器窗口大小。',
+      fullscreenError: '已进入页面内沉浸视图，浏览器和系统栏仍可能显示。',
+      backToPage: '连接页', options: '选项', closeOptions: '关闭选项', moreControls: '更多控件', exitImmersive: '退出沉浸视图',
       statsTitle: '媒体统计', statsTargetTitle: '发送端上限', statsActualTitle: '实际接收视频',
       statsTargetResolutionLabel: '分辨率', statsTargetFpsLabel: '帧率', statsTargetBitrateLabel: '视频码率预算',
       statsResolutionLabel: '视频像素', statsCodecLabel: '编码格式', statsFpsLabel: '解码帧率', statsBitrateLabel: '视频 RTP 接收速率',
@@ -107,17 +109,60 @@
   let statsTimer = null, statsPrevious = null, statsQuality = null, statsRevision = 0;
   let statsValues = {width:0, height:0, codec:null, fps:null, mbps:null};
   const MAX_RETRIES = 6;
+  let viewMode = 'normal', immersiveWanted = false, immersiveAutoEntered = false, controlsTimer = null;
 
-  function setHint(key, values = {}) { hint = key; hintValues = values; $('hint').textContent = text(key, values); }
+  function nativeFullscreen() { return document.fullscreenElement === $('viewer'); }
+  function fullscreenSupported() { return typeof $('viewer').requestFullscreen === 'function' && document.fullscreenEnabled !== false; }
+  function updateViewport() {
+    const viewport = window.visualViewport;
+    const values = {width:viewport?.width || window.innerWidth, height:viewport?.height || window.innerHeight,
+      top:viewport?.offsetTop || 0, left:viewport?.offsetLeft || 0};
+    Object.entries(values).forEach(([key,value]) => document.documentElement.style.setProperty(`--view-${key}`, `${value}px`));
+    renderFrame();
+  }
+  function setViewMode() {
+    viewMode = nativeFullscreen() ? 'native' : immersiveWanted ? 'immersive' : 'normal';
+    document.body.dataset.viewMode = viewMode;
+    renderFullscreen(); updateViewport(); showControls();
+  }
+  function leaveImmersive() {
+    immersiveWanted = false;
+    $('receiver-options').hidden = true; $('more').setAttribute('aria-expanded','false');
+    if (nativeFullscreen() && typeof document.exitFullscreen === 'function') document.exitFullscreen().then(setViewMode).catch(() => setHint('fullscreenError'));
+    setViewMode();
+  }
+  function controlHasFocus() {
+    const focused = document.activeElement;
+    return ['toolbar','overlay-top','receiver-options'].some((id) => $(id).contains(focused));
+  }
+  function showControls() {
+    clearTimeout(controlsTimer); $('viewer').classList.remove('controls-hidden');
+    if (viewMode === 'normal') return;
+    controlsTimer = setTimeout(() => {
+      if (state === 'live' && !video.paused && $('play').hidden && !drag
+          && $('receiver-options').hidden && !controlHasFocus()) $('viewer').classList.add('controls-hidden');
+    }, 3000);
+  }
+  function setOptions(open) {
+    $('receiver-options').hidden = !open; $('more').setAttribute('aria-expanded',String(open)); showControls();
+    if (open) $('close-options').focus(); else $('more').focus();
+  }
+
+  function setHint(key, values = {}) { hint = key; hintValues = values; $('hint').textContent = $('overlay-hint').textContent = text(key, values); }
   function renderLanguage() {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
     document.title = text('pageTitle');
     $('language').value = language;
+    $('overlay-language').value = language;
     document.querySelectorAll('[data-i18n]').forEach((element) => { element.textContent = text(element.dataset.i18n); });
     stage.setAttribute('aria-label', text('stageLabel'));
     video.setAttribute('aria-label', text('videoLabel'));
     $('viewer').setAttribute('aria-label', text('viewerLabel'));
     $('fit-controls').setAttribute('aria-label', text('framing'));
+    $('toolbar').setAttribute('aria-label',text('moreControls'));
+    $('receiver-options').setAttribute('aria-label',text('options'));
+    $('more').setAttribute('aria-label',text('moreControls')); $('more').title = text('moreControls');
+    $('close-options').setAttribute('aria-label',text('closeOptions'));
     renderState(); renderSound(); renderFullscreen(); renderStats();
     setHint(hint, hintValues);
   }
@@ -125,6 +170,7 @@
     document.body.dataset.state = state;
     $('app').dataset.state = state;
     $('status-text').textContent = text(state === 'live' ? 'liveState' : state);
+    $('overlay-status').textContent = $('status-text').textContent;
     $('connect').hidden = wanted;
     $('disconnect').hidden = !wanted;
     $('empty').hidden = state === 'live';
@@ -132,15 +178,20 @@
     $('empty-title').textContent = text(state === 'connecting' ? 'connectingTitle' : state === 'reconnecting' ? 'reconnectTitle' : state === 'error' ? 'errorTitle' : 'emptyTitle');
     $('empty-description').textContent = text(state === 'connecting' ? 'connectingDescription' : state === 'reconnecting' ? 'reconnectDescription' : state === 'error' ? errorDetail : 'emptyDescription', { max: MAX_RETRIES });
   }
-  function setState(value) { state = value; renderState(); }
+  function setState(value) {
+    state = value; renderState(); showControls();
+    if (value === 'idle' || value === 'error') { immersiveAutoEntered = false; leaveImmersive(); }
+  }
   function renderSound() {
     $('sound').disabled = !hasAudio;
     $('sound').setAttribute('aria-pressed', String(hasAudio && !video.muted));
     $('sound-label').textContent = text(!audioAllowed && sessionId && wanted ? 'audioUnavailable' : video.muted ? 'soundOff' : 'soundOn');
+    $('sound').setAttribute('aria-label',$('sound-label').textContent); $('sound').title = $('sound-label').textContent;
   }
   function renderFullscreen() {
-    const label = text(document.fullscreenElement ? 'exitFullscreen' : 'fullscreen');
+    const label = text(nativeFullscreen() ? 'exitFullscreen' : viewMode !== 'normal' && !fullscreenSupported() ? 'exitImmersive' : 'fullscreen');
     $('fullscreen').setAttribute('aria-label', label); $('fullscreen').title = label;
+    $('fullscreen').setAttribute('aria-pressed',String(nativeFullscreen() || !fullscreenSupported() && viewMode !== 'normal'));
   }
   function readQuality(value) {
     // Sender metadata is optional. Never retain the answer, SDP or session identity here.
@@ -294,6 +345,7 @@
     if (state !== 'live') {
       clearTimeout(connectionTimer); connectionTimer = null;
       setState('live'); setHint(!audioAllowed ? 'silentHint' : video.muted ? 'defaultHint' : 'soundHint');
+      if (!immersiveAutoEntered) { immersiveAutoEntered = true; immersiveWanted = true; setViewMode(); }
       stableTimer = setTimeout(() => { retry = 0; stableTimer = null; }, 20000);
     }
     stage.classList.add('has-video'); renderFrame();
@@ -315,7 +367,7 @@
     } catch (error) { if (current === generation) handleFailure(error); }
   }
   async function connect(userInitiated) {
-    if (userInitiated) { retry = 0; wanted = true; }
+    if (userInitiated) { retry = 0; wanted = true; immersiveAutoEntered = false; }
     if (!wanted) return;
     if (!window.RTCPeerConnection || !window.MediaStream) { handleFailure(fail('unsupported', true)); return; }
     if (!viewerId) { handleFailure(fail('identityUnavailable', true)); return; }
@@ -385,30 +437,50 @@
     catch (_) { setHint('playbackError'); }
   });
   $('language').addEventListener('change', (event) => { language = event.target.value; write('localStorage', 'mooncast.browser.language', language); renderLanguage(); });
+  $('overlay-language').addEventListener('change', (event) => { language = event.target.value; write('localStorage','mooncast.browser.language',language); renderLanguage(); });
   document.querySelectorAll('[data-fit]').forEach((button) => button.addEventListener('click', () => setFraming(button.dataset.fit)));
   $('zoom').addEventListener('input', (event) => setZoom(Number(event.target.value)));
   $('reset').addEventListener('click', resetFrame);
   async function fullscreen() {
-    try { if (document.fullscreenElement) await document.exitFullscreen(); else await $('viewer').requestFullscreen(); }
-    catch (_) { setHint('fullscreenError'); }
+    if (nativeFullscreen()) { try { await document.exitFullscreen(); setViewMode(); } catch (_) { setHint('fullscreenError'); } return; }
+    if (!fullscreenSupported()) { immersiveWanted = viewMode === 'normal'; setViewMode(); if (immersiveWanted) setHint('fullscreenError'); return; }
+    immersiveWanted = true; setViewMode();
+    try { await $('viewer').requestFullscreen(); setViewMode(); }
+    catch (_) { setViewMode(); setHint('fullscreenError'); showControls(); }
   }
   $('fullscreen').addEventListener('click', fullscreen);
-  document.addEventListener('fullscreenchange', () => { renderFullscreen(); renderFrame(); });
-  ['loadeddata', 'playing'].forEach((event) => video.addEventListener(event, () => { renderFrame(); maybeLive(); }));
+  $('view-back').addEventListener('click',leaveImmersive);
+  $('more').addEventListener('click',() => setOptions($('receiver-options').hidden));
+  $('close-options').addEventListener('click',() => setOptions(false));
+  document.addEventListener('fullscreenchange', () => { setViewMode(); });
+  video.addEventListener('loadeddata',() => { renderFrame(); maybeLive(); });
+  video.addEventListener('playing',() => { $('play').hidden = true; renderFrame(); maybeLive(); showControls(); });
   video.addEventListener('resize', () => { resetStats(true); renderFrame(); maybeLive(); });
-  video.addEventListener('pause', () => { if (wanted && peer) { $('play').hidden = false; setHint('playHint'); } });
-  video.addEventListener('error', () => { if (wanted) setHint('playbackError'); });
-  window.addEventListener('resize', renderFrame);
+  video.addEventListener('pause', () => { if (wanted && peer) { $('play').hidden = false; setHint('playHint'); showControls(); } });
+  video.addEventListener('error', () => { if (wanted) { setHint('playbackError'); showControls(); } });
+  window.addEventListener('resize',updateViewport);
+  window.addEventListener('orientationchange',updateViewport);
+  window.visualViewport?.addEventListener('resize',updateViewport);
+  window.visualViewport?.addEventListener('scroll',updateViewport);
+  $('viewer').addEventListener('pointermove',showControls);
+  $('viewer').addEventListener('focusin',showControls);
+  $('viewer').addEventListener('focusout',() => setTimeout(showControls,0));
+  document.addEventListener('keydown', (event) => {
+    showControls();
+    if (event.key === 'Escape') { if (!$('receiver-options').hidden) setOptions(false); else if (!nativeFullscreen() && viewMode !== 'normal') leaveImmersive(); }
+  },true);
   if (window.ResizeObserver) new ResizeObserver(renderFrame).observe(stage);
   stage.addEventListener('pointerdown', (event) => {
-    if (state !== 'live' || event.target.closest('button') || event.button !== 0) return;
+    showControls();
+    if (state !== 'live' || event.target.closest('button,input,select,summary,a,.receiver-options,.toolbar') || event.button !== 0) return;
+    stage.focus({preventScroll:true});
     drag = { x: event.clientX, y: event.clientY, panX, panY }; stage.setPointerCapture(event.pointerId); stage.classList.add('dragging');
   });
   stage.addEventListener('pointermove', (event) => {
     if (!drag) return;
     panX = drag.panX + event.clientX - drag.x; panY = drag.panY + event.clientY - drag.y; renderFrame();
   });
-  const endDrag = () => { drag = null; stage.classList.remove('dragging'); };
+  const endDrag = () => { drag = null; stage.classList.remove('dragging'); showControls(); };
   stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag); stage.addEventListener('lostpointercapture', endDrag);
   stage.addEventListener('keydown', (event) => {
     if (event.target !== stage || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -420,6 +492,7 @@
   window.addEventListener('pagehide', () => { wanted = false; closePeer(); });
   window.addEventListener('pageshow', (event) => { if (event.persisted) { setState('idle'); setHint('defaultHint'); } });
   renderLanguage();
+  updateViewport();
   if (!window.RTCPeerConnection || !window.MediaStream) { errorDetail = 'unsupported'; setState('error'); setHint('unsupported'); $('connect').disabled = true; }
   else if (!viewerId) { errorDetail = 'identityUnavailable'; setState('error'); setHint('identityUnavailable'); $('connect').disabled = true; }
 })();

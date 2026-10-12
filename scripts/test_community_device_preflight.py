@@ -16,7 +16,7 @@ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Metadata(unittest.TestCase):
  def fixture(self):
   cert='a'*64
-  rows={n:{'applicationId':m.PACKAGE,'versionCode':v,'versionName':m.VERSION_NAME,'certificateSha256':cert,'debuggable':n=='debug'} for n,v in [('baseline',55),('candidate',56),('debug',56)]}
+  rows={n:{'applicationId':m.PACKAGE,'versionCode':v,'versionName':m.VERSION_NAME,'certificateSha256':cert,'debuggable':n=='debug'} for n,v in [('baseline',56),('candidate',57),('debug',57)]}
   rows['test']={'applicationId':m.TEST_PACKAGE,'versionCode':None,'versionName':'','certificateSha256':cert,'debuggable':True}
   return rows,cert
  def test_test_apk_empty_version(self):
@@ -28,7 +28,7 @@ class Metadata(unittest.TestCase):
  def test_test_apk_absent_version(self):
   self.assertEqual(m.parse_badging("package: name='com.mooncast.community.test'"),{'applicationId':m.TEST_PACKAGE,'versionCode':None,'versionName':''})
  def test_app_version_preserved(self):
-  self.assertEqual(m.parse_badging("package: name='com.mooncast.community' versionCode='56' versionName='0.6.0'")['versionCode'],56)
+  self.assertEqual(m.parse_badging("package: name='com.mooncast.community' versionCode='57' versionName='0.7'")['versionCode'],57)
  def test_badging_missing(self):self.assertIsNone(m.parse_badging('application: label=MoonCast'))
  def test_app_malformed_version_rejected(self):
   rows,cert=self.fixture();rows['candidate']['versionCode']=m.parse_badging("package: name='com.mooncast.community' versionCode='abc'")['versionCode']
@@ -43,27 +43,27 @@ class Metadata(unittest.TestCase):
  def test_app_version_guards(self):
   rows,cert=self.fixture()
   for name in ('baseline','candidate','debug'):
-   for value in (None,0,50,51,52,53,54,57):
+   for value in (None,0,50,51,52,53,54,55,58):
     with self.subTest(name=name,value=value):
      bad=copy.deepcopy(rows);bad[name]['versionCode']=value
      with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_exact_browser_release_contract(self):
-  self.assertEqual((m.BASELINE_VERSION_CODE,m.CANDIDATE_VERSION_CODE,m.VERSION_NAME),(55,56,'0.6.0'))
+  self.assertEqual((m.BASELINE_VERSION_CODE,m.CANDIDATE_VERSION_CODE,m.VERSION_NAME),(56,57,'0.7'))
   rows,cert=self.fixture()
   for name in ('baseline','candidate','debug'):
-   for value in (None,'','0.5.1-community','0.6.0-browser-preview.2'):
+   for value in (None,'','0.5.1-community','0.7-browser-preview.2'):
     with self.subTest(name=name,value=value):
      bad=copy.deepcopy(rows);bad[name]['versionName']=value
      with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_baseline_and_candidate_are_not_interchangeable(self):
   rows,cert=self.fixture()
-  for name,value in (('baseline',56),('candidate',55),('debug',55)):
+  for name,value in (('baseline',57),('candidate',56),('debug',56)):
    with self.subTest(name=name):
     bad=copy.deepcopy(rows);bad[name]['versionCode']=value
     with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_workflow_version_and_manual_device_contract(self):
   workflow=(p.parents[1]/'.github/workflows/unified.yml').read_text()
-  for label in ('baseline55.apk','candidate56.apk','debug56.apk','MoonCast-0.6.0-arm64-v8a.apk','MoonCast-0.6.0-armeabi-v7a.apk','MoonCast-0.6.0-source.zip'):
+  for label in ('baseline56.apk','candidate57.apk','debug57.apk','MoonCast-0.7-arm64-v8a.apk','MoonCast-0.7-armeabi-v7a.apk','MoonCast-0.7-source.zip'):
    self.assertIn(label,workflow)
   for stale in ('baseline50.apk','candidate51.apk','debug51.apk','MoonCast-0.5.1-community-'):
    self.assertNotIn(stale,workflow)

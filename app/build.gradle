@@ -17,8 +17,8 @@ android {
         applicationId 'com.mooncast.host'
         minSdk 26
         targetSdk 35
-        versionCode 56
-        versionName '0.6.0'
+        versionCode 57
+        versionName '0.7'
         testInstrumentationRunner 'com.mooncast.host.RenderingInstrumentation'
         ndk { abiFilters.addAll(selectedPhoneAbis) }
         if (fromSource) {
@@ -65,7 +65,13 @@ android {
         sourceSets.main.jniLibs.srcDirs = []
         externalNativeBuild { cmake { path '../native/sunshine/CMakeLists.txt'; version '3.31.1' } }
     }
-    packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/libmooncast_sessions.so', '**/libgojni.so'] } }
+    packaging {
+        jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/libmooncast_sessions.so', '**/libgojni.so'] }
+        resources {
+            excludes += 'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+            merges += 'META-INF/LICENSE.md'
+        }
+    }
     lint { abortOnError true }
 }
 androidComponents {
@@ -75,7 +81,6 @@ androidComponents {
 }
 dependencies {
     implementation files('libs/airplaylib.aar')
-    implementation 'org.bouncycastle:bcpkix-jdk18on:1.77'
     implementation 'dev.rikka.shizuku:api:13.1.5'
     implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
@@ -94,3 +99,5 @@ if (!fromSource) {
 }
 
 dependencies { implementation project(':locale-core') }
+
+apply from: rootProject.file('gradle/bouncycastle.gradle')

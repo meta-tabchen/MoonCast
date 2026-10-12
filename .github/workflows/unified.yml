@@ -41,6 +41,9 @@ jobs:
           python3 scripts/test_community_device_preflight.py
           python3 scripts/run_phone_message_tests.py
           python3 scripts/run_app_build_info_tests.py
+          gradle --no-daemon :unified:resolveHostIdentityTestArtifacts
+          python3 scripts/run_host_identity_tests.py
+          python3 scripts/run_phone_tab_startup_tests.py
           python3 scripts/run_tv_role_picker_tests.py
           node --check app/src/main/assets/browser/receiver.js
           node tests/browser_android_receiver.cjs --self-test
@@ -62,7 +65,9 @@ jobs:
       - name: QR roundtrip against pinned binary and bundled sources
         run: python3 scripts/run_browser_qr_tests.py
       - name: Inspect combined APK
-        run: python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi arm64-v8a
+        run: |
+          python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi arm64-v8a
+          python3 scripts/verify_bouncycastle_apk.py unified/build/outputs/apk/release/unified-release.apk
       - name: Verify fixed public community identity
         run: |
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
@@ -70,14 +75,15 @@ jobs:
       - name: Build and verify community ARMv7
         run: |
           mkdir -p "$RUNNER_TEMP/community-release"
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-arm64-v8a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7-arm64-v8a.apk"
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=armeabi-v7a
           python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi armeabi-v7a
+          python3 scripts/verify_bouncycastle_apk.py unified/build/outputs/apk/release/unified-release.apk
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-armeabi-v7a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7-armeabi-v7a.apk"
       - name: Application source and pinned dependency source map (no app signing key)
-        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.6.0-source.zip"
+        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.7-source.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: community-release-candidates
@@ -125,18 +131,18 @@ jobs:
           python3 scripts/prepare_unified_native.py
           mkdir -p "$RUNNER_TEMP/mooncast-device"
           gradle --no-daemon :unified:assembleRelease :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate56.apk"
-          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug56.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate57.apk"
+          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug57.apk"
           cp unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk "$RUNNER_TEMP/mooncast-device/test.apk"
           # Synthetic lower-version fixture only; never publish this as a past release.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('unified/build.gradle');s=p.read_text()
-          if s.count('versionCode 56')!=1 or s.count("versionName '0.6.0'")!=1:raise SystemExit('Unexpected version fixture baseline')
-          p.write_text(s.replace('versionCode 56','versionCode 55'))
+          if s.count('versionCode 57')!=1 or s.count("versionName '0.7'")!=1:raise SystemExit('Unexpected version fixture baseline')
+          p.write_text(s.replace('versionCode 57','versionCode 56'))
           PY
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline55.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline56.apk"
           git restore -- unified/build.gradle
       - name: Start disposable emulator without changing host permissions
         timeout-minutes: 17
@@ -178,9 +184,9 @@ jobs:
         run: |
           python3 scripts/run_community_device_checks.py \
             --serial emulator-5554 \
-            --baseline "$RUNNER_TEMP/mooncast-device/baseline55.apk" \
-            --candidate "$RUNNER_TEMP/mooncast-device/candidate56.apk" \
-            --debug "$RUNNER_TEMP/mooncast-device/debug56.apk" \
+            --baseline "$RUNNER_TEMP/mooncast-device/baseline56.apk" \
+            --candidate "$RUNNER_TEMP/mooncast-device/candidate57.apk" \
+            --debug "$RUNNER_TEMP/mooncast-device/debug57.apk" \
             --test "$RUNNER_TEMP/mooncast-device/test.apk" \
             --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \

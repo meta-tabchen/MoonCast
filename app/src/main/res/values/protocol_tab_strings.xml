@@ -1,0 +1,6 @@
+<resources>
+    <string name="phone_tab_airplay">AirPlay</string>
+    <string name="phone_host_failed_stage">GameStream stopped during %1$s: %2$s</string>
+    <string name="phone_host_exit_stage">GameStream stopped unexpectedly during %1$s. Please share this stage and the app version when reporting it.</string>
+    <string name="phone_host_unexpected_exit">GameStream stopped unexpectedly. Check diagnostics for the startup error.</string>
+</resources>

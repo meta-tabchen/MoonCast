@@ -126,6 +126,18 @@ async function handle(req, res) {
 async function waitState(state, wait = timeout) {
   await receiver.waitForFunction(expected => (document.querySelector('#app')?.dataset.state || document.body.dataset.state) === expected, {timeout: wait}, state);
 }
+async function revealControls() {
+  await receiver.$eval('#viewer', el => el.dispatchEvent(new Event('pointermove', {bubbles:true})));
+}
+async function options(open) {
+  await revealControls();
+  if (await receiver.$eval('#receiver-options', el => el.hidden) === open) await receiver.click('#more');
+}
+async function clickControl(selector) {
+  await revealControls();
+  if (['#disconnect','#reset','#stats-summary'].includes(selector)) await options(true);
+  await receiver.click(selector);
+}
 async function mediaSnapshot() {
   return receiver.evaluate(async () => {
     const video = document.querySelector('video');
@@ -222,9 +234,9 @@ async function recordDemo() {
   client.on('Page.screencastFrame', handler);
   await client.send('Page.startScreencast', {format: 'jpeg', quality: 82, maxWidth: 1280, maxHeight: 850, everyNthFrame: 1});
   await sleep(1800);
-  await receiver.click('[data-fit="fill"]');
+  await clickControl('[data-fit="fill"]');
   await sleep(1800);
-  await receiver.click('[data-fit="fit"]');
+  await clickControl('[data-fit="fit"]');
   await setLanguage('zh');
   await sleep(1800);
   await setLanguage('en');
@@ -300,6 +312,26 @@ async function recordDemo() {
     await check('Media statistics are collapsed by default', async () => {
       assert.equal(await receiver.$eval('#media-stats', element => element.open), false);
     });
+    await check('Connecting remains cancellable through reachable More and Disconnect', async () => {
+      await receiver.evaluate(()=>{
+        const original=RTCPeerConnection.prototype.createOffer;
+        window.__restoreCreateOffer=()=>{RTCPeerConnection.prototype.createOffer=original;};
+        RTCPeerConnection.prototype.createOffer=function(...args){return original.apply(this,args).then(offer=>new Promise(resolve=>{window.__releaseCreateOffer=()=>resolve(offer);}));};
+      });
+      try{
+        await receiver.click('#connect');await waitState('connecting');
+        await receiver.waitForFunction(()=>typeof window.__releaseCreateOffer==='function');
+        await clickControl('#disconnect');await waitState('idle');
+        assert.equal(await receiver.$eval('video',el=>el.srcObject),null);
+        const requests=sessionRequests.length;
+        await receiver.evaluate(()=>window.__releaseCreateOffer());await sleep(200);
+        assert.equal(await receiver.$eval('body',el=>el.dataset.state),'idle');
+        assert.equal(await receiver.$eval('#connect',el=>el.hidden),false);
+        assert.equal(sessionRequests.length,requests,'Released stale offer cannot signal or retry');
+        assert.ok(await receiver.evaluate(()=>window.__testPeerConnections.every(pc=>pc.connectionState==='closed')));
+      }finally{await receiver.evaluate(()=>{window.__restoreCreateOffer();delete window.__restoreCreateOffer;delete window.__releaseCreateOffer;});}
+    });
+    if(process.env.BROWSER_CHECK_FILTER==='connecting-cancel'){report.passed=true;report.scope='Targeted connecting cancel check only';return;}
     dropNextAnswer = true;
     await check('Manual connect establishes real ICE/DTLS/SRTP video and audio', async () => {
       await receiver.click('#connect');
@@ -328,6 +360,37 @@ async function recordDemo() {
       assert.equal(sessionRequests[1].previousSessionId, null);
       assert.equal(sessionRequests[0].viewerHash, sessionRequests[1].viewerHash);
     });
+    await check('Live view fills the page and idle controls hide, then keyboard wakes them', async () => {
+      assert.equal(await receiver.$eval('body', el => el.dataset.viewMode),'immersive');
+      const layout=await receiver.evaluate(()=>({header:getComputedStyle(document.querySelector('.header')).display,
+        heading:getComputedStyle(document.querySelector('.heading')).display,
+        height:document.querySelector('#stage').getBoundingClientRect().height,viewport:visualViewport.height}));
+      assert.equal(layout.header,'none');assert.equal(layout.heading,'none');assert.ok(Math.abs(layout.height-layout.viewport)<2);
+      await receiver.$eval('#stage',el=>el.focus());await revealControls();await sleep(3300);
+      assert.equal(await receiver.$eval('#viewer',el=>el.classList.contains('controls-hidden')),true);
+      await receiver.keyboard.press('Tab');
+      assert.equal(await receiver.$eval('#viewer',el=>el.classList.contains('controls-hidden')),false);
+    });
+    await check('Paused video retains reachable controls and an explicit resume gesture', async () => {
+      await receiver.$eval('video',el=>el.pause());await sleep(3300);
+      assert.equal(await receiver.$eval('#play',el=>el.hidden),false);
+      assert.equal(await receiver.$eval('#viewer',el=>el.classList.contains('controls-hidden')),false);
+      await clickControl('#play');await receiver.waitForFunction(()=>!document.querySelector('video').paused);
+    });
+    await check('Missing and rejected fullscreen use page immersion without breaking media', async () => {
+      await clickControl('#view-back');
+      await receiver.$eval('#viewer',el=>Object.defineProperty(el,'requestFullscreen',{value:undefined,configurable:true}));
+      await clickControl('#fullscreen');assert.equal(await receiver.$eval('body',el=>el.dataset.viewMode),'immersive');
+      assert.equal(await receiver.evaluate(()=>!!document.fullscreenElement),false);
+      await clickControl('#fullscreen');assert.equal(await receiver.$eval('body',el=>el.dataset.viewMode),'normal');
+      await receiver.$eval('#viewer',el=>Object.defineProperty(el,'requestFullscreen',{value:()=>Promise.reject(new Error('Injected fullscreen denial')),configurable:true}));
+      await clickControl('#fullscreen');await sleep(100);
+      assert.equal(await receiver.$eval('body',el=>el.dataset.viewMode),'immersive');
+      assert.match(await receiver.$eval('#hint',el=>el.textContent),/immersive|沉浸/);
+      assert.equal(await receiver.$eval('video',el=>el.paused),false);
+      await receiver.$eval('#viewer',el=>delete el.requestFullscreen);
+      report.fullscreenFallbackScope='Actual Chrome with missing/rejected API injection; not iPhone or Safari device validation.';
+    });
     await check('A different viewer receives terminal busy without replacing owner', async () => {
       const activeId = [...sessions.entries()].find(([, session]) => !session.closed)[0];
       const other = await browser.newPage();
@@ -340,7 +403,7 @@ async function recordDemo() {
       } finally { await other.close(); }
     });
     await check('Explicit sound control unmutes incoming audio', async () => {
-      if (await receiver.$eval('video', video => video.muted)) await receiver.click('#sound');
+      if (await receiver.$eval('video', video => video.muted)) await clickControl('#sound');
       assert.equal(await receiver.$eval('video', video => video.muted), false);
       await receiver.waitForFunction(async () => { const pc = window.__testPeerConnections.findLast(pc => pc.connectionState === 'connected'); return pc && [...(await pc.getStats()).values()].some(r => r.type === 'inbound-rtp' && r.kind === 'audio' && r.totalAudioEnergy > 0); }, {timeout: 10000});
       report.mediaAfterUnmute = await mediaSnapshot();
@@ -354,11 +417,11 @@ async function recordDemo() {
       sharedAudio = true;
       await receiver.waitForFunction(() => !document.querySelector('#sound').disabled, {timeout: 8000});
       assert.equal(await receiver.$eval('video', video => video.muted), true);
-      await receiver.click('#sound');
+      await clickControl('#sound');
     });
     await check('Media statistics show known targets, received values, and translated labels', async () => {
       await setLanguage('en');
-      await receiver.click('#stats-summary');
+      await clickControl('#stats-summary');
       await waitMeasuredStats();
       const english = await statsSnapshot();
       assert.equal(english.open, true);
@@ -425,12 +488,13 @@ async function recordDemo() {
       await receiver.waitForFunction(() => Math.abs(document.querySelector('video').videoWidth / document.querySelector('video').videoHeight - 16 / 9) < 0.01, {timeout});
       await waitStatsDimensions();
       await waitMeasuredStats();
-      await receiver.click('#stats-summary');
+      await clickControl('#stats-summary');
+      await options(false);
     });
     await check('Fit/Fill, zoom, drag pan and reset controls work', async () => {
-      await receiver.click('[data-fit="fill"]');
+      await clickControl('[data-fit="fill"]');
       assert.equal(await receiver.$eval('[data-fit="fill"]', el => el.getAttribute('aria-pressed')), 'true');
-      await receiver.click('[data-fit="fit"]');
+      await clickControl('[data-fit="fit"]');
       assert.equal(await receiver.$eval('[data-fit="fit"]', el => el.getAttribute('aria-pressed')), 'true');
       await receiver.$eval('#zoom', el => { el.value = Math.min(Number(el.max), Math.max(Number(el.min), 1.6)); el.dispatchEvent(new Event('input', {bubbles: true})); });
       const before = await receiver.$eval('video', el => getComputedStyle(el).transform);
@@ -439,14 +503,24 @@ async function recordDemo() {
       await receiver.mouse.down(); await receiver.mouse.move(box.x + box.width / 2 + 55, box.y + box.height / 2 + 30, {steps: 8}); await receiver.mouse.up();
       const after = await receiver.$eval('video', el => getComputedStyle(el).transform);
       assert.notEqual(after, before, 'Pan changes video transform at enlarged scale');
-      await receiver.click('#reset');
+      await clickControl('#reset');
       const reset = Number(await receiver.$eval('#zoom', el => el.value));
       assert.ok(reset === 1 || reset === 100, `Reset zoom has expected value, got ${reset}`);
+      const slider=await receiver.$eval('#zoom',el=>{const r=el.getBoundingClientRect();return {x:r.x+8,y:r.y+r.height/2};});
+      await receiver.mouse.move(slider.x,slider.y);await receiver.mouse.down();
+      assert.equal(await receiver.$eval('#stage',el=>el.classList.contains('dragging')),false,'Range interaction never captures the video drag');
+      await receiver.mouse.move(slider.x+35,slider.y,{steps:5});await receiver.mouse.up();
+      await clickControl('#reset');await options(false);
     });
     await check('Fullscreen enters and exits after user gesture', async () => {
-      await receiver.click('#fullscreen');
-      await receiver.waitForFunction(() => !!document.fullscreenElement);
-      await receiver.evaluate(() => document.exitFullscreen());
+      for(let attempt=0;attempt<2;attempt++){
+        await clickControl('#fullscreen');await receiver.waitForFunction(()=>!!document.fullscreenElement);
+        assert.equal(await receiver.$eval('body',el=>el.dataset.viewMode),'native');
+        const frame=await receiver.evaluate(()=>({height:document.querySelector('#stage').getBoundingClientRect().height,viewport:innerHeight}));
+        assert.ok(Math.abs(frame.height-frame.viewport)<2,'Native fullscreen gives the entire viewport to the stage');
+        await clickControl('#fullscreen');await receiver.waitForFunction(()=>!document.fullscreenElement);
+        assert.equal(await receiver.$eval('body',el=>el.dataset.viewMode),'immersive');
+      }
     });
     await check('English/Chinese UI and 375/768/1440 layouts', async () => {
       await setLanguage('zh');
@@ -459,12 +533,26 @@ async function recordDemo() {
         assert.ok(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal overflow at ${width}`);
         await receiver.screenshot({path: path.join(output, `receiver-${width}.png`), fullPage: true});
         if (width === 375) {
-          await receiver.click('#stats-summary');
+          await clickControl('#stats-summary');
           assert.ok(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Expanded stats have no horizontal overflow at 375');
           await receiver.screenshot({path: path.join(output, 'receiver-stats-375.png'), fullPage: true});
-          await receiver.click('#stats-summary');
+          await clickControl('#stats-summary');await options(false);
         }
       }
+    });
+    await check('Portrait remote phone remains complete across portrait/landscape viewport changes', async () => {
+      await sender.evaluate(()=>window.fixture.resize(572,1280));
+      await receiver.waitForFunction(()=>Math.abs(document.querySelector('video').videoWidth/document.querySelector('video').videoHeight-572/1280)<.015,{timeout});
+      for(const size of [{width:375,height:844},{width:844,height:375}]){
+        await receiver.setViewport(size);await clickControl('[data-fit="fit"]');await sleep(300);
+        const dimensions=await receiver.evaluate(()=>{const stage=document.querySelector('#stage').getBoundingClientRect(),video=document.querySelector('video');return {stage:{width:stage.width,height:stage.height},video:{width:parseFloat(video.style.width),height:parseFloat(video.style.height)},viewport:{width:visualViewport.width,height:visualViewport.height},overflow:document.documentElement.scrollWidth>innerWidth+1};});
+        assert.ok(dimensions.video.width<=dimensions.stage.width+1&&dimensions.video.height<=dimensions.stage.height+1,'Default Fit preserves the complete portrait screen');
+        assert.ok(Math.abs(dimensions.stage.height-dimensions.viewport.height)<2);assert.equal(dimensions.overflow,false);
+        await receiver.screenshot({path:path.join(output,`remote-phone-simulated-${size.width}.png`),fullPage:true});
+      }
+      await sender.evaluate(()=>window.fixture.resize(1280,720));await receiver.waitForFunction(()=>Math.abs(document.querySelector('video').videoWidth/document.querySelector('video').videoHeight-16/9)<.015,{timeout});
+      await receiver.setViewport({width:1440,height:1000});
+      report.mobileViewportScope='Chrome viewport/orientation simulation and actual synthetic portrait WebRTC track. No iPhone/Safari device test.';
     });
     await check('Record actual receiver webpage with synthetic source label', async () => { report.demo = await recordDemo(); });
     await check('Reload takeover supports an older sender without quality metadata', async () => {
@@ -486,10 +574,10 @@ async function recordDemo() {
       const chinese = await statsSnapshot();
       assertUnknownQuality(chinese, '未提供');
       assertMeasuredStats(chinese);
-      await receiver.click('#stats-summary');
+      await clickControl('#stats-summary');
       await receiver.screenshot({path: path.join(output, 'receiver-stats-unknown-zh.png'), fullPage: true});
       await setLanguage('en');
-      await receiver.click('#stats-summary');
+      await clickControl('#stats-summary');await options(false);
       report.mediaStatisticsUnknownQuality = {english, chinese};
       await sender.evaluate(quality => window.fixture.setQuality(quality), knownQuality);
     });
@@ -519,7 +607,7 @@ async function recordDemo() {
       failHeartbeats = false; failSessions = false;
       await receiver.click('#connect'); await waitState('live');
       assertQualityFields(await statsSnapshot(), knownQuality);
-      await receiver.click('#disconnect'); await waitState('idle');
+      await clickControl('#disconnect'); await waitState('idle');
       await receiver.waitForFunction(() => !document.querySelector('video').srcObject);
       await sleep(300);
       assert.ok([...sessions.values()].every(session => session.closed));

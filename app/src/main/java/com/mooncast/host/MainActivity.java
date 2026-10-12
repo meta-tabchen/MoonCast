@@ -60,6 +60,7 @@ public final class MainActivity extends Activity {
     private String lastFailure="";
     private long startingSince,missingHostSince;
     private int senderPid=-1;
+    private long hostStatusToken;
     private boolean airMode(){return session.selected()==CastSessionCoordinator.AIRPLAY;}
     private boolean browserMode(){return session.selected()==CastSessionCoordinator.BROWSER;}
     private Class<?> hostClass(){return switch(session.active()){case CastSessionCoordinator.AIRPLAY->AirPlayHostService.class;case CastSessionCoordinator.BROWSER->BrowserHostService.class;default->HostService.class;};}
@@ -169,11 +170,19 @@ public final class MainActivity extends Activity {
     }
     private void hostGone(){
         int oldMode=session.active();
+        boolean unexpected=!stopPending && session.phase()!=CastSessionCoordinator.STOPPING;
+        if(oldMode==CastSessionCoordinator.MOONLIGHT && lastFailure.isEmpty()){
+            HostFailureStore.Failure result=HostFailureStore.read(getFilesDir(),hostStatusToken);
+            if(result!=null && !result.error().isEmpty())
+                lastFailure=getString(R.string.phone_host_failed_stage,result.stage(),result.error());
+            else if(unexpected)
+                lastFailure=result==null?getString(R.string.phone_host_unexpected_exit):getString(R.string.phone_host_exit_stage,result.stage());
+        }
         if(oldMode==CastSessionCoordinator.BROWSER && lastFailure.isEmpty()
                 && !stopPending && session.phase()!=CastSessionCoordinator.STOPPING)
             lastFailure=getString(R.string.browser_service_unexpected_exit);
         detachHost();stopPending=false;senderPid=-1;session.hostGone();
-        getPreferences(0).edit().putBoolean("hostExpected",false).remove("activeHostPid").putInt("selectedProtocol",session.selected()).apply();
+        getPreferences(0).edit().putBoolean("hostExpected",false).remove("activeHostPid").remove("activeHostStatusToken").putInt("selectedProtocol",session.selected()).apply();
         running(false);applyProtocol();
         TextView previousState=modeState(oldMode);
         TextView previousDetail=modeDetail(oldMode);
@@ -232,6 +241,7 @@ public final class MainActivity extends Activity {
     private static final int INK=PhoneVisuals.INK, MUTED=PhoneVisuals.MUTED, BLUE=PhoneVisuals.BLUE;
     @Override public void onCreate(Bundle b) {
         super.onCreate(b);
+        hostStatusToken=b==null?getPreferences(0).getLong("activeHostStatusToken",0):b.getLong("hostStatusToken",getPreferences(0).getLong("activeHostStatusToken",0));
         if(b!=null){
             session=new CastSessionCoordinator(b.getInt("protocol"),b.getInt("activeProtocol",-1),b.getInt("targetProtocol",-1),b.getInt("sessionPhase"),b.getInt("sessionGeneration"));
             pendingToken=b.getInt("pendingToken",-1);pendingMode=b.getInt("pendingMode",-1);
@@ -410,10 +420,10 @@ public final class MainActivity extends Activity {
 
     private void buildProtocolTabs(LinearLayout page){
         protocolTabs=new ProtocolTabs(this,mode->{selectProtocol(mode);protocolTabs.select(session.selected());});
-        airTab=protocolTabs.addTab(getString(R.string.ui_tab_airplay),"protocol_tab_airplay",CastSessionCoordinator.AIRPLAY);
+        airTab=protocolTabs.addTab(getString(R.string.phone_tab_airplay),"protocol_tab_airplay",CastSessionCoordinator.AIRPLAY);
         moonlightTab=protocolTabs.addTab(getString(R.string.phone_tab_gamestream),"protocol_tab_gamestream",CastSessionCoordinator.MOONLIGHT);
         browserTab=protocolTabs.addTab(getString(R.string.browser_tab),"protocol_tab_browser",CastSessionCoordinator.BROWSER);
-        page.addView(protocolTabs,new LinearLayout.LayoutParams(-1,-2));
+        page.addView(protocolTabs.viewport(),new LinearLayout.LayoutParams(-1,-2));
         protocolHint=text("",12,MUTED);protocolHint.setGravity(Gravity.CENTER);protocolHint.setPadding(dp(8),dp(10),dp(8),0);page.addView(protocolHint);
     }
     private void showAbout(){
@@ -871,6 +881,9 @@ public final class MainActivity extends Activity {
         getPreferences(0).edit().putBoolean("hostExpected",true).remove("activeHostPid").putInt("activeProtocol",session.active()).apply();
         dismissAirPicker();
         connection=new HostConnection();
+        hostStatusToken=SystemClock.elapsedRealtimeNanos();
+        getPreferences(0).edit().putLong("activeHostStatusToken",hostStatusToken).apply();
+        intent.putExtra("statusToken",hostStatusToken);
         intent.putExtra("statusReply",connection.response);
         try{startForegroundService(intent);activeState().setText(R.string.ui_starting_pending);running(true);bindExisting();}
         catch(RuntimeException e){lastFailure=getString(R.string.ui_cast_start_failed);hostGone();}
@@ -905,6 +918,7 @@ public final class MainActivity extends Activity {
         out.putBoolean("advancedOpen",advancedExpanded);
         out.putInt("protocol",session.selected());out.putInt("activeProtocol",session.active());out.putInt("targetProtocol",session.target());
         out.putInt("sessionPhase",session.phase());out.putInt("sessionGeneration",session.generation());out.putInt("senderPid",senderPid);
+        out.putLong("hostStatusToken",hostStatusToken);
         out.putInt("pendingToken",pendingToken);out.putInt("pendingMode",pendingMode);out.putInt("pendingAudioRequest",pendingAudioRequest);out.putInt("pendingProjectionRequest",pendingProjectionRequest);
         out.putBoolean("pendingAudioAllowed",pendingAudioAllowed);out.putString("pendingEndpoint",pendingEndpoint==null?"":pendingEndpoint.address());
         out.putInt("pendingBrowserLongEdge",pendingBrowserQuality.longEdge);out.putInt("pendingBrowserFps",pendingBrowserQuality.fps);out.putInt("pendingBrowserBitrate",pendingBrowserQuality.maxBitrateBps);

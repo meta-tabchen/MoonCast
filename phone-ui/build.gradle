@@ -5,8 +5,8 @@ android {
  buildToolsVersion '35.0.0'
  defaultConfig {
   minSdk 26; targetSdk 35
-  buildConfigField 'int', 'VERSION_CODE', '56'
-  buildConfigField 'String', 'VERSION_NAME', '"0.6.0"'
+  buildConfigField 'int', 'VERSION_CODE', '57'
+  buildConfigField 'String', 'VERSION_NAME', '"0.7"'
   buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.community"'
  }
  buildFeatures { buildConfig true; aidl true }
@@ -24,11 +24,11 @@ android {
 dependencies {
  implementation project(':transfer-core')
  implementation(name: 'airplaylib', ext: 'aar')
- implementation 'org.bouncycastle:bcpkix-jdk18on:1.77'
  implementation 'dev.rikka.shizuku:api:13.1.5'
  implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
 apply from: rootProject.file('gradle/browser-webrtc.gradle')
 apply from: rootProject.file('gradle/browser-qr.gradle')
+apply from: rootProject.file('gradle/bouncycastle.gradle')
 
 dependencies { implementation project(':locale-core') }

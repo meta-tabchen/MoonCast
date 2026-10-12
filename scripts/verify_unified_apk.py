@@ -73,7 +73,7 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
     sdk = Path(os.environ['ANDROID_HOME'])
     aapt = sdk / 'build-tools/35.0.0/aapt'
     badge = subprocess.check_output([aapt, 'dump', 'badging', a.apk], text=True)
-    if not "package: name='com.mooncast.community' versionCode='56' versionName='0.6.0'" in badge:
+    if not "package: name='com.mooncast.community' versionCode='57' versionName='0.7'" in badge:
         raise ValueError('Verification failed')
     if not ("sdkVersion:'26'" in badge and "targetSdkVersion:'35'" in badge):
         raise ValueError('Verification failed')

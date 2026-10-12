@@ -26,7 +26,7 @@ android {
   applicationId (verificationOnly ? 'com.mooncast.community.verification' : 'com.mooncast.community')
   minSdk 26; targetSdk 35
   manifestPlaceholders.mooncastBuildId = providers.gradleProperty('mooncastBuildId').orElse('').get()
-  versionCode 56; versionName '0.6.0'
+  versionCode 57; versionName '0.7'
   testInstrumentationRunner 'com.mooncast.unified.UnifiedInstrumentation'
   ndk { if (abi != null) abiFilters abi else abiFilters 'arm64-v8a','armeabi-v7a','x86_64' }
  }
@@ -38,10 +38,28 @@ android {
  } }
  buildTypes { release { minifyEnabled true; shrinkResources true; signingConfig (verificationOnly ? null : signingConfigs.community); proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }; debug { signingConfig (verificationOnly ? null : signingConfigs.community) }; production { initWith release; applicationIdSuffix ".production"; signingConfig null } }
  sourceSets.main.jniLibs.srcDirs = ['native-receiver']
- packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/*.so'] } }
+ packaging {
+  jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/*.so'] }
+  // BC's Java-9 OSGi bundle descriptors are duplicated across its matched artifacts.
+  // Android does not consume this descriptor; keep licenses and provider classes.
+  resources {
+   excludes += 'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+   merges += 'META-INF/LICENSE.md'
+  }
+ }
  lint { abortOnError true }
 }
 dependencies { implementation project(':phone-ui'); implementation project(':tv-ui') }
+// Isolated test classpath only: preserve the known-good 0.4.6 BC family for regression comparison.
+configurations { hostIdentityBaseline { canBeConsumed = false; canBeResolved = true } }
+dependencies {
+ ['bcpkix-jdk18on','bcutil-jdk18on','bcprov-jdk18on'].each { artifact ->
+  hostIdentityBaseline "org.bouncycastle:${artifact}:1.77"
+ }
+}
+tasks.register('resolveHostIdentityTestArtifacts') {
+ doLast { configurations.hostIdentityBaseline.files; configurations.releaseRuntimeClasspath.files }
+}
 dependencies { debugImplementation project(':moonlight-core') }
 // Refuse a source-only/partial native update or an accidental old-runtime restore.
 def verifyUnifiedNative = tasks.register('verifyUnifiedNative') {

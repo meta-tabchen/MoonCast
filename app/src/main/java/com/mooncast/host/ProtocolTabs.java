@@ -12,6 +12,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.HorizontalScrollView;
 import java.util.LinkedHashMap;
 import java.util.function.IntConsumer;
 
@@ -19,7 +20,11 @@ import java.util.function.IntConsumer;
 final class ProtocolTabs extends RadioGroup {
     private static final int ACCENT = 0xff635bff;
     private final LinkedHashMap<Integer, Integer> modes = new LinkedHashMap<>();
+    private final LinkedHashMap<RadioButton, Drawable> icons = new LinkedHashMap<>();
     private boolean syncing;
+    private HorizontalScrollView viewport;
+    private Boolean stackedLayout;
+    private int lastViewportWidth, lastContentWidth;
 
     ProtocolTabs(Context context, IntConsumer selected) {
         super(context);
@@ -36,14 +41,7 @@ final class ProtocolTabs extends RadioGroup {
     }
 
     RadioButton addTab(String label, String tag, int mode) {
-        RadioButton tab = new RadioButton(getContext()) {
-            @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
-                super.onSizeChanged(width, height, oldWidth, oldHeight);
-                int labelWidth = (int) Math.ceil(getPaint().measureText(getText().toString()));
-                int inset = Math.max(dp(6), (width - dp(20) - dp(6) - labelWidth) / 2);
-                setPaddingRelative(inset, dp(8), inset, dp(8));
-            }
-        };
+        RadioButton tab = new RadioButton(getContext());
         tab.setId(View.generateViewId());
         modes.put(tab.getId(), mode);
         tab.setTag(tag);
@@ -54,7 +52,8 @@ final class ProtocolTabs extends RadioGroup {
         tab.setTextSize(14);
         tab.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         tab.setGravity(Gravity.CENTER);
-        tab.setMaxLines(2);
+        tab.setSingleLine(true);
+        tab.setEllipsize(null);
         tab.setMinWidth(0);
         tab.setMinimumWidth(0);
         tab.setMinHeight(dp(48));
@@ -73,6 +72,7 @@ final class ProtocolTabs extends RadioGroup {
         };
         Drawable icon = getContext().getDrawable(iconResource).mutate();
         icon.setBounds(0, 0, dp(20), dp(20));
+        icons.put(tab, icon);
         tab.setCompoundDrawablesRelative(icon, null, null, null);
         tab.setCompoundDrawablePadding(dp(6));
         tab.setCompoundDrawableTintList(colors);
@@ -87,11 +87,60 @@ final class ProtocolTabs extends RadioGroup {
         return tab;
     }
 
+    /** Preserve the RadioGroup/accessibility model; only the outer viewport may scroll. */
+    View viewport() {
+        if (viewport != null) return viewport;
+        viewport = new HorizontalScrollView(getContext()) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int width = MeasureSpec.getSize(widthSpec);
+                if (width > 0) configureForWidth(width);
+                super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        viewport.setTag("protocol_tabs_viewport");
+        viewport.setFillViewport(true);
+        viewport.setHorizontalScrollBarEnabled(false);
+        viewport.setHorizontalFadingEdgeEnabled(true);
+        viewport.addView(this, new HorizontalScrollView.LayoutParams(-2, -2));
+        return viewport;
+    }
+
+    private void configureForWidth(int width) {
+        int[] labels = new int[icons.size()]; int index = 0;
+        for (RadioButton tab : icons.keySet())
+            labels[index++] = (int) Math.ceil(tab.getPaint().measureText(tab.getText().toString())) + dp(2);
+        ProtocolTabLayout.Plan plan = ProtocolTabLayout.plan(width, labels, dp(20), dp(6), dp(4), dp(4), dp(2));
+        if (stackedLayout == null || stackedLayout != plan.stacked()) {
+            stackedLayout = plan.stacked();
+            for (var entry : icons.entrySet()) {
+                Drawable icon = entry.getValue();
+                entry.getKey().setCompoundDrawablesRelative(plan.stacked() ? null : icon,
+                    plan.stacked() ? icon : null, null, null);
+            }
+        }
+        if (getLayoutParams().width != plan.contentWidth()) getLayoutParams().width = plan.contentWidth();
+        if (lastViewportWidth != width || lastContentWidth != plan.contentWidth()) {
+            lastViewportWidth = width; lastContentWidth = plan.contentWidth();
+            viewport.post(this::revealSelection);
+        }
+    }
+
+    private void revealSelection() {
+        View selected = findViewById(getCheckedRadioButtonId());
+        if (viewport != null && selected != null)
+            viewport.smoothScrollTo(Math.max(0, selected.getLeft() + selected.getWidth()/2 - viewport.getWidth()/2), 0);
+    }
+
     void select(int mode) {
         syncing = true;
         try {
             for (var entry : modes.entrySet()) {
-                if (entry.getValue() == mode) { check(entry.getKey()); return; }
+                if (entry.getValue() == mode) {
+                    boolean changed = getCheckedRadioButtonId() != entry.getKey();
+                    check(entry.getKey());
+                    if (changed && viewport != null) viewport.post(this::revealSelection);
+                    return;
+                }
             }
         } finally { syncing = false; }
     }

@@ -1,0 +1,11 @@
+// Version set published in org.bouncycastle:bc-jdk18on-bom:1.85.2.
+// PKIX/util use 1.85; only the provider publishes the 1.85.2 patch version.
+// Mixing PKIX/util 1.77 with provider 1.85.2 breaks fresh HostIdentity initialization.
+dependencies {
+    ['bcpkix-jdk18on': '1.85', 'bcutil-jdk18on': '1.85', 'bcprov-jdk18on': '1.85.2'].each { artifact, artifactVersion ->
+        implementation("org.bouncycastle:${artifact}:${artifactVersion}") {
+            version { strictly artifactVersion }
+            because 'Phone host identity and TV pairing use the official Bouncy Castle BOM 1.85.2 version set'
+        }
+    }
+}
