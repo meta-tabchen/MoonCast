@@ -27,14 +27,15 @@ public final class MainActivity extends Activity {
     private boolean advancedExpanded;
     private LinearLayout browserPanel,browserConnect;
     private RadioButton browserTab;
-    private Button browserStart,browserStop,browserCopy,browserQrButton;
-    private TextView browserState,browserDetail,browserLink,browserQualitySummary;
+    private Button browserStart,browserStop,browserCopy;
+    private TextView browserState,browserDetail,browserLink,browserQualitySummary,browserQrStatus;
     private Spinner browserSource,browserAddress;
     private CompoundButton browserAudio;
     private String browserUrls="",browserSelectedUrl="";
-    private AlertDialog browserQrDialog;
     private ImageView browserQrImage;
     private android.graphics.Bitmap browserQrBitmap;
+    private String browserQrUrl="";
+    private boolean browserQrFailed;
     private BrowserQuality pendingBrowserQuality=BrowserQuality.DEFAULT;
     private BrowserQuality browserClearQuality;
     private MyTvPicker airPicker;
@@ -430,6 +431,9 @@ public final class MainActivity extends Activity {
 
         LinearLayout connect=card(browserPanel);browserConnect=connect;connect.setTag("browser_connection");section(connect,getString(R.string.browser_open_link),getString(R.string.browser_open_link_hint));
         browserAddress=spinner(new String[]{});browserAddress.setContentDescription(getString(R.string.browser_address));connect.addView(browserAddress);
+        browserQrImage=new ImageView(this);browserQrImage.setTag("browser_qr");browserQrImage.setSaveEnabled(false);browserQrImage.setScaleType(ImageView.ScaleType.FIT_CENTER);browserQrImage.setContentDescription(getString(R.string.browser_qr_description));browserQrImage.setVisibility(View.GONE);
+        LinearLayout.LayoutParams qrLayout=new LinearLayout.LayoutParams(-1,dp(200));qrLayout.gravity=Gravity.CENTER_HORIZONTAL;qrLayout.topMargin=dp(8);qrLayout.bottomMargin=dp(8);connect.addView(browserQrImage,qrLayout);
+        browserQrStatus=text(getString(R.string.browser_qr_unavailable),12,MUTED);browserQrStatus.setVisibility(View.GONE);connect.addView(browserQrStatus);
         LinearLayout linkRow=new LinearLayout(this);linkRow.setOrientation(LinearLayout.VERTICAL);connect.addView(linkRow);
         browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);browserLink.setSaveEnabled(false);linkRow.addView(browserLink,new LinearLayout.LayoutParams(-1,-2));
         browserAddress.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
@@ -437,9 +441,8 @@ public final class MainActivity extends Activity {
             public void onItemSelected(AdapterView<?> parent,View view,int position,long id){Object address=browserAddress.getSelectedItem();selectBrowserUrl(address==null?"":address.toString());}
         });
         LinearLayout linkActions=new LinearLayout(this);linkActions.setGravity(Gravity.END);linkActions.setPadding(0,dp(8),0,0);linkRow.addView(linkActions);
-        browserQrButton=smallButton(getString(R.string.browser_show_qr));browserQrButton.setOnClickListener(v->showBrowserQr());linkActions.addView(browserQrButton,new LinearLayout.LayoutParams(0,dp(48),1));
         browserCopy=smallButton(getString(R.string.browser_copy_link));browserCopy.setOnClickListener(v->copyBrowserLink());
-        LinearLayout.LayoutParams copyLayout=new LinearLayout.LayoutParams(0,dp(48),1);copyLayout.setMarginStart(dp(8));linkActions.addView(browserCopy,copyLayout);showBrowserUrls("");
+        linkActions.addView(browserCopy,new LinearLayout.LayoutParams(-2,dp(48)));showBrowserUrls("");
 
         LinearLayout capture=card(browserPanel);capture.addView(text(getString(R.string.ui_capture_source),14,INK));
         browserSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});
@@ -476,32 +479,28 @@ public final class MainActivity extends Activity {
     }
     private void selectBrowserUrl(String url){
         String selected=validBrowserUrl(url)?url:"";
-        if(!selected.equals(browserSelectedUrl)){closeBrowserQr();browserSelectedUrl=selected;}
-        if(selected.isEmpty()){closeBrowserQr();browserLink.setText(R.string.browser_link_pending);}else browserLink.setText(selected);
-        browserCopy.setEnabled(!selected.isEmpty());browserQrButton.setEnabled(!selected.isEmpty());
+        if(!selected.equals(browserSelectedUrl)){clearBrowserQr();browserSelectedUrl=selected;}
+        if(selected.isEmpty())browserLink.setText(R.string.browser_link_pending);else browserLink.setText(selected);
+        browserCopy.setEnabled(!selected.isEmpty());updateBrowserQr();
         browserConnect.setVisibility(selected.isEmpty()?View.GONE:View.VISIBLE);
     }
     private void copyBrowserLink(){
         if(!validBrowserUrl(browserSelectedUrl))return;
         getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",browserSelectedUrl));toast(getString(R.string.ui_file_link_copied));
     }
-    private void showBrowserQr(){
-        if(!resumed || isFinishing() || isDestroyed() || !validBrowserUrl(browserSelectedUrl))return;
-        closeBrowserQr();
-        try{browserQrBitmap=BrowserQrCode.encode(browserSelectedUrl,Math.max(128,Math.min(1024,dp(280))));}
-        catch(IllegalArgumentException unavailable){toast(getString(R.string.browser_qr_unavailable));return;}
-        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setGravity(Gravity.CENTER_HORIZONTAL);body.setPadding(dp(20),dp(12),dp(20),dp(12));
-        browserQrImage=new ImageView(this);browserQrImage.setSaveEnabled(false);browserQrImage.setAdjustViewBounds(true);browserQrImage.setScaleType(ImageView.ScaleType.FIT_CENTER);browserQrImage.setImageBitmap(browserQrBitmap);browserQrImage.setContentDescription(getString(R.string.browser_qr_description));
-        body.addView(browserQrImage,new LinearLayout.LayoutParams(-1,dp(280)));body.addView(text(getString(R.string.browser_qr_hint),13,MUTED));
-        ScrollView scroll=new ScrollView(this);scroll.addView(body);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.browser_show_qr).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(R.string.browser_copy_link,(d,w)->copyBrowserLink()).create();
-        browserQrDialog=dialog;dialog.setOnDismissListener(d->{if(browserQrDialog==dialog)closeBrowserQr();});dialog.show();
+    private void updateBrowserQr(){
+        if(!resumed || isFinishing() || isDestroyed() || !validBrowserUrl(browserSelectedUrl)){clearBrowserQr();return;}
+        if(browserSelectedUrl.equals(browserQrUrl) && (browserQrBitmap!=null || browserQrFailed))return;
+        clearBrowserQr();browserQrUrl=browserSelectedUrl;
+        try{
+            browserQrBitmap=BrowserQrCode.encode(browserQrUrl,Math.max(128,Math.min(1024,dp(200))));
+            browserQrImage.setImageBitmap(browserQrBitmap);browserQrImage.setVisibility(View.VISIBLE);
+        }catch(IllegalArgumentException unavailable){browserQrFailed=true;browserQrStatus.setVisibility(View.VISIBLE);}
     }
-    private void closeBrowserQr(){
-        AlertDialog dialog=browserQrDialog;browserQrDialog=null;
-        if(browserQrImage!=null)browserQrImage.setImageDrawable(null);
-        browserQrImage=null;browserQrBitmap=null;
-        if(dialog!=null)dialog.dismiss();
+    private void clearBrowserQr(){
+        if(browserQrImage!=null){browserQrImage.setImageDrawable(null);browserQrImage.setVisibility(View.GONE);}
+        if(browserQrStatus!=null)browserQrStatus.setVisibility(View.GONE);
+        browserQrBitmap=null;browserQrUrl="";browserQrFailed=false;
     }
     private BrowserQuality readBrowserQuality(){
         return validBrowserQuality(getPreferences(0).getInt("browserLongEdge",BrowserQuality.DEFAULT.longEdge),getPreferences(0).getInt("browserFps",BrowserQuality.DEFAULT.fps),getPreferences(0).getInt("browserBitrate",BrowserQuality.DEFAULT.maxBitrateBps));
@@ -653,7 +652,7 @@ public final class MainActivity extends Activity {
         airStop.setVisibility(busy?View.VISIBLE:View.GONE);airStop.setEnabled(!stopping);airStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
         browserStart.setVisibility(busy?View.GONE:View.VISIBLE);browserStart.setEnabled(!busy);
         browserStop.setVisibility(busy?View.VISIBLE:View.GONE);browserStop.setEnabled(!stopping);browserStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
-        browserSource.setEnabled(!busy);browserAudio.setEnabled(!busy && Build.VERSION.SDK_INT>=29);browserCopy.setEnabled(validBrowserUrl(browserSelectedUrl));browserQrButton.setEnabled(validBrowserUrl(browserSelectedUrl));
+        browserSource.setEnabled(!busy);browserAudio.setEnabled(!busy && Build.VERSION.SDK_INT>=29);browserCopy.setEnabled(validBrowserUrl(browserSelectedUrl));
         if(browserMode() && session.phase()==CastSessionCoordinator.PERMISSION){browserState.setText(R.string.browser_permission_title);browserDetail.setText(R.string.browser_permission_hint);}
         start.setVisibility(busy?View.GONE:View.VISIBLE);start.setEnabled(!busy);stop.setVisibility(busy?View.VISIBLE:View.GONE);stop.setEnabled(!stopping);stop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
         airSource.setEnabled(!busy);airQuality.setEnabled(!airLegacy.isChecked());airQualityAdvanced.setEnabled(!airLegacy.isChecked());airLegacy.setEnabled(!busy);updateAirQualitySummary();
@@ -893,14 +892,14 @@ public final class MainActivity extends Activity {
         catch(RemoteException e){if(!remote.getBinder().isBinderAlive())hostGone();else{lastFailure=getString(R.string.ui_host_unresponsive);requestStop();}}
     }
     private void running(boolean yes) { panelOff.setEnabled(!yes);restoreDisplay.setEnabled(yes);if(!yes)panelState.setText(R.string.ui_off);profile.setEnabled(!yes);watchParty.setEnabled(!yes);if(!yes){receiverList.removeAllViews();shownReceivers=new long[0];}scenario.setEnabled(!yes);source.setEnabled(!yes);if(!yes){independentDisplay=-1;openApp.setEnabled(false);} rescan.setEnabled(yes);if(!yes)metrics.setText(getString(R.string.ui_dashboard_idle)); start.setEnabled(!yes); stop.setEnabled(yes);start.setVisibility(yes?View.GONE:View.VISIBLE);stop.setVisibility(yes?View.VISIBLE:View.GONE); name.setEnabled(!yes); hevc.setEnabled(!yes); audio.setEnabled(!yes && !root.isChecked());muteLocal.setEnabled(!yes && audio.isChecked() && !root.isChecked()); root.setEnabled(!yes);refreshControlOptions(); if(!yes)pinBox.setVisibility(View.GONE);updateSessionUi(); }
-    @Override protected void onResume(){super.onResume();resumed=true;refreshControlOptions();if(reopenAirPickerAfterStop && !session.busy() && airMode()){reopenAirPickerAfterStop=false;showAirPicker();}else if(airPickerOpen)showAirPicker();updateDiscovery();main.removeCallbacks(poll);main.post(poll);}
+    @Override protected void onResume(){super.onResume();resumed=true;updateBrowserQr();refreshControlOptions();if(reopenAirPickerAfterStop && !session.busy() && airMode()){reopenAirPickerAfterStop=false;showAirPicker();}else if(airPickerOpen)showAirPicker();updateDiscovery();main.removeCallbacks(poll);main.post(poll);}
     private void showReceivers(Bundle b){
         long[] ids=b.getLongArray("receivers");String[] labels=b.getStringArray("receiverLabels");if(ids==null || labels==null || java.util.Arrays.equals(ids,shownReceivers))return;
         shownReceivers=ids.clone();receiverList.removeAllViews();for(int i=0;i<ids.length;i++){long id=ids[i];Button disconnect=smallButton(labels[i]+" · "+getString(R.string.ui_disconnect));disconnect.setOnClickListener(v->{Bundle data=new Bundle();data.putLong("session",id);send(HostService.DISCONNECT,data);});receiverList.addView(disconnect);}
     }
     private void queryFile(){if(fileRemote==null)return;try{Message m=Message.obtain(null,FileCinemaService.STATUS);m.replyTo=fileResponse;fileRemote.send(m);}catch(RemoteException ignored){}}
     @Override protected void onPause(){resumed=false;saveProfile();saveAirPlay();saveBrowser();main.removeCallbacks(poll);dismissAirPicker();super.onPause();}
-    @Override protected void onStop(){closeBrowserQr();super.onStop();}
+    @Override protected void onStop(){clearBrowserQr();super.onStop();}
     @Override protected void onSaveInstanceState(Bundle out){
         super.onSaveInstanceState(out);saveProfile();saveAirPlay();saveBrowser();
         out.putBoolean("advancedOpen",advancedExpanded);

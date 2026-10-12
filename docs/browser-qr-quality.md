@@ -2,8 +2,8 @@
 
 This local preview extends the already published browser mode. In **Browser**,
 start sharing and accept Android's normal capture consent. The connection card
-then offers **Show QR code** and **Copy link** for the same complete, temporary
-LAN URL. A QR-capable browser/device may open it; typing or copying remains the
+then displays a QR code automatically, with **Copy link** for the same complete,
+temporary LAN URL. There is no extra QR button or expansion step. A QR-capable browser/device may open it; typing or copying remains the
 fallback when scanning is unavailable. Both devices must reach the same trusted
 LAN. MoonCast encodes the QR locally, without an external QR service or uploading
 the private session path. Stop clears the QR, and a new sharing lifetime generates

@@ -6,12 +6,10 @@
     <string name="browser_start_hint">Start sharing, then open the link on a computer on the same LAN.</string>
     <string name="browser_start">Start sharing</string>
     <string name="browser_open_link">Open on your computer</string>
-    <string name="browser_open_link_hint">Open in Chrome and select Connect. Share the link only with people you trust; it expires when you stop sharing.</string>
+    <string name="browser_open_link_hint">On the same local network, scan the code or open the link in Chrome and select Connect. Share only with people you trust; the link expires when sharing stops.</string>
     <string name="browser_address">Choose a LAN address</string>
     <string name="browser_copy_link">Copy link</string>
-    <string name="browser_show_qr">Show QR code</string>
     <string name="browser_qr_description">QR code for the selected sharing link</string>
-    <string name="browser_qr_hint">Scan with a device on the same local network. If scanning does not work, copy the link instead. This code expires when sharing stops.</string>
     <string name="browser_qr_unavailable">Could not create a QR code. You can still copy the link.</string>
     <string name="browser_quality_title">Picture quality</string>
     <string name="browser_quality_change">Change</string>
