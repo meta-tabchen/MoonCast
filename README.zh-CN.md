@@ -3,20 +3,22 @@
 <p align="center"><sub>模型生成品牌概念图，非设备截图或实际互通测试。</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview"><img src="https://img.shields.io/badge/download-0.5.0_preview-547BEB" alt="Current download: 0.5.0 preview"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1"><img src="https://img.shields.io/badge/download-0.5.1_community_preview-547BEB" alt="Current download: 0.5.1 community preview"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview">下载 APK</a> · <a href="docs/unified-guide.md">使用指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1">下载 APK</a> · <a href="docs/unified-guide.md">使用指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
 
 # MoonCast · 让手机视频，真正用好大屏
 
 **一个安卓应用，兼顾手机发送与电视接收，也认真处理让大屏变小的投屏黑边。**
 
 视频本身可能已经被黑边包在手机画面里。把整张手机画面等比放进电视，又会增加一层留白。MoonCast 帮你利用这部分空间：检测稳定黑边、按比例显示有效画面，并在自动判断不确定时提供手动调整。
+
+**0.5.1 预览版已知限制：** 构建、签名与模拟器合成同签名升级通过，但[整轮 CI 失败](https://github.com/meta-tabchen/MoonCast/actions/runs/38203238592)：Android 15 后续语言进程启动发生 ANR，Android 11 安装时包管理服务消失。记录到 CPU 满载，ANR 根因未确定；完整 UI 回归、真实截图／GIF、实机投屏未完成。[完整验证结果](docs/community-validation.md) · [旧版 0.5.0 下载](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
 
 ## 为什么用 MoonCast
 
@@ -88,13 +90,13 @@ GameStream 和 DLNA 的连接方式见下文。
 
 进阶发送功能保留[逐项实现与历史验证说明](docs/feature-development.md)。历史结果不能替当前统一 APK 验收；当前范围见[统一版验证矩阵](docs/community-validation.md)。
 
-## 下载 0.5.0 合并预览版
+## 下载 0.5.1 社区预览版
 
-[版本说明与全部附件](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview) · [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk) · [完整对应源码](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
+[版本说明与全部附件](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-armeabi-v7a.apk) · [完整对应源码](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/SHA256SUMS)
 
 最低 Android 8.0（API 26）。64 位 ARM 安卓系统选 ARM64，32 位 ARM 安卓系统选 ARMv7；以系统实际支持的 ABI 为准，不只看处理器宣传名称。两个安装包功能相同，均包含手机和电视模式，每台设备只选一个安装。下载附件是已签名的实验预览包；CI 生成的 unsigned 验证包不能直接作为安装版使用。本次不发布 x86 安装包。
 
-上方 0.5.0 源码 ZIP 对应旧预览版。以下构建策略适用于下一社区版，其源码在 `unified/community` 分支。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](docs/unified-build.md)操作；完整源 ZIP 已含这些固定依赖，但不含 MoonCast 应用的 PKCS12 签名文件；可按构建指南生成独立包名的无签名验证产物。签名社区构建使用完整 Git checkout 中由用户一次初始化的固定公开测试身份。
+上方完整对应源码 ZIP 与本次 0.5.1 APK 同源，应用源码提交为 `27967d778c55042bb2adc926074bc3b1d94e19b9`，标签为 `community-v0.5.1`；后续开发位于 `unified/community` 分支。依赖恢复脚本仍校验并使用旧 0.5.0 源包中的固定原生输入，不会替换本版应用源码。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](docs/unified-build.md)操作；完整源 ZIP 已含这些固定依赖，但不含 MoonCast 应用的 PKCS12 签名文件；可按构建指南生成独立包名的无签名验证产物。签名社区构建使用完整 Git checkout 中由用户一次初始化的固定公开测试身份。
 
 ## 两台设备怎么配合
 
@@ -121,17 +123,17 @@ My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。�
 
 ## 社区版升级与旧版迁移
 
-当前可下载的 0.5.0 使用 `com.mooncast.unified.preview` 与一次性测试签名。原签名身份已不再可用，不能承诺用后续构建覆盖它。
+旧 0.5.0 使用 `com.mooncast.unified.preview` 与一次性测试签名。原签名身份已不再可用，不能承诺用后续构建覆盖它。
 
-下一社区版本采用固定包名 `com.mooncast.community` 与仓库公开的固定测试签名，后续递增 versionCode，以支持社区版之间正常覆盖升级。旧 0.5.0 到社区版需要一次迁移，不是每次更新都换包名或长期要求多版本共存。配对、权限与私有设置不能自动跨包搬运。
+0.5.1 社区版采用固定包名 `com.mooncast.community` 与仓库公开的固定测试签名，后续递增 versionCode，以支持社区版之间正常覆盖升级。旧 0.5.0 到社区版需要一次迁移，不是每次更新都换包名或长期要求多版本共存。配对、权限与私有设置不能自动跨包搬运。
 
-公开测试密钥不能证明安装包来自维护者：任何人都可用它签名。只从可信发布入口下载并核对发布校验和。未来商店版将使用独立包名与私有生产密钥，不与公开测试身份混用。新社区版尚未发布时，请使用上面的现有下载；不要把源码中的版本号当作可下载成品。
+公开测试密钥不能证明安装包来自维护者：任何人都可用它签名。只从可信发布入口下载并核对发布校验和。未来商店版将使用独立包名与私有生产密钥，不与公开测试身份混用。
 
 社区签名身份与构建失败保护见[签名说明](signing/community/README.md)。
 
-## 语言设置 · 待发布社区版 0.5.1
+## 语言设置
 
-此语言入口已在社区分支实现，但尚未发布 APK；当前可下载的 0.5.0 不含此入口。
+0.5.1 包含应用内语言入口；旧 0.5.0 不含此入口。此次仅部分系统语言资源检查完成，完整语言与界面回归尚未通过。
 
 手机设置和电视高级设置提供「跟随系统」、English、简体中文。取消或选择当前语言不会停止会话；确认更换语言后才结束旧会话并重新打开当前角色。Android 13 及以上也支持系统应用语言选择。直接从系统设置切换时，活跃通知可能延后刷新，见[语言使用说明](docs/unified-guide.md)。
 
