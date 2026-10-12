@@ -1,0 +1,116 @@
+name: Community startup diagnosis
+on:
+  push:
+    branches: [diagnostics/community-startup]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out exact released application source
+        uses: actions/checkout@v4
+        with:
+          ref: 27967d778c55042bb2adc926074bc3b1d94e19b9
+          path: source
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Official SDK and same API35 image
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-35;google_apis;x86_64'
+      - name: Diagnostic host preflight
+        run: python3 scripts/run_community_startup_diagnostic.py --self-test
+      - name: Rebuild only debug and instrumentation fixtures
+        working-directory: source
+        run: |
+          test "$(git rev-parse HEAD)" = 27967d778c55042bb2adc926074bc3b1d94e19b9
+          python3 scripts/restore_release_inputs.py
+          python3 scripts/prepare_unified_native.py
+          gradle --no-daemon :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
+      - name: Verify and preserve reconstructed fixtures before device startup
+        run: |
+          python3 scripts/run_community_startup_diagnostic.py --prepare-only \
+            --debug source/unified/build/outputs/apk/debug/unified-debug.apk \
+            --test source/unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk \
+            --source-commit 27967d778c55042bb2adc926074bc3b1d94e19b9 \
+            --output "$RUNNER_TEMP/startup-diagnostic" --serial emulator-5554 \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-startup-reconstructed-fixtures
+          path: ${{ runner.temp }}/startup-diagnostic
+      - name: Start disposable emulator without changing host permissions
+        timeout-minutes: 17
+        shell: bash
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/mooncast-avd"
+          export ANDROID_EMULATOR_HOME="$RUNNER_TEMP/mooncast-emulator"
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" "$RUNNER_TEMP/startup-diagnostic/emulator"
+          echo no | avdmanager create avd --force --name mooncast --path "$ANDROID_AVD_HOME/mooncast.avd" --package 'system-images;android-35;google_apis;x86_64' --device pixel_2
+          test -f "$ANDROID_AVD_HOME/mooncast.ini"
+          "$ANDROID_HOME/emulator/emulator" -list-avds | tee "$RUNNER_TEMP/startup-diagnostic/emulator/avds.txt"
+          grep -Fx mooncast "$RUNNER_TEMP/startup-diagnostic/emulator/avds.txt"
+          accel=off
+          if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
+          echo "Emulator acceleration: $accel (no chmod, udev or privilege changes)"
+          mkdir -p "$RUNNER_TEMP/startup-diagnostic/emulator"
+          "$ANDROID_HOME/emulator/emulator" -avd mooncast -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/startup-diagnostic/emulator/emulator.txt" 2>&1 &
+          emulator_pid=$!
+          deadline=$((SECONDS + 900))
+          next_status=$SECONDS
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/startup-diagnostic/emulator/emulator.txt"
+              echo 'Emulator exited before Android boot; no UI/device validation is claimed.' >&2
+              exit 1
+            fi
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            if [ "$SECONDS" -ge "$next_status" ]; then
+              echo "Waiting for Android boot; elapsed shell seconds: $SECONDS"
+              tail -5 "$RUNNER_TEMP/startup-diagnostic/emulator/emulator.txt"
+              next_status=$((SECONDS + 60))
+            fi
+            sleep 5
+          done
+          tail -100 "$RUNNER_TEMP/startup-diagnostic/emulator/emulator.txt"
+          echo 'Emulator did not boot within 15 minutes; no UI/device validation is claimed.' >&2
+          exit 1
+      - name: Three startup checks and optional existing UI coverage
+        run: |
+          python3 scripts/run_community_startup_diagnostic.py --ui-after-success --bugreport-if-needed \
+            --debug source/unified/build/outputs/apk/debug/unified-debug.apk \
+            --test source/unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk \
+            --source-commit 27967d778c55042bb2adc926074bc3b1d94e19b9 \
+            --output "$RUNNER_TEMP/startup-diagnostic" --serial emulator-5554 \
+            --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
+            --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-startup-diagnostic-evidence
+          path: ${{ runner.temp }}/startup-diagnostic
+      - name: Optional real UI recording after saved successful checks
+        if: success()
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python3 scripts/record_community_demo.py --serial emulator-5554 \
+            --verification-manifest "$RUNNER_TEMP/startup-diagnostic/manifest.json" \
+            --output "$RUNNER_TEMP/startup-demo" --language zh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: community-startup-ui-demo
+          path: ${{ runner.temp }}/startup-demo
