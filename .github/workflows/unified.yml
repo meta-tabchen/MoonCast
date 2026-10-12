@@ -43,6 +43,7 @@ jobs:
           python3 scripts/run_app_build_info_tests.py
           python3 scripts/run_tv_role_picker_tests.py
           node --check app/src/main/assets/browser/receiver.js
+          node tests/browser_android_receiver.cjs --self-test
           python3 scripts/run_unit_tests.py
           python3 scripts/run_unified_policy_tests.py
           python3 scripts/run_my_tv_discovery_tests.py
@@ -58,6 +59,8 @@ jobs:
         run: bash scripts/test_community_build_guards.sh
       - name: Build fixed-signature community ARM64 app and lint
         run: gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
+      - name: QR roundtrip against pinned binary and bundled sources
+        run: python3 scripts/run_browser_qr_tests.py
       - name: Inspect combined APK
         run: python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi arm64-v8a
       - name: Verify fixed public community identity
