@@ -4,6 +4,12 @@ Thanks for helping test and improve MoonCast. English and Chinese reports are we
 
 ## Before coding
 
+For the unified phone/TV app, use the [`unified/community` branch](https://github.com/meta-tabchen/MoonCast/tree/unified/community) and its [current build and signing guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md), [usage guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md), and [actual verification/limitations](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/community-validation.md). The current target is `:unified`, not `:app`; follow that guide for pinned native inputs, community signing or the explicitly unsigned verification build. Do not regenerate a signing identity as a build fallback. The main branch still retains historical sender code.
+
+统一手机/电视版请切换到上述 `unified/community` 分支，按当前构建文档操作；构建目标为 `:unified`。`main` 的旧发送端代码及下列 `:app` 命令仅供历史维护，不能用它们构建当前统一版。
+
+### Historical sender-only maintenance
+
 Read the [build guide](docs/building.md), [architecture](docs/architecture.md), and [current limits](docs/compatibility.md). Discuss large features in an issue first. Keep changes focused and retain upstream licenses/provenance. Do not update vendored native code and binary manifests independently.
 
 Use JDK 17 and Android SDK 35. Run:
@@ -22,10 +28,10 @@ Describe the user-visible problem and resulting behavior, verification performed
 
 ## Translation
 
-English default resources are in `app/src/main/res/values/strings.xml`; Chinese resources are in `values-zh/strings.xml`. Preserve resource names and escapes; test long labels and small screens. Documentation starts at `README.md` / `README.zh-CN.md`. Lower-level native/Root diagnostic strings are not all localized yet.
+On `unified/community`, check English `values/*.xml` and Chinese `values-zh/*.xml` in `app`, `tv`, `unified`, and `locale-core`; run `python3 scripts/check_localization.py` and the relevant behavior checks. The historical sender-only resources are under `app/src/main/res/`. Preserve resource names and escapes; test long labels and small screens. Documentation starts at `README.md` / `README.zh-CN.md`. Lower-level native/Root diagnostic strings are not all localized yet.
 
 ## Reports
 
-Use the bug/compatibility/feature forms. Include exact versions and settings, steps, expected and actual behavior. Never upload keys, certificates, pairing identities, phone serial numbers, unredacted screens, or private logs. Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
+Use the bug/compatibility/feature forms. Include the protocol/action, each device’s sender/receiver role, model, OS/API/ABI (unknown is acceptable), exact versions and relevant settings, steps, and expected/actual behavior. Moonlight version applies only to GameStream reports. Never upload keys, certificates, pairing identities, phone serial numbers, unredacted screens, or private logs. Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
 By submitting a contribution, you agree to distribute it under the project's GPLv3 license with applicable retained third-party notices. No CLA is required. Follow the [code of conduct](CODE_OF_CONDUCT.md).

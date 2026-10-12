@@ -1,44 +1,65 @@
 name: Bug report / 错误报告
-description: Report a reproducible problem; English or Chinese is welcome.
+description: Report a reproducible problem in phone sending, TV receiving or APK transfer. 中英文均可。
 title: "[Bug] "
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: "For vulnerabilities use SECURITY.md. Redact private network details, keys, pairing files, and screenshots."
+      value: "For vulnerabilities see [SECURITY.md](https://github.com/meta-tabchen/MoonCast/blob/unified/community/SECURITY.md). Remove private network addresses, keys, pairing files, account details, serial numbers and personal content from logs/screenshots. 安全问题请按安全说明报告；日志与截图先脱敏，不提交密钥、配对文件、账号或个人资料。"
   - type: input
     id: version
     attributes:
-      label: MoonCast version
+      label: MoonCast version / 版本
+      description: Include versionCode and download tag or source commit if known. 如知道，请附版本号、下载标签或源码提交。
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Protocol or action / 协议或操作
+      options:
+        - AirPlay
+        - DLNA
+        - GameStream / Moonlight
+        - APK transfer / APK 推送
+        - App UI, language or role switch / 界面、语言或角色切换
+        - Other or unknown / 其他或不知道
     validations:
       required: true
   - type: textarea
     id: devices
     attributes:
-      label: Phone, Android/ROM, receiver and Moonlight version
+      label: Devices and roles at both ends / 双端设备与角色
+      description: "For each end: model, sender/receiver role, app, OS/ROM, Android API and ABI (arm64-v8a/armeabi-v7a/etc.). Unknown or not applicable is fine; a local UI bug may involve only one device. 双端填写型号、发送/接收角色、应用、系统、API 与 ABI；不知道或不适用可直接注明。"
+      placeholder: "Sender / 发送端: ...\nReceiver / 接收端: ..."
     validations:
       required: true
+  - type: input
+    id: moonlight
+    attributes:
+      label: Moonlight version — GameStream only, optional / 仅 GameStream 适用，可选
+      description: Leave blank for AirPlay, DLNA, APK transfer or a UI-only issue. 其他场景留空。
   - type: textarea
     id: settings
     attributes:
-      label: Settings
-      description: Codec, resolution/FPS/bitrate, framing mode, audio/mute, Accessibility/Root.
+      label: Relevant settings / 相关设置
+      description: "Only what applies: network type (no addresses), codec/resolution/FPS/bitrate, framing, audio/mute, input mode, or APK size and install stage. 不适用填 N/A；仅填写相关网络类型、画质、裁剪、声音、输入或 APK 大小及安装阶段，不必改权限或开启 Root。"
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Steps to reproduce
+      label: Steps to reproduce / 复现步骤
     validations:
       required: true
   - type: textarea
     id: result
     attributes:
-      label: Expected and actual result
+      label: Expected and actual result / 预期与实际结果
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
-      label: Redacted diagnostic output (optional)
+      label: Redacted diagnostic output (optional) / 脱敏诊断信息（可选）
       render: text
