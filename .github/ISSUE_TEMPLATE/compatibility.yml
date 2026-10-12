@@ -1,30 +1,54 @@
 name: Device compatibility / 设备兼容性
-description: Share a tested phone and Moonlight receiver combination.
+description: Share an actually tested sender/receiver or APK-transfer setup. 分享实际测试的投屏或 APK 推送组合。
 title: "[Device] "
 labels: [compatibility]
 body:
+  - type: markdown
+    attributes:
+      value: "Report observed results, including failures. Do not post private network addresses, keys, pairing files, account details, serial numbers or personal content. 请报告真实结果并保留失败情况；不要提交网络地址、密钥、配对文件、账号、序列号或个人资料。"
   - type: input
     id: version
     attributes:
-      label: MoonCast version
+      label: MoonCast version / 版本
+      description: Include versionCode and download tag or source commit if known. 如知道，请附版本号、下载标签或源码提交。
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Tested protocol or action / 实测协议或操作
+      options:
+        - AirPlay
+        - DLNA
+        - GameStream / Moonlight
+        - APK transfer / APK 推送
+        - Other or unknown / 其他或不知道
     validations:
       required: true
   - type: textarea
     id: combination
     attributes:
-      label: Phone model, Android/ROM, receiver hardware and Moonlight version
+      label: Devices and roles at both ends / 双端设备与角色
+      description: "For each end: model, sender/receiver role, app, OS/ROM, Android API and ABI (arm64-v8a/armeabi-v7a/etc.). Unknown or not applicable is fine. 双端填写型号、发送/接收角色、应用、系统、API 与 ABI；不知道或不适用可注明。"
+      placeholder: "Sender / 发送端: ...\nReceiver / 接收端: ..."
     validations:
       required: true
+  - type: input
+    id: moonlight
+    attributes:
+      label: Moonlight version — GameStream only, optional / 仅 GameStream 适用，可选
+      description: Leave blank for other protocols. 其他协议留空。
   - type: textarea
     id: settings
     attributes:
-      label: Codec, resolution/FPS/bitrate, network type and framing/input/audio settings
+      label: Relevant settings / 相关设置
+      description: "Only what applies: network type (no addresses), codec/resolution/FPS/bitrate, framing/input/audio settings, or APK size and transfer/install stage. 不适用填 N/A；仅填写相关设置，不必改权限或开启 Root。"
     validations:
       required: true
   - type: textarea
     id: observations
     attributes:
-      label: What was actually tested?
-      description: Separate installation, pairing, video, audio, local mute/restoration, input, rotation, reconnect and duration. Include failures too. Do not post phone serials or private data.
+      label: What was actually tested? / 实际测试了什么？
+      description: "Separate discovery, connection/pairing, video, audio, mute/restoration, remote input, crop/rotation, reconnect and duration. For APK transfer, distinguish sending, TV review and system installation. Include failures and untested parts; discovery alone is not playback. 分开说明发现、连接、画面、声音、静音恢复、遥控裁剪、旋转、重连及持续时间；APK 推送区分传输、电视确认与系统安装。能发现不等于能播放，请列失败与未测部分。"
     validations:
       required: true
