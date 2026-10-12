@@ -131,7 +131,9 @@ A public test key cannot establish maintainer authenticity: anyone can sign with
 
 See the [community signing policy](https://github.com/meta-tabchen/MoonCast/blob/unified/community/signing/community/README.md) for the fixed identity and fail-closed build checks.
 
-## Language
+## Language · upcoming community 0.5.1
+
+This language picker is implemented on the community branch but is not yet in a published APK. The currently downloadable 0.5.0 does not have this menu.
 
 Choose **Follow system**, **English** or **简体中文** in phone settings or TV advanced settings. Cancel and choosing the current language keep the session running; accepting another language stops the old session before reopening the selected role. Android 13+ also supports the system app-language selector. See the [language guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md) for the active-notification refresh limitation when changing language outside MoonCast.
 

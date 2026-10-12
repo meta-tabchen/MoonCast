@@ -131,7 +131,9 @@ My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。�
 
 社区签名身份与构建失败保护见[签名说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/signing/community/README.md)。
 
-## 语言设置
+## 语言设置 · 待发布社区版 0.5.1
+
+此语言入口已在社区分支实现，但尚未发布 APK；当前可下载的 0.5.0 不含此入口。
 
 手机设置和电视高级设置提供「跟随系统」、English、简体中文。取消或选择当前语言不会停止会话；确认更换语言后才结束旧会话并重新打开当前角色。Android 13 及以上也支持系统应用语言选择。直接从系统设置切换时，活跃通知可能延后刷新，见[语言使用说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md)。
 
