@@ -42,6 +42,11 @@ public class RoleActivity extends Activity {
    }else showLanguages(current);
    return;
   }
+  // Internal callers can show an in-place picker before they stop their Activity.
+  String roleChoice=i.getStringExtra("role_choice");
+  if(roleChoice!=null&&RolePolicy.valid(roleChoice)){
+   i.removeExtra("role_choice");begin(roleChoice,true);return;
+  }
   String[] names={getString(R.string.unified_role_auto),getString(R.string.unified_role_phone),getString(R.string.unified_role_tv)};
   int selected=RolePolicy.PHONE.equals(current)?1:RolePolicy.TV.equals(current)?2:0;
   chooser=new AlertDialog.Builder(this).setTitle(R.string.unified_role_title).setSingleChoiceItems(names,selected,(d,w)->{

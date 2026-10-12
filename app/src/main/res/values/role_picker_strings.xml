@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="phone_role_title">Device mode</string>
+    <string name="phone_role_auto">Automatic (device type)</string>
+    <string name="phone_role_phone">Phone · Send</string>
+    <string name="phone_role_tv">TV · Receive</string>
+    <string name="phone_role_stop_notice">Changing device mode stops the current casting or APK-transfer session.</string>
+</resources>

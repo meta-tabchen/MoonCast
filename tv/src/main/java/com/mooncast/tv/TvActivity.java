@@ -240,10 +240,12 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private boolean isUnifiedApp(){return getPackageName().equals("com.mooncast.unified.preview")||getPackageName().equals("com.mooncast.community");}
     private boolean switchingUnifiedRole;
     private void switchUnifiedRole(){
-        switchingUnifiedRole=true;
-        stopReceiver();
-        startActivity(new android.content.Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("choose_role",true).putExtra("require_cleanup",true));
-        finish();
+        TvRolePicker.show(this,choice->{
+            switchingUnifiedRole=true;
+            stopReceiver();
+            startActivity(new android.content.Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("role_choice",choice).putExtra("require_cleanup",true));
+            finish();
+        });
     }
     private void switchUnifiedLanguage(){
         com.mooncast.locale.LanguagePicker.show(this,choice->{

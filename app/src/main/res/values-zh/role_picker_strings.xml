@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="phone_role_title">设备模式</string>
+    <string name="phone_role_auto">自动（根据设备类型）</string>
+    <string name="phone_role_phone">手机 · 发送</string>
+    <string name="phone_role_tv">电视 · 接收</string>
+    <string name="phone_role_stop_notice">更改设备模式将停止当前投屏或 APK 传输会话。</string>
+</resources>

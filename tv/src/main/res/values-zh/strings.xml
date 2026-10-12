@@ -123,5 +123,9 @@
     <string name="receiver_partial">接收服务暂未就绪</string>
     <string name="cast_guide">两台安卓设备安装同一个 MoonCast，连接同一可信局域网。\n\n安卓 AirPlay：手机选择 AirPlay，在 My TV 选择本电视，再确认系统录屏授权。\n安卓 Moonlight：手机启动主机，电视选择「连接安卓手机」，完成 GameStream PIN 配对。\niPhone / iPad：屏幕镜像 → 选择这台电视。\nDLNA：兼容视频应用选择本接收器。\n\nAPK 传输单独开启：电视点「安装手机 APK」，手机选文件和电视，上传后电视确认安装。APK 传输没有配对码。\n\nMiracast、Chromecast 和厂商系统投屏入口是其他协议，本应用不接收这些协议。</string>
     <string name="tv_device_mode">设备模式</string>
+    <string name="tv_role_auto">自动（根据设备类型）</string>
+    <string name="tv_role_phone">手机 · 发送</string>
+    <string name="tv_role_tv">电视 · 接收</string>
+    <string name="tv_role_stop_notice">更改设备模式将停止当前接收或 APK 传输会话。</string>
 <string name="cast_guide_title">投屏使用说明</string>
 </resources>

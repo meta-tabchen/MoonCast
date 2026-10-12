@@ -223,7 +223,7 @@ public final class MainActivity extends Activity {
             Button deviceMode=smallButton(getString(R.string.phone_device_settings));
             deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle("MoonCast "+BuildConfig.VERSION_NAME)
                 .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version)},(d,w)->{
-                    if(w==0){startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("choose_role",true));finish();}
+                    if(w==0){PhoneRolePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("role_choice",choice).putExtra("require_cleanup",true));finish();});}
                     else if(w==1){com.mooncast.locale.LanguagePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));finish();});}
                     else new android.app.AlertDialog.Builder(this).setMessage("MoonCast "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")\n"+getPackageName()+(getPackageName().equals("com.mooncast.community")?"\n\n"+getString(R.string.phone_community_signing_notice):"")).setPositiveButton(android.R.string.ok,null).show();
                 }).show());page.addView(deviceMode);

@@ -123,5 +123,9 @@
     <string name="receiver_partial">Receiver needs attention</string>
     <string name="cast_guide">Use the same MoonCast app on both Android devices, on one trusted LAN.\n\nAndroid AirPlay: on the phone choose AirPlay, select this TV in My TV and approve screen sharing.\nAndroid Moonlight: start the phone host, choose Connect Android phone on the TV and complete GameStream PIN pairing.\niPhone / iPad: Screen Mirroring → select this TV.\nDLNA: choose this receiver in a compatible media app.\n\nAPK sending is separate: enable Install phone APK on TV, select a file and this TV on the phone, then confirm installation on TV. APK transfer has no pairing code.\n\nMiracast, Chromecast and OEM system Cast menus are different protocols and are not implemented here.</string>
     <string name="tv_device_mode">Device mode</string>
+    <string name="tv_role_auto">Automatic (device type)</string>
+    <string name="tv_role_phone">Phone · Send</string>
+    <string name="tv_role_tv">TV · Receive</string>
+    <string name="tv_role_stop_notice">Changing device mode stops the current receiving or APK-transfer session.</string>
 <string name="cast_guide_title">How to cast</string>
 </resources>
