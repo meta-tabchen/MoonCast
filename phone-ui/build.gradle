@@ -5,9 +5,9 @@ android {
  buildToolsVersion '35.0.0'
  defaultConfig {
   minSdk 26; targetSdk 35
-  buildConfigField 'int', 'VERSION_CODE', '50'
-  buildConfigField 'String', 'VERSION_NAME', '"0.5.0-unified-preview"'
-  buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.unified.preview"'
+  buildConfigField 'int', 'VERSION_CODE', '51'
+  buildConfigField 'String', 'VERSION_NAME', '"0.5.1-community"'
+  buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.community"'
  }
  buildFeatures { buildConfig true; aidl true }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
@@ -28,3 +28,5 @@ dependencies {
  implementation 'dev.rikka.shizuku:api:13.1.5'
  implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
+
+dependencies { implementation project(':locale-core') }

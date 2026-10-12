@@ -24,22 +24,22 @@ final class RootInputBackend implements RemoteInputController.Backend {
             String endpoint="mooncast-input-"+UUID.randomUUID();server=new LocalServerSocket(endpoint);
             String command="CLASSPATH="+RootBackend.quote(context.getApplicationInfo().sourceDir)+" /system/bin/app_process / com.mooncast.host.RootInputDaemon "+RootBackend.quote(endpoint)+" "+android.os.Process.myUid();
             process=new ProcessBuilder("su","-c",command).redirectErrorStream(true).start();
-            new Thread(()->{try(BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))){String line;while((line=reader.readLine())!=null)android.util.Log.i("MoonCastRootInput",line);int code=process.waitFor();if(!closed){ready=false;log.accept("Root 控制进程已结束 ("+code+")；检查 Root 授权");try{server.close();}catch(IOException ignored){}}}catch(Exception ignored){}},"RootInputOutput").start();
+            new Thread(()->{try(BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))){String line;while((line=reader.readLine())!=null)android.util.Log.i("MoonCastRootInput",line);int code=process.waitFor();if(!closed){ready=false;log.accept(PhoneMessages.message(R.string.phone_root_input_exited , code));try{server.close();}catch(IOException ignored){}}}catch(Exception ignored){}},"RootInputOutput").start();
             LocalSocket accepted=server.accept();if(closed){accepted.close();return;}
-            if(accepted.getPeerCredentials().getUid()!=0){accepted.close();throw new SecurityException("拒绝非 Root 输入通道");}
+            if(accepted.getPeerCredentials().getUid()!=0){accepted.close();throw new SecurityException(PhoneMessages.message(R.string.phone_root_input_rejected));}
             socket=accepted;commands=new DataOutputStream(socket.getOutputStream());
             DataInputStream input=new DataInputStream(socket.getInputStream());
-            if(!input.readUTF().equals("READY"))throw new IOException("Root 输入初始化失败");
-            ready=true;sendDisplay();log.accept("Root 反控已就绪；支持持续触摸与键盘");
+            if(!input.readUTF().equals("READY"))throw new IOException(PhoneMessages.message(R.string.phone_root_input_init_failed));
+            ready=true;sendDisplay();log.accept(PhoneMessages.message(R.string.phone_root_input_ready));
             // EOF means the broker died. No input may be sent after that point.
             try{while(input.read()!=-1){}}finally{ready=false;}
-        }catch(Exception e){if(!closed)log.accept("Root 反控不可用: "+e.getMessage());}
+        }catch(Exception e){if(!closed)log.accept(PhoneMessages.message(R.string.phone_root_input_unavailable , e.getMessage()));}
     },"RootInputConnect").start();}
     public boolean ready(){return ready && !closed;}
     private synchronized void send(JSONObject event){
         if(!ready())return;
         try{commands.writeUTF(event.toString());commands.flush();}
-        catch(IOException e){ready=false;throw new IllegalStateException("Root 输入通道已断开",e);}
+        catch(IOException e){ready=false;throw new IllegalStateException(PhoneMessages.message(R.string.phone_root_input_disconnected),e);}
     }
     public void touch(int type,int id,float x,float y,float pressure){try{send(new JSONObject().put("kind","touch").put("type",type).put("id",id).put("x",x).put("y",y).put("pressure",pressure));}catch(org.json.JSONException e){throw new IllegalArgumentException(e);}}
     public void key(int key,boolean release,int flags){try{send(new JSONObject().put("kind","key").put("key",key).put("release",release).put("flags",flags));}catch(org.json.JSONException e){throw new IllegalArgumentException(e);}}

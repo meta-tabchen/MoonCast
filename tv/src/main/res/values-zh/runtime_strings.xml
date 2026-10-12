@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_language">Language / 语言</string>
+    <string name="tv_airplay_listening">AirPlay 正在监听，正在注册设备发现…</string>
+    <string name="tv_airplay_ready">AirPlay 已就绪</string>
+    <string name="tv_airplay_discovery_failed">AirPlay 设备发现失败（代码 %1$d）</string>
+    <string name="tv_airplay_audio_configuration_unavailable">AirPlay 音频设置暂不可用</string>
+    <string name="tv_airplay_reconnecting">AirPlay 正在重新连接：%1$s</string>
+    <string name="tv_airplay_audio_paused">其他应用正在使用音频，AirPlay 音频已暂停</string>
+    <string name="tv_airplay_audio_waiting">AirPlay 正在等待音频播放资源</string>
+    <string name="tv_airplay_audio_output_unavailable">AirPlay 音频输出暂不可用</string>
+    <string name="tv_airplay_sender_unknown">AirPlay 发送端（无法获取身份）</string>
+    <string name="tv_receiver_stopped">接收已停止</string>
+    <string name="tv_mirror_ended">屏幕镜像已结束</string>
+    <string name="tv_audio_ended">音频播放已结束</string>
+    <string name="tv_video_decoder_failed">视频解码器发生错误</string>
+    <string name="tv_video_decoder_stalled">视频解码器已停止输出画面</string>
+    <string name="tv_sender_disconnected">发送端已断开连接</string>
+    <string name="tv_native_session_reset">AirPlay 会话已重置（代码 %1$d）</string>
+    <string name="tv_unsupported_media_url">不支持此媒体地址</string>
+    <string name="tv_video_runtime">%1$d × %2$d · %3$s · %4$s · %5$.1f 帧/秒 · 丢帧：%6$d</string>
+    <string name="tv_playback_playing">播放中</string>
+    <string name="tv_playback_buffering">缓冲中</string>
+    <string name="tv_playback_paused_stopped">已暂停 / 已停止</string>
+    <string name="tv_airplay_unavailable">AirPlay 暂不可用。\n技术详情：%1$s</string>
+    <string name="tv_dlna_ready">DLNA 已就绪</string>
+    <string name="tv_receiver_unavailable">接收服务暂不可用。\n技术详情：%1$s</string>
+    <string name="tv_airplay_restart_failed">AirPlay 重新启动失败</string>
+    <string name="tv_dlna_listener_stopped">DLNA 接收已停止。\n技术详情：%1$s</string>
+    <string name="tv_dlna_discovery_stopped">DLNA 设备发现已停止。\n技术详情：%1$s</string>
+    <string name="tv_diagnostic_code">%1$s\n诊断代码：%2$s</string>
+    <string name="tv_gamestream_audio_focus_lost">其他应用正在使用音频，GameStream 已停止。</string>
+    <string name="tv_gamestream_video_failed">GameStream 视频输出失败，请重新连接。</string>
+    <string name="tv_gamestream_audio_failed">GameStream 音频输出失败，请重新连接。</string>
+    <string name="tv_gamestream_hdr_unsupported">此 GameStream 接收器不支持 HDR，请在发送端使用 SDR。</string>
+    <string name="tv_gamestream_session_ended">GameStream 会话已结束。手机就绪后可重新连接。</string>
+    <string name="tv_media_playback_failed">媒体播放失败，请检查来源是否可访问，以及媒体格式是否受支持。</string>
+    <string name="tv_apk_unknown_error">未提供技术详情</string>
+    <string name="tv_community_signing_notice">社区测试版：此公开测试签名仅保持后续社区版本的签名身份一致，不证明官方发布者身份。请仅从可信项目的 Release 下载 APK。</string>
+</resources>

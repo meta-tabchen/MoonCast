@@ -55,7 +55,7 @@ public final class VideoPipeline {
     private final Runnable probe=new Runnable(){public void run(){
         if(closed)return;
         try{if(haveFrame && autoMode() && sourceW>sourceH && detect())render(System.nanoTime());}
-        catch(Exception e){events.error("视频区域采样失败: "+e.getMessage());close();return;}
+        catch(Exception e){events.error(PhoneMessages.message(R.string.phone_crop_sample_failed , e.getMessage()));close();return;}
         handler.postDelayed(this,250);
     }};
     private boolean autoMode(){return mode==CropGeometry.VIDEO_FIT || mode==CropGeometry.VIDEO_FILL || (mode==CropGeometry.CINEMA && !cinema.locked());}
@@ -71,8 +71,8 @@ public final class VideoPipeline {
         targets.put(session,new Target(encoder,width,height));maxOutputSize=Math.max(width,height);this.mode=mode;this.events=events;manager=c.getSystemService(DisplayManager.class);
     }
     public void addOutput(long session,Surface surface,int width,int height){
-        if(width<1 || height<1 || width>8192 || height>8192)throw new IllegalArgumentException("output size");
-        handler.post(()->{if(closed)return;try{if(targets.containsKey(session))return;current(home);Target target=new Target(surface,width,height);target.window=createWindow(surface);targets.put(session,target);int limit=Math.max(maxOutputSize,Math.max(width,height));if(limit!=maxOutputSize){maxOutputSize=limit;if(followsDisplay)resizeInternal(screenW,screenH);}if(haveFrame)render(System.nanoTime());}catch(Exception e){events.error("Additional encoder output failed: "+e.getMessage());}});
+        if(width<1 || height<1 || width>8192 || height>8192)throw new IllegalArgumentException(PhoneMessages.message(R.string.phone_output_size_invalid));
+        handler.post(()->{if(closed)return;try{if(targets.containsKey(session))return;current(home);Target target=new Target(surface,width,height);target.window=createWindow(surface);targets.put(session,target);int limit=Math.max(maxOutputSize,Math.max(width,height));if(limit!=maxOutputSize){maxOutputSize=limit;if(followsDisplay)resizeInternal(screenW,screenH);}if(haveFrame)render(System.nanoTime());}catch(Exception e){events.error(PhoneMessages.message(R.string.phone_encoder_output_failed , e.getMessage()));}});
     }
     public void removeOutput(long session,Runnable removed){
         if(handler==null || closed){removed.run();return;}
@@ -90,15 +90,15 @@ public final class VideoPipeline {
                 texture.setOnFrameAvailableListener(t->frame(),handler);input=new Surface(texture);
                 display=factory.create(input,sourceW,sourceH);
                 if(followsDisplay)manager.registerDisplayListener(listener,handler);
-                events.message("GPU 捕获 "+sourceW+"×"+sourceH+" → "+targets.size()+" encoder output(s)");
+                events.message(PhoneMessages.message(R.string.phone_gpu_capture , sourceW, sourceH, targets.size()));
                 handler.post(probe);
-            }catch(Exception e){events.error("GPU 初始化失败: "+e.getMessage());close();}
+            }catch(Exception e){events.error(PhoneMessages.message(R.string.phone_gpu_init_failed , e.getMessage()));close();}
         });
     }
     public void setMode(int value){if(handler!=null)handler.post(()->{
         int next=Math.max(0,Math.min(CropGeometry.CINEMA,value));if(mode==next)return;
         mode=next;tracker.reset();cinema.reset();lastProbeLog=0;
-        if(haveFrame && !closed)try{render(System.nanoTime());}catch(Exception e){events.error("显示模式切换失败: "+e.getMessage());}
+        if(haveFrame && !closed)try{render(System.nanoTime());}catch(Exception e){events.error(PhoneMessages.message(R.string.phone_display_mode_failed , e.getMessage()));}
     });}
     public void rescan(){if(handler!=null)handler.post(()->{
         tracker.reset();cinema.reset();lastProbeLog=0;
@@ -106,7 +106,7 @@ public final class VideoPipeline {
     });}
     public void resize(int width,int height){if(handler!=null)handler.post(()->resizeInternal(width,height));}
     private void setInputSize(int width,int height){
-        if(width<1 || height<1)throw new IllegalArgumentException("Invalid capture size");
+        if(width<1 || height<1)throw new IllegalArgumentException(PhoneMessages.message(R.string.phone_capture_size_invalid));
         screenW=width;screenH=height;
         float scale=Math.min(1f,maxOutputSize/(float)Math.max(width,height));
         sourceW=Math.max(2,Math.round(width*scale)/2*2);sourceH=Math.max(2,Math.round(height*scale)/2*2);
@@ -118,7 +118,7 @@ public final class VideoPipeline {
         texture.setDefaultBufferSize(sourceW,sourceH);
         if(display!=null)display.resize(sourceW,sourceH,160);
         tracker.reset();cinema.reset();lastProbeLog=0;haveFrame=false;
-        events.message("捕获尺寸更新: "+sourceW+"×"+sourceH);
+        events.message(PhoneMessages.message(R.string.phone_capture_resized , sourceW, sourceH));
     }
     private void setup(){
         egl=EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY);int[] version=new int[2];
@@ -147,7 +147,7 @@ public final class VideoPipeline {
         GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MIN_FILTER,GLES20.GL_LINEAR);GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D,GLES20.GL_TEXTURE_MAG_FILTER,GLES20.GL_LINEAR);
         GLES20.glGenFramebuffers(1,names,0);fbo=names[0];GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,fbo);
         GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER,GLES20.GL_COLOR_ATTACHMENT0,GLES20.GL_TEXTURE_2D,sampleTex,0);
-        if(GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER)!=GLES20.GL_FRAMEBUFFER_COMPLETE)throw new IllegalStateException("Incomplete sample FBO");
+        if(GLES20.glCheckFramebufferStatus(GLES20.GL_FRAMEBUFFER)!=GLES20.GL_FRAMEBUFFER_COMPLETE)throw new IllegalStateException(PhoneMessages.message(R.string.phone_gpu_sample_unavailable));
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
     }
     private void frame(){
@@ -156,8 +156,8 @@ public final class VideoPipeline {
             current(home);texture.updateTexImage();texture.getTransformMatrix(transform);
             haveFrame=true;long now=System.nanoTime();
             if(now-lastRendered>=1_000_000_000L/frameLimit){render(texture.getTimestamp());lastRendered=now;}
-            if(++frames==1)events.message("GPU 首帧已送入编码器");
-        }catch(Exception e){if(!closed){events.error("GPU 渲染失败: "+e.getMessage());close();}}
+            if(++frames==1)events.message(PhoneMessages.message(R.string.phone_gpu_first_frame));
+        }catch(Exception e){if(!closed){events.error(PhoneMessages.message(R.string.phone_gpu_render_failed , e.getMessage()));close();}}
     }
     private boolean detect(){
         current(home);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,fbo);GLES20.glViewport(0,0,192,128);draw(CropGeometry.Bounds.FULL);
@@ -167,11 +167,11 @@ public final class VideoPipeline {
         CropGeometry.Bounds detected=CropGeometry.detect(sample,192,128);
         long now=SystemClock.elapsedRealtime();
         if(now-lastProbeLog>5000){
-            lastProbeLog=now;events.message("自动区域采样 "+sourceW+"×"+sourceH+": "+(detected==null?"暗场，保留区域":Math.round(detected.width()*100)+"% × "+Math.round(detected.height()*100)+"%"));
+            lastProbeLog=now;events.message(PhoneMessages.message(R.string.phone_crop_sample , sourceW, sourceH, (detected==null?PhoneMessages.message(R.string.phone_crop_dark):Math.round(detected.width()*100)+"% × "+Math.round(detected.height()*100)+"%")));
         }
         boolean changed=mode==CropGeometry.CINEMA?cinema.consider(detected):tracker.consider(detected);
         CropGeometry.Bounds active=mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds();
-        if(changed)events.message((mode==CropGeometry.CINEMA?"影院区域已锁定: ":"视频区域已更新: ")+Math.round(active.width()*100)+"% × "+Math.round(active.height()*100)+"%");
+        if(changed)events.message(PhoneMessages.message(mode==CropGeometry.CINEMA?R.string.phone_cinema_locked:R.string.phone_video_region_updated,Math.round(active.width()*100),Math.round(active.height()*100)));
         return changed;
     }
     private void render(long timestamp){

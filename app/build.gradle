@@ -91,3 +91,5 @@ if (!fromSource) {
         }
     }
 }
+
+dependencies { implementation project(':locale-core') }

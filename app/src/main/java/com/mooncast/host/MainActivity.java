@@ -14,6 +14,10 @@ import android.view.*;
 import android.widget.*;
 
 public final class MainActivity extends Activity {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     private static final int DOCUMENT=52;
     private CastSessionCoordinator session;
     private final java.util.ArrayList<View> moonlightOnly=new java.util.ArrayList<>();
@@ -215,12 +219,13 @@ public final class MainActivity extends Activity {
         });
         LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(22),dp(20),dp(22),dp(28));page.setBackgroundColor(PhoneVisuals.CANVAS);scroll.addView(page);setContentView(scroll);
         TextView title=text("MoonCast",28,INK);title.setGravity(Gravity.CENTER);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setPadding(0,dp(8),0,dp(10));page.addView(title);
-        if(getPackageName().equals("com.mooncast.unified.preview")){
-            Button deviceMode=smallButton(getResources().getConfiguration().getLocales().get(0).getLanguage().equals("zh")?"设备模式 · 关于":"Device mode · About");
+        if((getPackageName().equals("com.mooncast.unified.preview") || getPackageName().equals("com.mooncast.community"))){
+            Button deviceMode=smallButton(getString(R.string.phone_device_settings));
             deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle("MoonCast "+BuildConfig.VERSION_NAME)
-                .setItems(getResources().getConfiguration().getLocales().get(0).getLanguage().equals("zh")?new String[]{"切换手机 / 电视模式","关于此版本"}:new String[]{"Switch phone / TV mode","About this version"},(d,w)->{
+                .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version)},(d,w)->{
                     if(w==0){startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("choose_role",true));finish();}
-                    else new android.app.AlertDialog.Builder(this).setMessage("MoonCast "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")\n"+getPackageName()).setPositiveButton(android.R.string.ok,null).show();
+                    else if(w==1){com.mooncast.locale.LanguagePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));finish();});}
+                    else new android.app.AlertDialog.Builder(this).setMessage("MoonCast "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")\n"+getPackageName()+(getPackageName().equals("com.mooncast.community")?"\n\n"+getString(R.string.phone_community_signing_notice):"")).setPositiveButton(android.R.string.ok,null).show();
                 }).show());page.addView(deviceMode);
         }
         buildProtocolTabs(page);
@@ -336,7 +341,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams disclosure=new LinearLayout.LayoutParams(-1,dp(52));disclosure.topMargin=dp(12);page.addView(advancedToggle,disclosure);page.addView(advancedContent);
         advancedContent.setVisibility(b!=null && b.getBoolean("advancedOpen")?View.VISIBLE:View.GONE);
         advancedToggle.setOnClickListener(v->{advancedContent.setVisibility(advancedContent.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);updateAdvancedLabel();});updateAdvancedLabel();
-        TextView foot=text("MoonCast Preview · GPLv3",11,0xffa4adbc);foot.setGravity(Gravity.CENTER);foot.setPadding(0,dp(18),0,0);page.addView(foot);
+        TextView foot=text(getString(getPackageName().equals("com.mooncast.community")?R.string.phone_community_footer:R.string.phone_preview_footer),11,0xffa4adbc);foot.setGravity(Gravity.CENTER);foot.setPadding(0,dp(18),0,0);page.addView(foot);
         uiReady=true;
         if(b!=null){airSource.setSelection(b.getInt("airSource",airSource.getSelectedItemPosition()));}
         applyProtocol();running(session.hasHost());updateSessionUi();
@@ -382,7 +387,7 @@ public final class MainActivity extends Activity {
         LinearLayout capture=card(airAdvanced);section(capture,getString(R.string.ui_capture_source),getString(R.string.ui_airplay_capture_hint));
         airSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});int initial=settings().getInt("source",0);if(initial>1)initial=0;airSource.setSelection(initial);airSource.setTag(initial);capture.addView(airSource);
         airSource.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){boolean changed=!Integer.valueOf(position).equals(airSource.getTag());airSource.setTag(position);if(uiReady && changed && !updatingAirSource && airMode() && !session.busy()){settings().edit().putInt("source",position).apply();source.setSelection(position);}}});
-        capture.addView(text(getString(R.string.ui_airplay_quality),13,INK));airQuality=spinner(new String[]{"720p · 30 fps · 5 Mbps","1080p · 30 fps · 8 Mbps","1080p · 60 fps · 16 Mbps"});airQuality.setSelection(Math.max(0,Math.min(2,getPreferences(0).getInt("airplayQuality",1))));capture.addView(airQuality);
+        capture.addView(text(getString(R.string.ui_airplay_quality),13,INK));airQuality=spinner(new String[]{getString(R.string.phone_quality_720),getString(R.string.phone_quality_1080),getString(R.string.phone_quality_1080_fast)});airQuality.setSelection(Math.max(0,Math.min(2,getPreferences(0).getInt("airplayQuality",1))));capture.addView(airQuality);
         airLegacy=toggle(capture,getString(R.string.ui_airplay_legacy),getString(R.string.ui_airplay_legacy_hint),getPreferences(0).getBoolean("airplayLegacy",false));airLegacy.setOnCheckedChangeListener((v,checked)->{if(uiReady){saveAirPlay();updateSessionUi();}});
         LinearLayout dashboard=card(airAdvanced);section(dashboard,getString(R.string.ui_dashboard),getString(R.string.ui_airplay_diagnostics_hint));airMetrics=text(getString(R.string.ui_dashboard_idle),13,INK);dashboard.addView(airMetrics);airLogs=text("",11,MUTED);airLogs.setTextIsSelectable(true);dashboard.addView(airLogs);
     }

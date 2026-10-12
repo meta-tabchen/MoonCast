@@ -20,6 +20,10 @@ import java.util.Locale;
 
 /** Explicit auxiliary file transfer. This Activity never controls casting or launches an installer. */
 public final class ApkSendActivity extends Activity {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     private static final int PICK_APK = 81;
     private static final int INK = PhoneVisuals.INK, MUTED = PhoneVisuals.MUTED, BLUE = PhoneVisuals.BLUE;
     private ApkSendController controller;

@@ -120,6 +120,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         @Override public void onLost(Network network){networkChanged();}
         @Override public void onLinkPropertiesChanged(Network n,LinkProperties p){networkChanged();}
     };
+    @Override protected void attachBaseContext(Context base){super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));}
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -135,12 +136,12 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         createUi();
         createMediaPlayer();
         airplay=new AirPlayEngine(this,new AirPlayEngine.Listener(){
-            @Override public void onStatus(String value){if(airplayOwns()){details.setText(value);if(value.equals("AirPlay ready")){showProtocolStatus();}if(value.contains("error")||value.contains("failed")||value.contains("unavailable")){airplayProblem=true;showProtocolStatus();showPanel();}}}
+            @Override public void onStatus(AirPlayEngine.Status state,String value){if(airplayOwns()){details.setText(value);if(state==AirPlayEngine.Status.READY){showProtocolStatus();}if(state==AirPlayEngine.Status.PROBLEM){airplayProblem=true;showProtocolStatus();showPanel();}}}
             @Override public void onVideoSize(int w,int h){mirrorFraming.videoSize(w,h);}
             @Override public void onMirrorStarted(){if(!airplayOwns())return;mediaPresentationEnabled=false;allowedMediaProxyPort=-1;dlnaOwnsAudio=false;cancelCropEdit();++mediaEpoch;preparingMedia=false;wantPlay=false;uri="";metadata="";player.stop();player.clearMediaItems();playingMirror=true;mirrorHasFrame=false;blackout.setVisibility(View.VISIBLE);mediaTexture.setVisibility(View.INVISIBLE);mirrorTexture.setVisibility(View.VISIBLE);mirrorFraming.sourceProfile("airplay_mirror");details.setText(R.string.source_mirror);hidePanel();}
             @Override public void onMirrorStopped(){if(!airplayOwns()||mediaPresentationEnabled&&mediaFromAirplay&&!uri.isEmpty())return;cancelCropEdit();playingMirror=false;mirrorHasFrame=false;blackout.setVisibility(View.VISIBLE);if(uri.isEmpty()){showPanel();details.setText(R.string.instructions);}}
 
-            @Override public void onVideoPlay(String url,float position){if(!airplayOwns())return;try{loadMedia(url,"",true);seekTo((long)(position*1000));play();}catch(IllegalArgumentException e){showStatus(getString(R.string.media_error,"Unsupported media URL"));showPanel();}}
+            @Override public void onVideoPlay(String url,float position){if(!airplayOwns())return;try{loadMedia(url,"",true);seekTo((long)(position*1000));play();}catch(IllegalArgumentException e){showStatus(getString(R.string.media_error,getString(R.string.tv_unsupported_media_url)));showPanel();}}
             @Override public void onAudioStarted(){if(!airplayOwns())return;cancelCropEdit();mediaHasFrame=false;mediaPresentationEnabled=false;allowedMediaProxyPort=-1;++mediaEpoch;preparingMedia=false;wantPlay=false;player.stop();player.clearMediaItems();uri="";metadata="";playingMirror=false;mirrorHasFrame=false;blackout.setVisibility(View.VISIBLE);details.setText(R.string.audio_session);showPanel();}
             @Override public void onVideoScrub(float position){if(!airplayOwns())return;seekTo((long)(position*1000));}
             @Override public void onVideoRate(float rate){if(!airplayOwns())return;if(rate==0)pause();else play();}
@@ -191,7 +192,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
                 if(state==GameStreamController.State.ACTIVE){gameConnecting=false;details.setText(R.string.gs_session);hidePanel();}
                 else if(state==GameStreamController.State.CONNECTING){details.setText(R.string.gs_connecting);}
                 else if(state==GameStreamController.State.FAILED){
-                    stopMediaOnly();details.setText(getString(R.string.gs_connection_failed)+" ("+code+")");showPanel();
+                    stopMediaOnly();details.setText(gameStreamFailure(code));showPanel();
                     if(!"RELEASE_PENDING".equals(code)&&requested&&foreground)restartAirplay();
                     else showStatus(getString(R.string.gs_release_pending));
                 }
@@ -236,6 +237,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         try{gameStopped.get(75,TimeUnit.SECONDS);mediaStopped.get(15,TimeUnit.SECONDS);return true;}
         catch(Exception e){main.post(()->{if(!destroyed){receiverReady=false;showStatus(getString(R.string.gs_release_pending));showPanel();}});return false;}
     }
+    private boolean isUnifiedApp(){return getPackageName().equals("com.mooncast.unified.preview")||getPackageName().equals("com.mooncast.community");}
     private boolean switchingUnifiedRole;
     private void switchUnifiedRole(){
         switchingUnifiedRole=true;
@@ -243,15 +245,24 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         startActivity(new android.content.Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("choose_role",true).putExtra("require_cleanup",true));
         finish();
     }
+    private void switchUnifiedLanguage(){
+        com.mooncast.locale.LanguagePicker.show(this,choice->{
+            switchingUnifiedRole=true;
+            stopReceiver();
+            startActivity(new android.content.Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));
+            finish();
+        });
+    }
     private void advancedDialog(){
-        boolean unified=getPackageName().equals("com.mooncast.unified.preview");
+        boolean unified=isUnifiedApp();
         java.util.ArrayList<String> labels=new java.util.ArrayList<>();
-        labels.add(getString(R.string.theme_title));if(unified)labels.add(getString(R.string.tv_device_mode));
+        labels.add(getString(R.string.theme_title));if(unified){labels.add(getString(R.string.tv_device_mode));labels.add(getString(R.string.tv_language));}
         for(int id:new int[]{R.string.playback_controls,R.string.quality,R.string.recovery_settings,R.string.diagnostics_title,R.string.cast_guide_title,R.string.about,R.string.gs_connect_title})labels.add(getString(id));
         new AlertDialog.Builder(this).setTitle(R.string.advanced_title).setItems(labels.toArray(new String[0]),(d,w)->{
             if(w==0){TvThemeDialog.show(this,preferences,panel);return;}
             if(unified&&w==1){switchUnifiedRole();return;}
-            int choice=w-(unified?2:1);
+            if(unified&&w==2){switchUnifiedLanguage();return;}
+            int choice=w-(unified?3:1);
             if(choice==0)playbackDialog();else if(choice==1)pictureSoundDialog();else if(choice==2)recoveryDialog();else if(choice==3)diagnosticsDialog();else if(choice==4)notice(R.string.cast_guide);else if(choice==5)about();else gameHosts.show();
         }).setNegativeButton(R.string.close,null).show();
     }
@@ -263,7 +274,11 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void showPanel(){if(cropEditor!=null&&cropEditor.isEditing())return;panel.setVisibility(View.VISIBLE);panel.setPlaybackActive(hasPlayback());panel.requestPrimaryFocus();}
     private boolean hasPlayback(){return gameOwned||playingMirror||(mediaPresentationEnabled&&!uri.isEmpty());}
     private void hidePanel(){if(!requested||!hasPlayback())return;panel.setVisibility(View.GONE);root.setFocusableInTouchMode(true);root.requestFocus();}
-    private void about(){new AlertDialog.Builder(this).setTitle(R.string.about).setMessage("MoonCast " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")\n" + BuildConfig.APPLICATION_ID + "\n\n" + getString(R.string.about_body)).setPositiveButton(R.string.close,null).show();}
+    private void about(){
+        String message="MoonCast " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")\n" + BuildConfig.APPLICATION_ID + "\n\n" + getString(R.string.about_body);
+        if(getPackageName().equals("com.mooncast.community"))message+="\n\n"+getString(R.string.tv_community_signing_notice);
+        new AlertDialog.Builder(this).setTitle(R.string.about).setMessage(message).setPositiveButton(R.string.close,null).show();
+    }
     private VideoFraming activeFraming(){return gameOwned?gameFraming:playingMirror||uri.isEmpty()?mirrorFraming:mediaFraming;}
     private void cancelCropEdit(){if(cropEditor!=null&&cropEditor.isEditing())cropEditor.finish(false);}
     private void framingDialog(){
@@ -322,16 +337,27 @@ public final class TvActivity extends Activity implements PlaybackTarget {
             @Override public void onRenderedFirstFrame(){if(active()&&requested&&foreground&&!gameOwned&&mediaPresentationEnabled&&!playingMirror&&!uri.isEmpty()){mediaHasFrame=true;blackout.setVisibility(View.GONE);}}
             @Override public void onPlaybackStateChanged(int state){if(!active())return;refreshSnapshot();if(state==Player.STATE_ENDED&&!mediaFromAirplay&&requested)stopTransport();}
             @Override public void onIsPlayingChanged(boolean value){if(active())refreshSnapshot();}
-            @Override public void onPlayerError(PlaybackException error){if(!active()||gameOwned||(!mediaPresentationEnabled&&!preparingMedia))return;mediaError=true;showStatus(getString(R.string.media_error,error.getErrorCodeName()));if(requested)stopTransport();showPanel();refreshSnapshot();}
+            @Override public void onPlayerError(PlaybackException error){if(!active()||gameOwned||(!mediaPresentationEnabled&&!preparingMedia))return;mediaError=true;showStatus(getString(R.string.tv_diagnostic_code,getString(R.string.tv_media_playback_failed),error.getErrorCodeName()));if(requested)stopTransport();showPanel();refreshSnapshot();}
         };created.addListener(mediaListener);created.addAnalyticsListener(new AnalyticsListener(){@Override public void onVideoDecoderInitialized(EventTime eventTime,String decoderName,long initializedTimestampMs,long initializationDurationMs){if(player==created&&!destroyed)mediaDecoder=decoderName;}});
     }
     private void restartMediaForSettings(){if(uri.isEmpty()||playingMirror){createMediaPlayer();return;}String value=uri,meta=metadata;boolean nativeMedia=mediaFromAirplay,wasPlaying=wantPlay||player.getPlayWhenReady();long position=preparingMedia?pendingSeek:player.getCurrentPosition();loadMedia(value,meta,nativeMedia);seekTo(position);if(wasPlaying)play();}
+    private String gameStreamFailure(String code){
+        int message=switch(code){
+            case "AUDIO_FOCUS_LOST"->R.string.tv_gamestream_audio_focus_lost;
+            case "VIDEO_OUTPUT_FAILED"->R.string.tv_gamestream_video_failed;
+            case "AUDIO_OUTPUT_FAILED"->R.string.tv_gamestream_audio_failed;
+            case "HDR_UNSUPPORTED"->R.string.tv_gamestream_hdr_unsupported;
+            case "RELEASE_PENDING"->R.string.gs_release_pending;
+            default->code.startsWith("SESSION_ENDED_")?R.string.tv_gamestream_session_ended:R.string.gs_connection_failed;
+        };
+        return getString(R.string.tv_diagnostic_code,getString(message),code);
+    }
     private void updateRuntime(){
         if(airplay==null||player==null)return;AirPlayEngine.RuntimeStats a=lastAirStats;String state=gameOwned?getString(R.string.gs_session):playingMirror?getString(R.string.source_mirror):!uri.isEmpty()?getString(mediaFromAirplay?R.string.airplay_media_session:R.string.dlna_session):a!=null&&a.state==AirPlayEngine.SessionState.AUDIO_ONLY?getString(R.string.audio_session):getString(R.string.idle_session);
         StringBuilder text=new StringBuilder(getString(R.string.current_session,state));
-        if(gameOwned&&game.video()!=null){var g=game.video().getStats();text.append("\n").append(g.decodedWidth).append(" × ").append(g.decodedHeight).append(" · H.264 SDR · ").append(g.decoderName).append(" · ").append(String.format(java.util.Locale.ROOT,"%.1f fps",g.observedFps)).append(" · drop ").append(g.droppedFrames).append("\n").append(getString(R.string.gs_timing_limit));}
-        else if(playingMirror&&a!=null)text.append("\n").append(a.decodedWidth).append(" × ").append(a.decodedHeight).append(" · ").append(a.codec).append(" · ").append(a.decoderName).append(" · ").append(String.format(java.util.Locale.ROOT,"%.1f fps",a.observedFps)).append(" · drop ").append(a.droppedFrames);
-        else if(!uri.isEmpty()){androidx.media3.common.Format f=player.getVideoFormat();text.append("\n").append(getString(R.string.media_runtime,f==null?getString(R.string.unknown_spec):String.valueOf(f.sampleMimeType),f==null?0:f.width,f==null?0:f.height,mediaDecoder.isEmpty()?getString(R.string.unknown_spec):mediaDecoder,player.isPlaying()?"PLAYING":player.getPlaybackState()==Player.STATE_BUFFERING?"BUFFERING":"PAUSED / STOPPED"));}
+        if(gameOwned&&game.video()!=null){var g=game.video().getStats();text.append("\n").append(getString(R.string.tv_video_runtime,g.decodedWidth,g.decodedHeight,"H.264 SDR",g.decoderName,g.observedFps,g.droppedFrames)).append("\n").append(getString(R.string.gs_timing_limit));}
+        else if(playingMirror&&a!=null)text.append("\n").append(getString(R.string.tv_video_runtime,a.decodedWidth,a.decodedHeight,a.codec,a.decoderName,a.observedFps,a.droppedFrames));
+        else if(!uri.isEmpty()){androidx.media3.common.Format f=player.getVideoFormat();text.append("\n").append(getString(R.string.media_runtime,f==null?getString(R.string.unknown_spec):String.valueOf(f.sampleMimeType),f==null?0:f.width,f==null?0:f.height,mediaDecoder.isEmpty()?getString(R.string.unknown_spec):mediaDecoder,getString(player.isPlaying()?R.string.tv_playback_playing:player.getPlaybackState()==Player.STATE_BUFFERING?R.string.tv_playback_buffering:R.string.tv_playback_paused_stopped)));}
         if(a!=null)text.append("\n").append(getString(R.string.mirror_requested,a.requestedWidth,a.requestedHeight,a.requestedFps,a.configuredAudioBufferMs));
         text.append("\n").append(getString(airplay.isRunning()?R.string.airplay_active:airplaySuspended?R.string.airplay_paused:R.string.airplay_off));VideoFraming frame=activeFraming();if(frame.mode()==VideoFraming.CINEMA)text.append(" · ").append(frame.safetyExpanded()?getString(R.string.auto_safety_expanded):frame.locked()?getString(R.string.auto_locked_detail):getString(R.string.auto_progress,frame.stableSamples(),frame.requiredSamples()));runtimeView.setText(text);panel.setPlaybackActive(hasPlayback());panel.setModeLabel(getString(switch(frame.mode()){case VideoFraming.FILL->R.string.fill;case VideoFraming.MANUAL->R.string.manual;case VideoFraming.CINEMA->R.string.cinema;default->R.string.fit;}));
     }
@@ -346,12 +372,12 @@ public final class TvActivity extends Activity implements PlaybackTarget {
             if(lan==null){main.post(()->{if(epoch==generation)showStatus(getString(R.string.network_missing));});return;}
             try{
                 WifiManager wifi=(WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);if(wifi!=null){multicast=wifi.createMulticastLock("mooncast-tv-discovery");multicast.setReferenceCounted(false);multicast.acquire();}
-                dlna=new DlnaReceiver(sessionTarget(epoch),receiverName,uuid,new DlnaReceiver.Listener(){public void onStatus(String value){}public void onError(String value){main.post(()->{if(epoch==generation){details.setText(value);dlnaProblem=true;showProtocolStatus();}});}});
+                dlna=new DlnaReceiver(sessionTarget(epoch),receiverName,uuid,new DlnaReceiver.Listener(){public void onStatus(String value){}public void onError(DlnaReceiver.Failure failure,String detail){main.post(()->{if(epoch==generation){details.setText(getString(failure==DlnaReceiver.Failure.DISCOVERY_STOPPED?R.string.tv_dlna_discovery_stopped:R.string.tv_dlna_listener_stopped,detail));dlnaProblem=true;showProtocolStatus();}});}});
                 dlna.start(lan.address(),lan.prefix());
-                String airplayStatus="";try{if(!dlnaOwnsAudio&&!gameOwned){configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}}catch(Exception error){airplayStatus="AirPlay unavailable: "+error.getClass().getSimpleName();}
+                String airplayStatus="";try{if(!dlnaOwnsAudio&&!gameOwned){configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}}catch(Exception error){airplayStatus=getString(R.string.tv_airplay_unavailable,error.getClass().getSimpleName());}
                 if(epoch!=generation||!requested){closeServers();return;}
-                String result=airplayStatus;main.post(()->{if(epoch!=generation)return;airplayProblem|=!result.isEmpty();showProtocolStatus();if(!result.isEmpty())details.setText(result+(dlnaProblem?"":"\nDLNA ready"));else if(!airplayProblem&&!dlnaProblem)details.setText(R.string.instructions);});
-            }catch(Exception error){closeServers();main.post(()->{if(epoch==generation){requested=false;receiverReady=false;panel.setReceiving(false);showStatus(error.getClass().getSimpleName()+": receiver unavailable");}});}
+                String result=airplayStatus;main.post(()->{if(epoch!=generation)return;airplayProblem|=!result.isEmpty();showProtocolStatus();if(!result.isEmpty())details.setText(result+(dlnaProblem?"":"\n"+getString(R.string.tv_dlna_ready)));else if(!airplayProblem&&!dlnaProblem)details.setText(R.string.instructions);});
+            }catch(Exception error){closeServers();main.post(()->{if(epoch==generation){requested=false;receiverReady=false;panel.setReceiving(false);showStatus(getString(R.string.tv_receiver_unavailable,error.getClass().getSimpleName()));}});}
         });
     }
     private PlaybackTarget sessionTarget(int epoch){
@@ -377,7 +403,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     @Override protected void onStart(){super.onStart();foreground=true;if(identityResetting)autoStartAfterReset=true;else if(!requested)startReceiver();}
     @Override protected void onStop(){apkReceiver.onStop();foreground=false;autoStartAfterReset=false;stopReceiver();super.onStop();}
     @Override protected void onDestroy(){apkReceiver.close();destroyed=true;main.removeCallbacksAndMessages(null);connectivity.unregisterNetworkCallback(networkCallback);networkWorker.execute(this::closeServers);networkWorker.shutdown();statsWorker.shutdown();ExoPlayer closingPlayer=player;MEDIA_STOPS.record(mediaRenderers.playbackBarrier().stopAsync(closingPlayer)).whenComplete((ignored,error)->CLEANUP_MAIN.post(closingPlayer::release));mirrorFraming.release();mediaFraming.release();gameFraming.release();gameHosts.close();game.close();
-        if(switchingUnifiedRole&&getPackageName().equals("com.mooncast.unified.preview"))new Thread(()->{
+        if(switchingUnifiedRole&&isUnifiedApp())new Thread(()->{
             try{networkWorker.awaitTermination(3,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}
             // This Activity is packaged only in :receiver by unified. Ending that private
             // process also releases a stuck native decoder before the next role starts.
@@ -415,7 +441,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     @Override public void pause(){onPlayer(()->{wantPlay=false;player.pause();});}
     private void restartAirplay(){
         if(!requested||!foreground||identityResetting)return;Lan current=findLan();if(current==null||!current.key().equals(activeNetwork)){startReceiver();return;}int epoch=generation;airplaySuspended=true;airplayProblem=false;receiverReady=false;showStatus(getString(R.string.starting));
-        networkWorker.execute(()->{airplay.stop();if(!airplayStoppedSafely()||!awaitGameStopped()||epoch!=generation||!requested||dlnaOwnsAudio||gameOwned)return;try{configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}catch(Exception e){main.post(()->{if(epoch==generation){details.setText("AirPlay restart failed");airplayProblem=true;showProtocolStatus();}});}});
+        networkWorker.execute(()->{airplay.stop();if(!airplayStoppedSafely()||!awaitGameStopped()||epoch!=generation||!requested||dlnaOwnsAudio||gameOwned)return;try{configureAirplay();airplaySuspended=false;airplay.start(receiverName,mirrorWidth(),mirrorHeight(),mirrorFps(),false);}catch(Exception e){main.post(()->{if(epoch==generation){details.setText(R.string.tv_airplay_restart_failed);airplayProblem=true;showProtocolStatus();}});}});
     }
     private void stopTransport(){onPlayer(()->{if(gameOwned)return;cancelCropEdit();dlnaOwnsAudio=false;mediaHasFrame=false;mediaPresentationEnabled=false;blackout.setVisibility(View.VISIBLE);++mediaEpoch;preparingMedia=false;wantPlay=false;mediaStopped=MEDIA_STOPS.record(mediaRenderers.playbackBarrier().stopAsync(player));playingMirror=false;showPanel();if(airplaySuspended){airplaySuspended=false;restartAirplay();}});}
     private void stopMediaOnly(){

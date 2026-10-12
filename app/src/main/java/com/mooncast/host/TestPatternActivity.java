@@ -7,6 +7,10 @@ import android.view.View;
 
 /** Deterministic visual test content; has no network, storage, or external app dependencies. */
 public final class TestPatternActivity extends Activity {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     static volatile int lastDisplayId=-1;
     static volatile int touches,cancels,keys,lastTouchDisplay=-1;
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event){keys++;return super.dispatchKeyEvent(event);}
@@ -18,7 +22,7 @@ public final class TestPatternActivity extends Activity {
         @Override public boolean onTouchEvent(android.view.MotionEvent event){touches++;lastTouchDisplay=getWindowManager().getDefaultDisplay().getDisplayId();if(event.getActionMasked()==android.view.MotionEvent.ACTION_CANCEL)cancels++;return true;}
         @Override protected void onDraw(Canvas c){
             int w=getWidth(),h=getHeight();c.drawColor(Color.rgb(18,30,53));
-            p.setColor(Color.WHITE);p.setTextSize(w/18f);c.drawText("MOONCAST / LIVE",w*.07f,h*.14f,p);
+            p.setColor(Color.WHITE);p.setTextSize(w/18f);c.drawText(getString(R.string.phone_test_live),w*.07f,h*.14f,p);
             long ms=android.os.SystemClock.elapsedRealtime()-start;p.setTypeface(Typeface.MONOSPACE);p.setTextSize(w/10f);c.drawText(String.format(java.util.Locale.ROOT,"%06.2f s",ms/1000.0),w*.07f,h*.25f,p);
             p.setTextSize(w/32f);c.drawText(getString(R.string.ui_aa_text_clarity_0123456789),w*.07f,h*.32f,p);
             int[] colors={Color.RED,Color.GREEN,Color.BLUE,Color.CYAN,Color.MAGENTA,Color.YELLOW};

@@ -8,11 +8,11 @@
     <string name="apk_install">Install app · open Android installer</string>
     <string name="tv_apk_ready">TV address: %1$s:%2$d\n\nReceiving is enabled for 5 minutes and accepts one APK. In MoonCast on your phone, choose Send APK and this TV. No pairing code or binding is needed.\n\nOnly enable this on a trusted home LAN: anyone on the same network can send an APK while this screen is open. Transfer is not encrypted. You must review the APK here before opening Android installer. APKs may be harmful. No .apks / .xapk bundles, URL downloads, or automatic installs. Opening Android settings or installer stops playback.</string>
     <string name="apk_receiving">Receiving APK: %1$d / %2$d MiB…</string>
-    <string name="apk_receive_failed">Receiving stopped: %1$s\nClose and open this screen to start a new session.</string>
+    <string name="apk_receive_failed">Receiving stopped. Close and open this screen to start a new session.\n\nTechnical details (may be in English): %1$s</string>
     <string name="apk_discovery_failed">Discovery is unavailable; enter the TV address and port on the phone.</string>
     <string name="apk_validating">Checking the APK and signing certificate…</string>
     <string name="tv_apk_metadata">App: %1$s\nPackage: %2$s\nVersion: %3$s\nSize: %4$.1f MiB\n\nSigning certificate SHA-256:\n%5$s\n\nFile SHA-256:\n%6$s\n\nThese are file and certificate details, not a security scan or a trusted-publisher guarantee. Only install apps you trust. Android makes the final compatibility and installation checks.\n\nUse the remote to accept this APK and open Android installer. Opening the installer stops playback.</string>
-    <string name="apk_invalid">APK rejected: %1$s\nThe temporary file has been discarded.</string>
+    <string name="apk_invalid">The APK was rejected and the temporary file was discarded. Receive a complete APK from a trusted source and try again.\n\nTechnical details (may be in English): %1$s</string>
     <string name="apk_permission_title">Allow this install source?</string>
     <string name="apk_permission_detail">Android requires you to allow MoonCast to request app installs. Open system settings and make that choice yourself. Return here, review the APK again, then select install. Nothing is installed automatically.</string>
     <string name="apk_open_settings">Open Android settings</string>

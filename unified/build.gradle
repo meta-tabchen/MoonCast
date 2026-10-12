@@ -1,4 +1,21 @@
 plugins { id 'com.android.application' }
+// Explicit unsigned verification is a different, noninstallable identity, never a fallback.
+def verificationOnly = providers.gradleProperty('mooncastUnsignedVerification').orNull == 'true'
+def communityIdentity = null
+def communityKey = null
+if (!verificationOnly) {
+communityIdentity = new groovy.json.JsonSlurper().parse(rootProject.file('signing/community/identity.json'))
+communityKey = rootProject.file(communityIdentity.keystore)
+// The test material is deliberately public, but its exact bytes must never silently change.
+if (!communityKey.isFile()) throw new GradleException('Fixed public community fixture missing; restore it from Git. Never generate a replacement.')
+def fixtureSha = java.security.MessageDigest.getInstance('SHA-256').digest(communityKey.bytes).encodeHex().toString()
+if (fixtureSha != communityIdentity.keystoreSha256) throw new GradleException('Community fixture byte fingerprint mismatch')
+def fixtureStore = java.security.KeyStore.getInstance('PKCS12')
+communityKey.withInputStream { fixtureStore.load(it, communityIdentity.publicPassword.toCharArray()) }
+def fixtureCert = fixtureStore.getCertificate(communityIdentity.alias)
+def certSha = java.security.MessageDigest.getInstance('SHA-256').digest(fixtureCert.encoded).encodeHex().toString()
+if (certSha != rootProject.file('signing/community/certificate-sha256.txt').text.trim() || certSha != communityIdentity.certificateSha256 || communityIdentity.applicationId != 'com.mooncast.community') throw new GradleException('Unexpected community identity')
+ }
 def abi = providers.gradleProperty('mooncastAbi').orNull
 if (abi != null && !(abi in ['arm64-v8a','armeabi-v7a','x86_64'])) throw new GradleException('Unsupported ABI')
 android {
@@ -6,15 +23,19 @@ android {
  compileSdk 35
  buildToolsVersion '35.0.0'
  defaultConfig {
-  applicationId 'com.mooncast.unified.preview'
+  applicationId (verificationOnly ? 'com.mooncast.community.verification' : 'com.mooncast.community')
   minSdk 26; targetSdk 35
-  versionCode 50; versionName '0.5.0-unified-preview'
+  versionCode 51; versionName '0.5.1-community'
   testInstrumentationRunner 'com.mooncast.unified.UnifiedInstrumentation'
   ndk { if (abi != null) abiFilters abi else abiFilters 'arm64-v8a','armeabi-v7a','x86_64' }
  }
  buildFeatures { buildConfig true }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
- buildTypes { release { minifyEnabled true; shrinkResources true; signingConfig null; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }; debug { signingConfig null } }
+ signingConfigs { if (!verificationOnly) community {
+  storeFile communityKey; storeType 'PKCS12'
+  storePassword communityIdentity.publicPassword; keyPassword communityIdentity.publicPassword; keyAlias communityIdentity.alias
+ } }
+ buildTypes { release { minifyEnabled true; shrinkResources true; signingConfig (verificationOnly ? null : signingConfigs.community); proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }; debug { signingConfig (verificationOnly ? null : signingConfigs.community) }; production { initWith release; applicationIdSuffix ".production"; signingConfig null } }
  sourceSets.main.jniLibs.srcDirs = ['native-receiver']
  packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/*.so'] } }
  lint { abortOnError true }
@@ -49,3 +70,10 @@ dependencies {
  androidTestImplementation 'androidx.core:core:1.8.0'
  androidTestImplementation project(':transfer-core')
 }
+
+dependencies { implementation project(':locale-core') }
+
+// No community-to-production fallback: a store build requires a separate reviewed identity.
+tasks.configureEach { if (name.toLowerCase().contains('production')) doFirst {
+ throw new GradleException('Production publication is not configured. Use a separate applicationId and confidential certificate; public community signing is forbidden.')
+} }

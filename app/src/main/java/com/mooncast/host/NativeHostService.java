@@ -10,6 +10,10 @@ import java.io.File;
 
 /** Process-local pinned native runtime. Capture permission stays in :host across restarts. */
 public final class NativeHostService extends Service implements SunshineServer.Listener, InputBridge.Receiver {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     private volatile INativeHostCallbacks owner;
     private boolean started, audioStarted;
     private final INativeHost.Stub binder=new INativeHost.Stub(){
@@ -25,9 +29,9 @@ public final class NativeHostService extends Service implements SunshineServer.L
                     SunshineServer.setPkeyPath(new File(getFilesDir(),"host-key.pem").getPath());
                     SunshineServer.setFileStatePath(new File(getFilesDir(),"paired-clients.json").getPath());
                     SunshineServer.setHevcSupported(hevc);
-                    if(!NativeSessions.available())throw new IllegalStateException("Native session bridge unavailable");
+                    if(!NativeSessions.available())throw new IllegalStateException(PhoneMessages.message(R.string.phone_native_bridge_unavailable));
                     SunshineServer.start();
-                }catch(Exception|LinkageError e){error("Native host start failed: "+e.getMessage());}
+                }catch(Exception|LinkageError e){error(PhoneMessages.message(R.string.phone_native_start_failed , e.getMessage()));}
             },"NativeHost").start();
         }
         public void pin(String pin){if(pin.matches("[0-9]{4}"))new Thread(()->SunshineServer.submitPin(pin),"Pairing").start();}
@@ -43,7 +47,7 @@ public final class NativeHostService extends Service implements SunshineServer.L
     public void createDisplay(long session,int w,int h,int fps,int packetMs,Surface surface,boolean audio){call(c->c.createDisplay(session,w,h,fps,packetMs,surface,audio));}
     public void stopDisplay(long session){call(c->c.stopDisplay(session));}
     public void pinRequested(){call(INativeHostCallbacks::pinRequested);}
-    public void error(String text){call(c->c.error(text));}
+    public void error(String text){call(c->c.error(PhoneMessages.hasMessage(text)?text:PhoneMessages.message(R.string.phone_native_runtime_failed, text)));}
     public void uuid(String uuid){call(c->c.uuid(uuid));}
     public void touch(long s,int t,int p,float x,float y,float pressure){call(c->c.touch(s,t,p,x,y,pressure));}
     public void mouse(long s,float x,float y,float w,float h){call(c->c.mouse(s,x,y,w,h));}

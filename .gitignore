@@ -77,3 +77,6 @@ moonlight-core/native/
 /unified/native-receiver/x86_64/libc++_shared.so
 /unified/native-receiver/x86_64/liboboe.so
 /unified/native-receiver/x86_64/libtvcryp.so
+
+# Generated archive provenance; regenerated from the exact publication commit.
+/CORRESPONDING-SOURCE.json

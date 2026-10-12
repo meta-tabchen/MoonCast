@@ -3,6 +3,8 @@ package com.mooncast.tv.airplay;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
+import com.mooncast.tv.R;
 import android.media.AudioManager;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
@@ -30,6 +32,8 @@ import io.github.jqssun.airplay.bridge.RaopCallbackHandler;
  */
 public final class AirPlayEngine implements RaopCallbackHandler {
     public enum PlaybackMode { MOVIE, LOW_LATENCY }
+    /** Readiness and error handling must never depend on translated display text. */
+    public enum Status { LISTENING, READY, RECOVERING, INFORMATION, PROBLEM }
     public enum SessionState { STOPPED, READY, MIRRORING, AUDIO_ONLY, MEDIA_URL, RECOVERING }
     /** Requested values and actual decoder/audio observations are intentionally separate. */
     public static final class RuntimeStats {
@@ -58,11 +62,11 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             audioActive = engine.audioOutputActive; audio = engine.audioStats;
             // The ABI discards names/IDs. HTTP counts also include HLS proxy sockets.
             peerDescription = state == SessionState.MIRRORING || state == SessionState.AUDIO_ONLY
-                    || state == SessionState.MEDIA_URL ? "AirPlay sender (identity unavailable)" : "";
+                    || state == SessionState.MEDIA_URL ? engine.resources.getString(R.string.tv_airplay_sender_unknown) : "";
         }
     }
     public interface Listener {
-        void onStatus(String status);
+        void onStatus(Status status, String message);
         void onVideoSize(int width, int height);
         void onVideoPlay(String location, float startPositionSeconds);
         void onVideoScrub(float positionSeconds);
@@ -78,6 +82,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         default void onRecoveryRequired(String reason) {}
     }
     private final Context context;
+    private final Resources resources;
     private final Listener listener;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Object gate = new Object(), mirrorGate = new Object();
@@ -104,7 +109,8 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             if (!running) return;
             pollAudioStats();
             String reason = watchdog.check(SystemClock.elapsedRealtime());
-            if (reason != null) requestRecovery(reason);
+            if (reason != null) requestRecovery(resources.getString(SessionWatchdog.SENDER_DISCONNECTED.equals(reason)
+                    ? R.string.tv_sender_disconnected : R.string.tv_video_decoder_stalled), false);
             if (running) main.postDelayed(this, 1000);
         }
     };
@@ -129,11 +135,13 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     }
     public AirPlayEngine(Context context, Listener listener) {
         this.context = context.getApplicationContext(); this.listener = listener;
+        // Keep the app-selected locale from the Activity instead of the process default.
+        resources = context.getResources();
         audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
         nsd = (NsdManager) this.context.getSystemService(Context.NSD_SERVICE);
         decoder = new MirrorDecoder(new MirrorDecoder.Events() {
             @Override public void size(int w, int h) { post(() -> listener.onVideoSize(w, h)); }
-            @Override public void failure() { requestRecovery("Video decoder failed"); }
+            @Override public void failure() { requestRecovery(resources.getString(R.string.tv_video_decoder_failed), true); }
             @Override public void output() { watchdog.videoOutput(); }
         });
     }
@@ -175,7 +183,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             bridge.nativeSetCodecs(created, true, true);
             bridge.nativeSetHlsEnabled(created, true);
             bridge.nativeSetAudioEnabled(created, true);
-            bridge.nativeSetLang(created, "", "", context.getResources().getConfiguration().getLocales().toLanguageTags().replace(',', ':'));
+            bridge.nativeSetLang(created, "", "", resources.getConfiguration().getLocales().toLanguageTags().replace(',', ':'));
             bridge.nativeSetPlist(created, "maxFPS", requestedFps);
             bridge.nativeSetPlist(created, "overscanned", 0);
             bridge.nativeSetDisplaySize(created, width, height, requestedFps);
@@ -187,7 +195,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             register(bridge.nativeGetServerName(created), "_airplay._tcp", port, bridge.nativeGetAirplayTxtRecords(created));
             sessionState = SessionState.READY;
             main.removeCallbacks(healthTick); main.post(healthTick);
-            status("AirPlay listening; discovery registering");
+            status(Status.LISTENING, R.string.tv_airplay_listening);
         } catch (Exception | LinkageError failure) {
             stop();
             throw new IllegalStateException("AirPlay startup failed", failure);
@@ -202,7 +210,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         endMirror(); decoder.stopSession();
         final int clearingGeneration = generation;
         main.post(() -> {
-            if (generation == clearingGeneration) listener.onSessionCleared("Receiver stopped");
+            if (generation == clearingGeneration) listener.onSessionCleared(resources.getString(R.string.tv_receiver_stopped));
         });
         // Never hold gate while joining native callbacks: callbacks themselves can need gate.
         for (NsdManager.RegistrationListener registration : registrations) {
@@ -287,7 +295,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         audioControl.execute(() -> {
             synchronized (gate) {
                 if (handle != 0 && generation == expected && !configureNativeAudio(handle))
-                    status("AirPlay audio configuration unavailable");
+                    status(Status.PROBLEM, R.string.tv_airplay_audio_configuration_unavailable);
             }
         });
     }
@@ -302,7 +310,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             }
         });
     }
-    private void requestRecovery(String reason) {
+    private void requestRecovery(String reason, boolean problem) {
         final boolean wasMirroring;
         synchronized (mirrorGate) {
             if (!running || recoveryPending) return;
@@ -316,7 +324,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             if (wasMirroring) listener.onMirrorStopped();
             listener.onSessionCleared(reason); listener.onRecoveryRequired(reason);
         });
-        status("AirPlay reconnecting: " + reason);
+        status(problem ? Status.PROBLEM : Status.RECOVERING, R.string.tv_airplay_reconnecting, reason);
     }
     public boolean isRunning() { return running; }
     public void setSurface(Surface surface) {
@@ -358,10 +366,10 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         final int registeredGeneration = generation;
         NsdManager.RegistrationListener registration = new NsdManager.RegistrationListener() {
             @Override public void onServiceRegistered(NsdServiceInfo service) {
-                if (registeredGeneration == generation && running && type.equals("_airplay._tcp")) status("AirPlay ready");
+                if (registeredGeneration == generation && running && type.equals("_airplay._tcp")) status(Status.READY, R.string.tv_airplay_ready);
             }
             @Override public void onRegistrationFailed(NsdServiceInfo service, int error) {
-                if (registeredGeneration == generation && running) status("AirPlay discovery failed (" + error + ")");
+                if (registeredGeneration == generation && running) status(Status.PROBLEM, R.string.tv_airplay_discovery_failed, error);
             }
             @Override public void onServiceUnregistered(NsdServiceInfo service) {}
             @Override public void onUnregistrationFailed(NsdServiceInfo service, int error) {}
@@ -372,9 +380,10 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         int expected = generation;
         main.post(() -> { if (generation == expected && running) action.run(); });
     }
-    private void status(String message) {
+    private void status(Status status, int resource, Object... arguments) {
+        String message = resources.getString(resource, arguments);
         if (message.equals(lastStatus)) return;
-        lastStatus = message; post(() -> listener.onStatus(message));
+        lastStatus = message; post(() -> listener.onStatus(status, message));
     }
     private void beginMirror() {
         final int expectedMirror;
@@ -436,7 +445,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             if (running && !recoveryPending) sessionState = SessionState.READY;
             post(() -> {
                 synchronized (mirrorGate) { if (mirrorEpoch != endedMirror || mirroring) return; }
-                listener.onMirrorStopped(); listener.onSessionCleared("Mirror ended");
+                listener.onMirrorStopped(); listener.onSessionCleared(resources.getString(R.string.tv_mirror_ended));
             });
         }
     }
@@ -482,12 +491,12 @@ public final class AirPlayEngine implements RaopCallbackHandler {
                         audioHasFocus = change == AudioManager.AUDIOFOCUS_GAIN;
                         if (change == AudioManager.AUDIOFOCUS_LOSS) audioDesired = false;
                         controlAudio();
-                        if (!audioHasFocus && running) status("AirPlay audio paused: another app has audio focus");
+                        if (!audioHasFocus && running) status(Status.INFORMATION, R.string.tv_airplay_audio_paused);
                     }, main).build();
             }
             audioHasFocus = audio.requestAudioFocus(focusRequest) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
             controlAudio();
-            if (!audioHasFocus) status("AirPlay audio waiting for audio focus");
+            if (!audioHasFocus) status(Status.INFORMATION, R.string.tv_airplay_audio_waiting);
         });
     }
     private void controlAudio() {
@@ -498,7 +507,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
                 if (audioDesired && audioHasFocus) {
                     audioOutputActive = NativeBridge.INSTANCE.nativeServerAudioStart(handle);
                     if (!audioOutputActive) {
-                        status("AirPlay audio output unavailable"); return;
+                        status(Status.PROBLEM, R.string.tv_airplay_audio_output_unavailable); return;
                     }
                     NativeBridge.INSTANCE.nativeServerAudioFormat(handle, audioCodecType, audioSamplesPerFrame);
                 } else {
@@ -524,7 +533,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         if (!running) return;
         audioDesired = false;
         if (sessionState == SessionState.AUDIO_ONLY) {
-            sessionState = SessionState.READY; post(() -> listener.onSessionCleared("Audio ended"));
+            sessionState = SessionState.READY; post(() -> listener.onSessionCleared(resources.getString(R.string.tv_audio_ended)));
         }
         controlAudio();
         post(() -> { if (focusRequest != null) audio.abandonAudioFocusRequest(focusRequest); audioHasFocus = false; });
@@ -533,7 +542,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     @Override public void onConnectionDestroy() {
         if (running) watchdog.connectionClosed(SystemClock.elapsedRealtime());
     }
-    @Override public void onConnectionReset(int reason) { requestRecovery("Native session reset (" + reason + ")"); }
+    @Override public void onConnectionReset(int reason) { requestRecovery(resources.getString(R.string.tv_native_session_reset, reason), false); }
     @Override public void onDisplayPin(String pin) { post(() -> listener.onPin(pin)); }
     @Override public void onMetadata(byte[] data) {}
     @Override public void onCoverArt(byte[] data) {}

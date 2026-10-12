@@ -1,0 +1,5 @@
+<resources>
+ <string name="locale_picker_title">Language / 语言</string>
+ <string name="locale_follow_system">跟随系统</string>
+ <string name="locale_stop_notice">更改语言会停止当前投屏或 APK 传输会话。是否继续？</string>
+</resources>

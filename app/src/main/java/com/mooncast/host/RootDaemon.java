@@ -29,12 +29,12 @@ public final class RootDaemon implements SunshineServer.Listener {
     private final Runnable panelWatch=new Runnable(){public void run(){
         try{long now=SystemClock.elapsedRealtime();if(power!=null)power.tick(now);if(panelWanted && now-ownerHeartbeat>=30000)restorePanel();
             if(panelWanted && pipeline!=null && !receivers.isEmpty() && pipeline.statistics().totalFrames()>0 && now-lastPanelRenew>=5000){
-                if(power==null)power=new DisplayPowerLease(new PhysicalDisplayPower(context));power.renew(now,30000);lastPanelRenew=now;event("panel","Local panel off (Root)");
+                if(power==null)power=new DisplayPowerLease(new PhysicalDisplayPower(context));power.renew(now,30000);lastPanelRenew=now;event("panel",PhoneMessages.message(R.string.phone_root_panel_off));
             }
-        }catch(Exception e){panelWanted=false;event("panel","Panel power unavailable: "+e.getMessage());restorePanel();}
+        }catch(Exception e){panelWanted=false;event("panel",PhoneMessages.message(R.string.phone_panel_power_unavailable , e.getMessage()));restorePanel();}
         main.postDelayed(this,1000);
     }};
-    private void restorePanel(){panelWanted=false;if(power!=null)try{power.restore();event("panel","Local panel restored");}catch(Exception e){event("panel","Panel restoration failed; watchdog will retry: "+e.getMessage());}}
+    private void restorePanel(){panelWanted=false;if(power!=null)try{power.restore();event("panel",PhoneMessages.message(R.string.phone_panel_restored));}catch(Exception e){event("panel",PhoneMessages.message(R.string.phone_panel_restore_retry , e.getMessage()));}}
     private int scaleMode=CropGeometry.VIDEO_REGION;
     private int frameLimit=120;
     private long session;
@@ -83,9 +83,9 @@ public final class RootDaemon implements SunshineServer.Listener {
                 } catch (IOException ignored) {} finally { daemon.main.post(daemon::shutdown); }
             },"OwnerWatchdog").start();
             new Thread(SunshineServer::start,"RootSunshine").start();
-            daemon.event("log","Root daemon 已启动；免 MediaProjection 授权（实验功能）");
+            daemon.event("log",PhoneMessages.message(R.string.phone_root_started));
             Looper.loop();
-        } catch (Throwable e) { e.printStackTrace(); daemon.event("error","Root 初始化失败: "+e); daemon.shutdown(); }
+        } catch (Throwable e) { e.printStackTrace(); daemon.event("error",PhoneMessages.message(R.string.phone_root_init_failed , e.toString())); daemon.shutdown(); }
     }
     @Override public void pinRequested() { event("pin",""); }
     @Override public void uuid(String ignored) {}
@@ -93,7 +93,7 @@ public final class RootDaemon implements SunshineServer.Listener {
         main.post(() -> {
             try {
                 if(!NativeSessions.active(s))return;
-                if(receivers.size()>=(watchParty?3:1) || (audioPacketMs!=0 && ms!=audioPacketMs)){event("log","Receiver rejected: capacity or audio packet duration");new Thread(()->NativeSessions.disconnect(s),"RootReject").start();return;}
+                if(receivers.size()>=(watchParty?3:1) || (audioPacketMs!=0 && ms!=audioPacketMs)){event("log",PhoneMessages.message(R.string.phone_root_receiver_rejected));new Thread(()->NativeSessions.disconnect(s),"RootReject").start();return;}
                 receivers.put(s,new JSONObject().put("id",s).put("ordinal",++receiverOrdinal).put("width",w).put("height",h).put("fps",fps));
                 if(pipeline!=null){pipeline.addOutput(s,surface,w,h);receiverState();return;}
                 session=s;audioPacketMs=ms;
@@ -108,12 +108,12 @@ public final class RootDaemon implements SunshineServer.Listener {
                 pipeline.start(size.widthPixels,size.heightPixels,true,(input,width,height)->{
                     VirtualDisplay vd=context.getSystemService(DisplayManager.class).createVirtualDisplay("MoonCastRoot",width,height,context.getResources().getDisplayMetrics().densityDpi,
                         input,DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR|DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC);
-                    if(vd==null)throw new IllegalStateException("ROM 拒绝创建镜像显示");
+                    if(vd==null)throw new IllegalStateException(PhoneMessages.message(R.string.phone_root_display_rejected));
                     return vd;
                 });
                 if (!audioPump) { audioPump=true; SunshineServer.startAudioRecording(new AudioFeed(),48*Math.max(1,ms)); }
-                event("stream",w+" × "+h+" · "+fps+" FPS · Root 镜像");receiverState();
-            } catch (Throwable e) { event("error","Root 镜像失败: "+e+"；请切换非 Root 模式"); }
+                event("stream",PhoneMessages.message(R.string.phone_root_stream , w, h, fps));receiverState();
+            } catch (Throwable e) { event("error",PhoneMessages.message(R.string.phone_root_mirror_failed , e.toString())); }
         });
     }
     private void receiverState(){event("receivers",new JSONArray(receivers.values()).toString());}
@@ -121,7 +121,7 @@ public final class RootDaemon implements SunshineServer.Listener {
         VideoPipeline current=pipeline;if(current!=null){java.util.concurrent.CountDownLatch removed=new java.util.concurrent.CountDownLatch(1);current.removeOutput(s,removed::countDown);try{removed.await(2,java.util.concurrent.TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}}
         main.post(()->{if(receivers.remove(s)==null)return;if(receivers.isEmpty() && pipeline!=null){restorePanel();if(remoteInput!=null)remoteInput.begin(0);session=0;pipeline.close();pipeline=null;event("end","");}receiverState();});
     }
-    @Override public void error(String error) { event("error",error); }
+    @Override public void error(String error) { event("error",PhoneMessages.hasMessage(error)?error:PhoneMessages.message(R.string.phone_native_runtime_failed,error)); }
     private synchronized void event(String kind,String text) {
         try { if (events!=null) { events.writeUTF(new JSONObject().put("kind",kind).put("text",text).toString()); events.flush(); } }
         catch (Exception ignored) {}
@@ -130,15 +130,15 @@ public final class RootDaemon implements SunshineServer.Listener {
         if(watchParty)enabled=false;
         try{
             if(remoteInput==null && enabled){
-                remoteInput=new RemoteInputController(main,new RootInputInjector(),true,text->event(text.startsWith("反控已关闭")?"controlOff":"log",text));
+                remoteInput=new RemoteInputController(main,new RootInputInjector(),true,text->event(PhoneMessages.is(text,R.string.phone_input_disabled_error)?"controlOff":"log",text));
                 remoteInput.begin(session);if(mapping!=null)remoteInput.mapping(mapping);InputBridge.receiver=remoteInput;
             }
             if(remoteInput!=null)remoteInput.enabled(enabled);
-            event("control",enabled?"Root 反控已就绪":"远程操控已关闭");
-        }catch(Exception e){event("controlOff","Root 反控不可用: "+e.getMessage());}
+            event("control",enabled?PhoneMessages.message(R.string.phone_root_control_ready):PhoneMessages.message(R.string.phone_input_disabled));
+        }catch(Exception e){event("controlOff",PhoneMessages.message(R.string.phone_root_input_unavailable , e.getMessage()));}
     }
     private void shutdown() {
-        if(main!=null)main.removeCallbacks(panelWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){event("panel","Panel restore failed: "+e);SystemClock.sleep(100);}
+        if(main!=null)main.removeCallbacks(panelWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){event("panel",PhoneMessages.message(R.string.phone_panel_restore_failed , e.toString()));SystemClock.sleep(100);}
         if(remoteInput!=null)try{remoteInput.close();}catch(RuntimeException ignored){}
         if(pipeline!=null)pipeline.close();
         if (display!=null) display.release();

@@ -20,17 +20,17 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     public PrivilegedInputService(Context context){this.context=context;}
     @Override public synchronized void initialize(IBinder token){
         int calling=Binder.getCallingUid();
-        if(owner!=null && (ownerUid!=calling || owner!=token))throw new SecurityException("Already owned");
+        if(owner!=null && (ownerUid!=calling || owner!=token))throw new SecurityException(PhoneMessages.message(R.string.phone_privileged_owned));
         if(token==null)throw new IllegalArgumentException("owner");
         try{
-            int uid=android.os.Process.myUid();if(uid!=0 && uid!=2000)throw new SecurityException("Shell/root required");
+            int uid=android.os.Process.myUid();if(uid!=0 && uid!=2000)throw new SecurityException(PhoneMessages.message(R.string.phone_panel_privilege_required));
             // Shell has the display permissions and an attribution package on stock Android.
             if(uid==0)android.system.Os.setuid(2000);
             if(input==null)input=new RootInputInjector(true);
             if(owner==null){owner=token;ownerUid=calling;token.linkToDeath(()->{cleanup();System.exit(0);},0);watchdog.post(powerWatch);}
-        }catch(Exception e){throw new IllegalStateException("Privileged service initialization failed",e);}
+        }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_privileged_init_failed),e);}
     }
-    private void checkOwner(){if(owner==null || !owner.isBinderAlive() || Binder.getCallingUid()!=ownerUid)throw new SecurityException("Unexpected owner");}
+    private void checkOwner(){if(owner==null || !owner.isBinderAlive() || Binder.getCallingUid()!=ownerUid)throw new SecurityException(PhoneMessages.message(R.string.phone_privileged_owner_rejected));}
     @Override public synchronized int uid(){checkOwner();return android.os.Process.myUid();}
     @Override public synchronized void touch(int type,int id,float x,float y,float pressure){checkOwner();input.touch(type,id,x,y,pressure);}
     @Override public synchronized void key(int code,boolean release,int flags){checkOwner();input.key(code,release,flags);}
@@ -41,7 +41,7 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
         try{
             if(power==null){if(context==null){Class<?> t=Class.forName("android.app.ActivityThread");Object thread=t.getDeclaredMethod("systemMain").invoke(null);context=(Context)t.getDeclaredMethod("getSystemContext").invoke(thread);}power=new DisplayPowerLease(new PhysicalDisplayPower(context));}
             if(off)power.renew(SystemClock.elapsedRealtime(),30000);else power.restore();return power.pending();
-        }catch(Exception e){throw new IllegalStateException("Panel power unavailable: "+e,e);}
+        }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_panel_power_unavailable, e.getMessage()),e);}
         finally{Binder.restoreCallingIdentity(identity);}
     }
     @Override public synchronized boolean displayPowerPending(){checkOwner();return power!=null && power.pending();}
@@ -61,26 +61,26 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
                 android.util.Log.i("MoonCastPrivileged","Trusted flags unavailable; using a shell-owned display and privileged app launch");
                 vd=shell.getSystemService(DisplayManager.class).createVirtualDisplay("MoonCast app display",width,height,dpi,surface,DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC|DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY|(1<<6)|(1<<8));
             }
-            if(vd==null)throw new IllegalStateException("Display rejected");
+            if(vd==null)throw new IllegalStateException(PhoneMessages.message(R.string.phone_display_rejected));
             int id=vd.getDisplay().getDisplayId();displays.put(id,vd);return id;
-        }catch(Exception e){android.util.Log.e("MoonCastPrivileged","Trusted display unavailable",e);throw new IllegalStateException("Trusted display unavailable: "+e,e);}
+        }catch(Exception e){android.util.Log.e("MoonCastPrivileged","Trusted display unavailable",e);throw new IllegalStateException(PhoneMessages.message(R.string.phone_independent_display_failed, e.getMessage()),e);}
         finally{Binder.restoreCallingIdentity(identity);}
     }
     @Override public synchronized void releaseDisplays(){checkOwner();for(VirtualDisplay d:displays.values())d.release();displays.clear();}
     @Override public synchronized void launch(String component,int displayId){
-        checkOwner();if(!displays.containsKey(displayId))throw new IllegalArgumentException("Unknown app display");
+        checkOwner();if(!displays.containsKey(displayId))throw new IllegalArgumentException(PhoneMessages.message(R.string.phone_display_unknown));
         android.content.ComponentName name=android.content.ComponentName.unflattenFromString(component);if(name==null)throw new IllegalArgumentException("component");
         long identity=Binder.clearCallingIdentity();
         try{
             // ActivityThread's calling package in a user service may still be the host APK.
             // am supplies shell attribution; arguments are passed separately, never as shell code.
             java.lang.Process process=new ProcessBuilder("/system/bin/am","start","--user",Integer.toString(ownerUid/100000),"--display",Integer.toString(displayId),"-f","0x18000000","-n",name.flattenToString()).redirectErrorStream(true).start();
-            if(!process.waitFor(8,java.util.concurrent.TimeUnit.SECONDS)){process.destroy();throw new IllegalStateException("App launch timed out");}
+            if(!process.waitFor(8,java.util.concurrent.TimeUnit.SECONDS)){process.destroy();throw new IllegalStateException(PhoneMessages.message(R.string.phone_app_launch_timeout));}
             java.io.ByteArrayOutputStream result=new java.io.ByteArrayOutputStream();byte[] bytes=new byte[1024];int count;
-            while((count=process.getInputStream().read(bytes))!=-1){result.write(bytes,0,count);if(result.size()>16384)throw new IllegalStateException("App launch response too large");}
+            while((count=process.getInputStream().read(bytes))!=-1){result.write(bytes,0,count);if(result.size()>16384)throw new IllegalStateException(PhoneMessages.message(R.string.phone_app_launch_response_large));}
             String output=result.toString("UTF-8");
             if(process.exitValue()!=0 || output.contains("Error:") || output.contains("Exception"))throw new IllegalStateException(output.trim());
-        }catch(Exception e){throw new IllegalStateException("App launch unavailable: "+e,e);}
+        }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_app_launch_failed, e.getMessage()),e);}
         finally{Binder.restoreCallingIdentity(identity);}
     }
     private synchronized void cleanup(){watchdog.removeCallbacks(powerWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restore failed",e);SystemClock.sleep(100);}if(input!=null)try{input.cancel();}catch(RuntimeException ignored){}for(VirtualDisplay d:displays.values())try{d.release();}catch(RuntimeException ignored){}displays.clear();}

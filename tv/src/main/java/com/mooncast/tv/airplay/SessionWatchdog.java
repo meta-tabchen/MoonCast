@@ -4,6 +4,8 @@ package com.mooncast.tv.airplay;
 /** Conservative session liveness: silence alone cannot distinguish a disconnected sender
  * from a paused/static screen. Pinned JNI does not forward pause/feedback callbacks. */
 final class SessionWatchdog {
+    static final String DECODER_STALLED = "Video decoder stopped producing frames";
+    static final String SENDER_DISCONNECTED = "Sender disconnected";
     private long timeoutMs = 15_000;
     private int connections;
     private boolean mirror, emitted;
@@ -39,11 +41,11 @@ final class SessionWatchdog {
     synchronized String check(long now) {
         if (!mirror || emitted || timeoutMs == 0) return null;
         if (pendingVideoAt >= 0 && elapsed(now, pendingVideoAt) >= timeoutMs) {
-            emitted = true; return "Video decoder stopped producing frames";
+            emitted = true; return DECODER_STALLED;
         }
         if (connections == 0 && disconnectedAt >= 0 && elapsed(now, disconnectedAt) >= timeoutMs
                 && lastPacketAt >= 0 && elapsed(now, lastPacketAt) >= timeoutMs) {
-            emitted = true; return "Sender disconnected";
+            emitted = true; return SENDER_DISCONNECTED;
         }
         return null;
     }

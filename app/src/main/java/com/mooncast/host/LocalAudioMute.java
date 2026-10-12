@@ -75,28 +75,28 @@ final class LocalAudioMute {
             public Integer saved(){
                 try(DataInputStream in=new DataInputStream(file.openRead())){
                     int value=in.readInt();
-                    if(value<0 || value>manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC))throw new IOException("音量恢复记录无效");
+                    if(value<0 || value>manager.getStreamMaxVolume(AudioManager.STREAM_MUSIC))throw new IOException(PhoneMessages.message(R.string.phone_volume_journal_invalid));
                     return value;
                 }catch(FileNotFoundException e){return null;}
-                catch(IOException e){throw new IllegalStateException("读取音量恢复记录失败",e);}
+                catch(IOException e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_volume_journal_read_failed),e);}
             }
             public void save(int volume){
                 FileOutputStream stream=null;
                 try{
                     stream=file.startWrite();new DataOutputStream(stream).writeInt(volume);file.finishWrite(stream);stream=null;
                     Integer recorded=saved();
-                    if(recorded==null || recorded!=volume)throw new IOException("音量恢复记录未保存");
+                    if(recorded==null || recorded!=volume)throw new IOException(PhoneMessages.message(R.string.phone_volume_journal_not_saved));
                 }
-                catch(IOException e){if(stream!=null)file.failWrite(stream);throw new IllegalStateException("保存音量失败，未静音手机",e);}
+                catch(IOException e){if(stream!=null)file.failWrite(stream);throw new IllegalStateException(PhoneMessages.message(R.string.phone_volume_save_failed),e);}
             }
             public void clear(){
                 file.delete();
-                if(saved()!=null)throw new IllegalStateException("音量恢复记录未清除");
+                if(saved()!=null)throw new IllegalStateException(PhoneMessages.message(R.string.phone_volume_journal_not_cleared));
             }
         });
     }
     synchronized void silence(){
-        if(volumeFixed.getAsBoolean())throw new IllegalStateException("设备使用固定媒体音量");
+        if(volumeFixed.getAsBoolean())throw new IllegalStateException(PhoneMessages.message(R.string.phone_volume_fixed));
         try{
             startObserving();
             session.silence();

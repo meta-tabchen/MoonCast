@@ -91,7 +91,7 @@ final class ApkStager {
         synchronized (ACTIVE_FILES) { file.delete(); ACTIVE_FILES.remove(file.getAbsolutePath()); }
     }
     static Selection prepare(Context context, Uri uri, Work work, Progress progress) throws IOException {
-        if (uri == null || !"content".equals(uri.getScheme()) || uri.getAuthority() == null) throw new IOException("Choose an APK document");
+        if (uri == null || !"content".equals(uri.getScheme()) || uri.getAuthority() == null) throw new IOException(context.getString(R.string.phone_apk_choose_document));
         work.check(); clearStale(context);
         String name = null; long hint = -1;
         try (Cursor cursor = context.getContentResolver().query(uri,
@@ -107,10 +107,10 @@ final class ApkStager {
         // Some SAF providers omit DISPLAY_NAME or expose an extensionless label.
         // This name is display-only; actual APK structure, metadata and signer are checked below.
         name = ApkDocumentName.wireName(name);
-        if (hint > ApkTransfer.MAX_BYTES) throw new IOException("APK is too large");
+        if (hint > ApkTransfer.MAX_BYTES) throw new IOException(context.getString(R.string.phone_apk_too_large));
         File dir = directory(context);
-        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException("Private staging is unavailable");
-        reserve(dir, 1);
+        if (!dir.isDirectory() && !dir.mkdirs()) throw new IOException(context.getString(R.string.phone_apk_staging_unavailable));
+        reserve(context, dir, 1);
         File partial;
         synchronized (ACTIVE_FILES) {
             partial = File.createTempFile("send-", ".part", dir);
@@ -120,9 +120,9 @@ final class ApkStager {
         try {
             work.check();
             AssetFileDescriptor descriptor = context.getContentResolver().openAssetFileDescriptor(uri, "r", work.signal);
-            if (descriptor == null) throw new IOException("Document could not be opened");
+            if (descriptor == null) throw new IOException(context.getString(R.string.phone_apk_open_failed));
             work.own(descriptor);
-            if (descriptor.getLength() > ApkTransfer.MAX_BYTES) throw new IOException("APK is too large");
+            if (descriptor.getLength() > ApkTransfer.MAX_BYTES) throw new IOException(context.getString(R.string.phone_apk_too_large));
             InputStream in = work.own(descriptor.createInputStream());
             FileOutputStream out = work.own(new FileOutputStream(partial));
             StructPollfd poll = new StructPollfd();
@@ -132,31 +132,31 @@ final class ApkStager {
             while (true) {
                 work.check();
                 try { if (Os.poll(new StructPollfd[]{poll}, 200) == 0) continue; }
-                catch (ErrnoException error) { throw new IOException("Document read failed"); }
+                catch (ErrnoException error) { throw new IOException(context.getString(R.string.phone_apk_read_failed)); }
                 work.check();
                 int n = in.read(buffer);
                 if (n == -1) break;
                 if (n == 0) continue;
-                if (bytes > ApkTransfer.MAX_BYTES - n) throw new IOException("APK is too large");
-                reserve(dir, n); out.write(buffer, 0, n); bytes += n;
+                if (bytes > ApkTransfer.MAX_BYTES - n) throw new IOException(context.getString(R.string.phone_apk_too_large));
+                reserve(context, dir, n); out.write(buffer, 0, n); bytes += n;
                 if (bytes - reported >= 256 * 1024) { progress.copied(bytes); reported = bytes; }
             }
-            if (bytes == 0) throw new IOException("APK is empty");
+            if (bytes == 0) throw new IOException(context.getString(R.string.phone_apk_empty));
             out.getFD().sync(); work.closeResources(); work.check();
             File apk = new File(dir, partial.getName().replace(".part", ".apk"));
             synchronized (ACTIVE_FILES) {
-                if (!partial.renameTo(apk)) throw new IOException("APK staging failed");
+                if (!partial.renameTo(apk)) throw new IOException(context.getString(R.string.phone_apk_staging_failed));
                 ACTIVE_FILES.remove(partial.getAbsolutePath()); ACTIVE_FILES.add(apk.getAbsolutePath());
             }
             work.setFile(apk);
             String sha256 = hash(apk, work);
             work.check(); ApkTransfer.checkContainer(apk); ApkSingleManifest.requireStandalone(apk); work.check();
             Selection selected = metadata(context, apk, name, sha256);
-            reserve(dir, 0); work.check(); return selected;
+            reserve(context, dir, 0); work.check(); return selected;
         } catch (IOException | RuntimeException error) { work.cancelAndDelete(); throw error; }
     }
-    private static void reserve(File dir, int nextBytes) throws IOException {
-        if (dir.getUsableSpace() < ApkTransfer.FREE_RESERVE_BYTES + nextBytes) throw new IOException("Not enough free space");
+    private static void reserve(Context context, File dir, int nextBytes) throws IOException {
+        if (dir.getUsableSpace() < ApkTransfer.FREE_RESERVE_BYTES + nextBytes) throw new IOException(context.getString(R.string.phone_apk_space_required));
     }
     private static String hash(File file, Work work) throws IOException {
         MessageDigest digest = ApkTransfer.sha256();
@@ -177,13 +177,13 @@ final class ApkStager {
         if (info == null || info.applicationInfo == null || info.packageName == null || info.packageName.isEmpty()
             || info.splitNames != null && info.splitNames.length > 0
             || info.applicationInfo.splitSourceDirs != null && info.applicationInfo.splitSourceDirs.length > 0)
-            throw new IOException("APK metadata is unavailable or requires splits");
+            throw new IOException(context.getString(R.string.phone_apk_bad_metadata));
         Signature[] certificates = Build.VERSION.SDK_INT >= 28
             ? info.signingInfo == null ? null : info.signingInfo.getApkContentsSigners() : info.signatures;
-        if (certificates == null || certificates.length == 0 || certificates.length > 32) throw new IOException("APK signer is unavailable");
+        if (certificates == null || certificates.length == 0 || certificates.length > 32) throw new IOException(context.getString(R.string.phone_apk_signer_missing));
         StringBuilder signers = new StringBuilder();
         for (Signature certificate : certificates) {
-            if (certificate == null || certificate.toByteArray().length == 0) throw new IOException("APK signer is unavailable");
+            if (certificate == null || certificate.toByteArray().length == 0) throw new IOException(context.getString(R.string.phone_apk_signer_missing));
             if (signers.length() > 0) signers.append('\n');
             signers.append(ApkTransfer.hex(ApkTransfer.sha256().digest(certificate.toByteArray())));
         }

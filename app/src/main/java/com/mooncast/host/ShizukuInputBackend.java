@@ -18,16 +18,16 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     private final ServiceConnection connection=new ServiceConnection(){
         public void onServiceConnected(ComponentName name,IBinder binder){
             if(closed)return;
-            try{IPrivilegedInput remote=IPrivilegedInput.Stub.asInterface(binder);remote.initialize(owner);remote.display(displayId);service=remote;log.accept("Shizuku input ready (UID "+remote.uid()+")");}
-            catch(Exception e){log.accept("Shizuku input unavailable: "+e.getMessage());}
+            try{IPrivilegedInput remote=IPrivilegedInput.Stub.asInterface(binder);remote.initialize(owner);remote.display(displayId);service=remote;log.accept(PhoneMessages.message(R.string.phone_shizuku_ready , remote.uid()));}
+            catch(Exception e){log.accept(PhoneMessages.message(R.string.phone_shizuku_unavailable , e.getMessage()));}
         }
-        public void onServiceDisconnected(ComponentName name){service=null;log.accept("Shizuku service disconnected");}
+        public void onServiceDisconnected(ComponentName name){service=null;log.accept(PhoneMessages.message(R.string.phone_shizuku_disconnected));}
     };
     ShizukuInputBackend(Context c,Consumer<String> log){this.log=log;args=new Shizuku.UserServiceArgs(new ComponentName(c.getPackageName(),PrivilegedInputService.class.getName())).daemon(false).tag("mooncast-host").processNameSuffix("privileged").debuggable(false).version(BuildConfig.VERSION_CODE);Shizuku.addBinderReceivedListenerSticky(binderReceived);}
     static boolean authorized(){try{return Shizuku.pingBinder() && !Shizuku.isPreV11() && Shizuku.checkSelfPermission()==PackageManager.PERMISSION_GRANTED;}catch(RuntimeException e){return false;}}
-    void start(){if(closed || binding)return;if(!authorized()){log.accept("Authorize Shizuku before starting");return;}binding=true;try{Shizuku.bindUserService(args,connection);}catch(RuntimeException e){binding=false;log.accept("Shizuku bind failed: "+e.getMessage());}}
+    void start(){if(closed || binding)return;if(!authorized()){log.accept(PhoneMessages.message(R.string.phone_shizuku_authorize));return;}binding=true;try{Shizuku.bindUserService(args,connection);}catch(RuntimeException e){binding=false;log.accept(PhoneMessages.message(R.string.phone_shizuku_bind_failed , e.getMessage()));}}
     @Override public boolean ready(){return !closed && authorized() && service!=null && service.asBinder().isBinderAlive();}
-    private IPrivilegedInput remote(){if(!ready())throw new IllegalStateException("Shizuku service not ready");return service;}
+    private IPrivilegedInput remote(){if(!ready())throw new IllegalStateException(PhoneMessages.message(R.string.phone_shizuku_not_ready));return service;}
     void display(int id){displayId=id;if(ready())try{remote().display(id);}catch(RemoteException e){throw new IllegalStateException(e);}}
     int createDisplay(Surface surface,int w,int h,int dpi){try{return remote().createDisplay(surface,w,h,dpi);}catch(RemoteException e){throw new IllegalStateException(e);}}
     void launch(String component,int id){try{remote().launch(component,id);}catch(RemoteException e){throw new IllegalStateException(e);}}
@@ -36,5 +36,5 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     @Override public void touch(int type,int id,float x,float y,float pressure){try{remote().touch(type,id,x,y,pressure);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void key(int key,boolean release,int flags){try{remote().key(key,release,flags);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void cancel(){if(service!=null)try{service.cancel();}catch(Exception ignored){}}
-    @Override public void close(){if(closed)return;try{if(ready())displayPower(false);}catch(RuntimeException e){log.accept("Panel restore failed: "+e.getMessage());}cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
+    @Override public void close(){if(closed)return;try{if(ready())displayPower(false);}catch(RuntimeException e){log.accept(PhoneMessages.message(R.string.phone_panel_restore_failed , e.getMessage()));}cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
 }

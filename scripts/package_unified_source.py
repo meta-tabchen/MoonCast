@@ -12,6 +12,7 @@ from pathlib import Path
 import zipfile
 from package_tv_release import committed_source_archive, require_committed_sources, git
 from tv_release_inputs import generated_inputs
+from restore_release_inputs import load_manifest, safe_target, digest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,9 +25,23 @@ def main():
     if args.output.exists():
         parser.error('Output already exists; do not overwrite historical archives')
     pinned = generated_inputs(ROOT)
+    for name, checksum, size, mode in load_manifest(ROOT)['files']:
+        file = safe_target(ROOT, name)
+        if not file.is_file() or digest(file) != checksum:
+            raise ValueError('Missing or modified pinned release input: ' + name)
+        pinned[name] = (file, checksum)
+    identity = json.loads((ROOT / 'signing/community/identity.json').read_text())
+    # Signing material is not required corresponding source. Never copy it into a
+    # release archive. Community signing uses the owner-published Git fixture;
+    # the full source ZIP supports explicit unsigned verification builds.
+    certificate = ROOT / 'signing/community/certificate.pem'
+    pinned['signing/community/certificate.pem'] = (certificate, digest(certificate))
     commit = git('rev-parse', 'HEAD').decode().strip()
     with zipfile.ZipFile(io.BytesIO(committed_source_archive())) as committed:
-        names = set(committed.namelist())
+        names = set(committed.namelist()) - {'CORRESPONDING-SOURCE.json'}
+        def content(name):
+            return committed.read(name) if name in names else pinned[name][0].read_bytes()
+        available = names | set(pinned)
         required = {'unified/build.gradle', 'phone-ui/build.gradle', 'tv-ui/build.gradle',
                     'transfer-core/build.gradle', 'app/libs/airplaylib.aar',
                     'native/unified-receiver-manifest.json', 'native/airplay-sender/SOURCE_LOCK.json',
@@ -40,15 +55,15 @@ def main():
         for name, row in receiver['libraries'].items():
             file = 'unified/native-receiver/' + name
             required.add(file)
-            if file not in names or hashlib.sha256(committed.read(file)).hexdigest() != row['sha256']:
+            if file not in available or hashlib.sha256(content(file)).hexdigest() != row['sha256']:
                 raise ValueError('Missing or mismatched unified receiver binary: ' + file)
         sender_inputs = json.loads(committed.read('native/sender-build-inputs/source-input-manifest.json'))
         for row in sender_inputs['archives']:
             file = 'native/sender-build-inputs/' + row['file']
-            if file not in names or hashlib.sha256(committed.read(file)).hexdigest() != row['sha256']:
+            if file not in available or hashlib.sha256(content(file)).hexdigest() != row['sha256']:
                 raise ValueError('Missing or mismatched sender source archive: ' + file)
-        if required - names:
-            raise ValueError('Incomplete unified source: ' + str(sorted(required - names)))
+        if required - available:
+            raise ValueError('Incomplete unified source: ' + str(sorted(required - available)))
         for name, (_, checksum) in pinned.items():
             if name in names and hashlib.sha256(committed.read(name)).hexdigest() != checksum:
                 raise ValueError('Committed source differs from exact upstream pin: ' + name)
@@ -62,9 +77,9 @@ def main():
                 info.external_attr = (committed.getinfo(name).external_attr if name in names else 0o100644 << 16)
                 info.compress_type = zipfile.ZIP_DEFLATED
                 out.writestr(info, data)
-            provenance = {'sourceCommit': commit, 'applicationId': 'com.mooncast.unified.preview',
-                          'version': '0.5.0-unified-preview', 'files': inventory,
-                          'signing': 'No private signing key included. Preview APK uses a disposable test identity.'}
+            provenance = {'sourceCommit': commit, 'applicationId': 'com.mooncast.community',
+                          'version': '0.5.1-community', 'files': inventory,
+                          'signing': 'No signing key included. Fixed community public certificate is recorded; owner-published test fixture remains in Git. Certificate: '+identity['certificateSha256']}
             out.writestr('MoonCast/CORRESPONDING-SOURCE.json', json.dumps(provenance, indent=2) + '\n')
     with zipfile.ZipFile(args.output) as archive:
         if archive.testzip() is not None:

@@ -8,11 +8,11 @@
     <string name="apk_install">安装应用 · 打开系统安装器</string>
     <string name="tv_apk_ready">电视地址：%1$s:%2$d\n\n已开启接收，5 分钟内仅接收一个 APK。在手机 MoonCast 中选择「发送 APK」和本电视，无需配对码或绑定。\n\n仅在可信家庭局域网开启：此页面打开时，同一网络内的设备均可发送 APK。传输未加密。您必须在电视核对并确认后才能打开 Android 系统安装器。APK 可能有风险。不支持 .apks / .xapk、网址下载或自动安装。打开系统设置或安装器会停止播放。</string>
     <string name="apk_receiving">正在接收 APK：%1$d / %2$d MiB…</string>
-    <string name="apk_receive_failed">接收已停止：%1$s\n关闭后重新打开此页面可开启新会话。</string>
+    <string name="apk_receive_failed">接收已停止。关闭后重新打开此页面可开启新会话。\n\n技术详情（可能为英文）：%1$s</string>
     <string name="apk_discovery_failed">无法自动发现，请在手机输入电视地址和端口。</string>
     <string name="apk_validating">正在检查 APK 和签名证书…</string>
     <string name="tv_apk_metadata">应用：%1$s\n包名：%2$s\n版本：%3$s\n大小：%4$.1f MiB\n\n签名证书 SHA-256：\n%5$s\n\n文件 SHA-256：\n%6$s\n\n以上仅为文件及证书信息，不是安全扫描或可信开发者保证。请只安装可信应用。最终兼容性及安装检查由 Android 完成。\n\n用遥控器确认此 APK 后打开系统安装器。打开安装器会停止播放。</string>
-    <string name="apk_invalid">APK 已拒绝：%1$s\n临时文件已丢弃。</string>
+    <string name="apk_invalid">APK 已被拒绝，临时文件已丢弃。请从可信来源获取完整 APK 后重试。\n\n技术详情（可能为英文）：%1$s</string>
     <string name="apk_permission_title">允许此安装来源？</string>
     <string name="apk_permission_detail">Android 要求您允许 MoonCast 请求安装应用。请打开系统设置并自行选择。返回后再次核对 APK，再按安装按钮。不会自动安装。</string>
     <string name="apk_open_settings">打开 Android 设置</string>

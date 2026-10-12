@@ -21,12 +21,12 @@ class AirPlayPlaybackAudio implements AutoCloseable {
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA).addMatchingUsage(AudioAttributes.USAGE_GAME)
             .addMatchingUsage(AudioAttributes.USAGE_UNKNOWN).build();
         int minimum = AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_STEREO, AudioFormat.ENCODING_PCM_16BIT);
-        if (minimum < 0) throw new IllegalStateException("44.1 kHz stereo PCM is unavailable");
+        if (minimum < 0) throw new IllegalStateException(context.getString(R.string.phone_pcm_unavailable));
         recorder = new AudioRecord.Builder().setAudioFormat(new AudioFormat.Builder().setSampleRate(44100)
             .setChannelMask(AudioFormat.CHANNEL_IN_STEREO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
             .setBufferSizeInBytes(Math.max(minimum, 1408 * 8)).setAudioPlaybackCaptureConfig(capture).build();
         recorder.startRecording();
-        if (recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException("Playback capture did not start");
+        if (recorder.getRecordingState() != AudioRecord.RECORDSTATE_RECORDING) throw new IllegalStateException(context.getString(R.string.phone_audio_not_started));
         running = true; AudioRecord active = recorder;
         reader = new Thread(() -> {
             android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_AUDIO);
@@ -34,7 +34,7 @@ class AirPlayPlaybackAudio implements AutoCloseable {
             try {
                 while (running) {
                     int count = active.read(pcm, used, pcm.length - used, AudioRecord.READ_BLOCKING);
-                    if (count <= 0) { if (running) output.failed("Playback capture read failed: " + count); break; }
+                    if (count <= 0) { if (running) output.failed(context.getString(R.string.phone_audio_read_failed,count)); break; }
                     used += count;
                     if (used == pcm.length) { output.audio(pcm); used = 0; }
                 }

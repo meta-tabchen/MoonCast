@@ -2,6 +2,10 @@ package com.mooncast.host;
 import android.app.*;import android.content.Intent;import android.os.*;
 /** Private :files process boundary: a blocked document-provider open cannot outlive a role switch. */
 public final class FileRoleCleanupService extends Service {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
  @Override public IBinder onBind(Intent intent){return new Messenger(new Handler(Looper.getMainLooper(),m->{
   if(m.replyTo==null)return true;
   stopService(new Intent(this,FileCinemaService.class));

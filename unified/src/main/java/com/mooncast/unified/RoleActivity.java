@@ -19,7 +19,7 @@ public class RoleActivity extends Activity {
  private android.content.SharedPreferences prefs(){return getSharedPreferences("unified-role",MODE_PRIVATE);}
  private String read(String key,String fallback){try{return prefs().getString(key,fallback);}catch(ClassCastException e){return fallback;}}
  private boolean needsCleanup(){try{return prefs().getBoolean("pendingCleanup",false);}catch(ClassCastException e){return true;}}
- private boolean chinese(){return getResources().getConfiguration().getLocales().get(0).getLanguage().equals("zh");}
+ @Override protected void attachBaseContext(Context base){super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));}
  private boolean television(){UiModeManager u=(UiModeManager)getSystemService(UI_MODE_SERVICE);return (u!=null&&u.getCurrentModeType()==Configuration.UI_MODE_TYPE_TELEVISION)||getPackageManager().hasSystemFeature(PackageManager.FEATURE_LEANBACK);}
  @Override public void onCreate(Bundle b){super.onCreate(b);
   if(needsCleanup()&&(b==null||!b.getBoolean("choosing",false))){begin(read("pendingRole",read("role",RolePolicy.AUTO)),true);return;}
@@ -30,22 +30,42 @@ public class RoleActivity extends Activity {
  private void route(Intent i){
   if(leaving||chooser!=null)return;
   String current=read("role",RolePolicy.AUTO);
-  boolean settings=getClass()==RoleSettingsActivity.class;
-  if(settings&&i.getBooleanExtra("require_cleanup",false)&&!needsCleanup())prefs().edit().putBoolean("pendingCleanup",true).putString("pendingRole",current).commit();
+  boolean language=getClass()==LanguageSettingsActivity.class;
+  boolean settings=getClass()==RoleSettingsActivity.class||language;
+  if(!language&&settings&&i.getBooleanExtra("require_cleanup",false)&&!needsCleanup())prefs().edit().putBoolean("pendingCleanup",true).putString("pendingRole",current).commit();
   if(needsCleanup()&&!settings){begin(read("pendingRole",current),true);return;}
   if(!settings){launch(RolePolicy.selected(current,television()));return;}
-  String[] names=chinese()?new String[]{"自动选择（按设备）","手机 · 发送投屏","电视 · 接收投屏"}:new String[]{"Automatic (device type)","Phone · Send","TV · Receive"};
+  if(language){
+   String choice=i.getStringExtra("language_choice");
+   if(choice!=null && ("system".equals(choice)||"en".equals(choice)||"zh".equals(choice))){
+    i.removeExtra("language_choice");beginLanguage(current,choice);
+   }else showLanguages(current);
+   return;
+  }
+  String[] names={getString(R.string.unified_role_auto),getString(R.string.unified_role_phone),getString(R.string.unified_role_tv)};
   int selected=RolePolicy.PHONE.equals(current)?1:RolePolicy.TV.equals(current)?2:0;
-  chooser=new AlertDialog.Builder(this).setTitle(chinese()?"设备模式":"Device mode").setSingleChoiceItems(names,selected,(d,w)->{
+  chooser=new AlertDialog.Builder(this).setTitle(R.string.unified_role_title).setSingleChoiceItems(names,selected,(d,w)->{
    chooser=null;d.dismiss();begin(w==1?RolePolicy.PHONE:w==2?RolePolicy.TV:RolePolicy.AUTO,true);
   }).setNegativeButton(android.R.string.cancel,(d,w)->{chooser=null;begin(current,needsCleanup());}).setOnCancelListener(d->{chooser=null;begin(current,needsCleanup());}).create();chooser.show();
+ }
+ private void beginLanguage(String current,String choice){
+  // One durable transaction: a process death cannot leave an uncommitted language
+  // silently waiting to apply during an unrelated future mode change.
+  prefs().edit().putString("pendingLanguage",choice).putString("pendingRole",current).putBoolean("pendingCleanup",true).commit();
+  begin(current,true);
+ }
+ private void showLanguages(String current){
+  // Fallback for an internal settings launch without a preconfirmed selection.
+  com.mooncast.locale.LanguagePicker.show(this,choice->{
+   beginLanguage(current,choice);
+  },this::finish);
  }
  private void begin(String choice,boolean cleanup){
   if(leaving)return;leaving=true;pending=RolePolicy.valid(choice)?choice:RolePolicy.AUTO;
   if(!cleanup){launch(RolePolicy.selected(pending,television()));return;}
   // Separate pending keys survive relaunch; saved role changes only on successful commit.
   prefs().edit().putBoolean("pendingCleanup",true).putString("pendingRole",pending).commit();
-  TextView text=new TextView(this);text.setText(chinese()?"正在停止旧模式…":"Stopping previous mode…");text.setTextSize(22);text.setPadding(32,64,32,32);setContentView(text);
+  TextView text=new TextView(this);text.setText(R.string.unified_stopping);text.setTextSize(22);text.setPadding(32,64,32,32);setContentView(text);
   hostAck=false;fileAck=false;oldHostPid=-1;oldFilePid=-1;
   bindCleanup("RoleCleanupService",true);bindCleanup("FileRoleCleanupService",false);
   stopService(new Intent().setClassName(this,"com.mooncast.host.NativeHostService"));
@@ -75,9 +95,20 @@ public class RoleActivity extends Activity {
   if(busy){
    if(SystemClock.elapsedRealtime()<deadline){main.postDelayed(()->awaitStopped(deadline),100);return;}
    releaseBindings();leaving=true;
-   new AlertDialog.Builder(this).setMessage(chinese()?"旧模式仍在停止，未切换。请稍后重试。":"Previous mode is still stopping. Mode was not changed; retry shortly.").setPositiveButton(android.R.string.ok,(d,w)->finish()).show();return;
+   new AlertDialog.Builder(this).setMessage(R.string.unified_stop_failed).setPositiveButton(android.R.string.ok,(d,w)->finish()).show();return;
   }
-  releaseBindings();prefs().edit().putString("role",pending).remove("pendingRole").putBoolean("pendingCleanup",false).commit();
+  releaseBindings();
+  String language=read("pendingLanguage","");
+  if(!language.isEmpty()){
+   // Remove before Android 13 configuration change may recreate this activity.
+   prefs().edit().remove("pendingLanguage").commit();
+   try{com.mooncast.locale.AppLocale.select(this,language);}
+   catch(java.io.IOException|RuntimeException error){
+    prefs().edit().remove("pendingRole").putBoolean("pendingCleanup",false).commit();
+    new AlertDialog.Builder(this).setMessage(R.string.unified_language_failed).setPositiveButton(android.R.string.ok,(d,w)->finish()).show();return;
+   }
+  }
+  prefs().edit().putString("role",pending).remove("pendingRole").putBoolean("pendingCleanup",false).commit();
   launch(RolePolicy.selected(pending,television()));
  }
  private void releaseOne(ServiceConnection c){if(c!=null&&bindings.remove(c))try{unbindService(c);}catch(IllegalArgumentException ignored){}}

@@ -48,12 +48,12 @@ public final class TvHomeView extends FrameLayout {
         setBackgroundColor(Color.TRANSPARENT);
         backdrop=new TvBackdrop(getResources());
         theme=TvTheme.read(context.getSharedPreferences("receiver-settings",Context.MODE_PRIVATE));
-        brand=label("MoonCast",26,WHITE);brand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));addView(brand);
+        brand=label(getResources().getString(R.string.tv_app_name),26,WHITE);brand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));addView(brand);
         status=label("",12,MUTED);status.setGravity(Gravity.END|Gravity.CENTER_VERTICAL);addView(status);
         heading=label(getResources().getString(R.string.cinema_ready),38,WHITE);
         heading.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));heading.setGravity(Gravity.CENTER);addView(heading);
         instruction=label("",13,MUTED);instruction.setGravity(Gravity.CENTER);instruction.setMaxLines(2);addView(instruction);
-        receiver=label("MoonCast TV",19,WHITE);receiver.setGravity(Gravity.CENTER);addView(receiver);
+        receiver=label(getResources().getString(R.string.home_brand),19,WHITE);receiver.setGravity(Gravity.CENTER);addView(receiver);
         trusted=label(getResources().getString(R.string.home_trusted),11,MUTED);trusted.setGravity(Gravity.CENTER_VERTICAL);addView(trusted);
         castMark=new CastMark(context);addView(castMark);
         framing=new Action(0,R.string.home_framing,R.string.home_framing_detail,false);

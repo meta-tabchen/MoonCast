@@ -83,7 +83,7 @@ public final class ApkReceiveController {
                         stopReceiving();pending=file;expectedHash=sha256;pendingUntil=android.os.SystemClock.elapsedRealtime()+10*60_000L;
                         main.removeCallbacks(expiry);main.postDelayed(expiry,10*60_000L);validate(false);
                     });}
-                    public void onError(String error){main.post(()->{if(epoch==generation && pending==null){stopReceiving();message.setText(activity.getString(R.string.apk_receive_failed,error));}});}
+                    public void onError(String error){main.post(()->{if(epoch==generation && pending==null){stopReceiving();message.setText(activity.getString(R.string.apk_receive_failed,technicalDetail(error)));}});}
                 });
                 starting=created;
                 ApkTransferServer.Session session=created.start();
@@ -94,8 +94,11 @@ public final class ApkReceiveController {
                     register(epoch,session.port);
                     main.postDelayed(expiry,Math.max(1,session.expiresAtMillis-System.currentTimeMillis()));
                 });
-            }catch(Exception e){if(starting!=null)starting.close();cleanup(dir);main.post(()->{if(epoch==generation)message.setText(activity.getString(R.string.apk_receive_failed,e.getMessage()));});}
+            }catch(Exception e){if(starting!=null)starting.close();cleanup(dir);main.post(()->{if(epoch==generation)message.setText(activity.getString(R.string.apk_receive_failed,technicalDetail(e.getMessage())));});}
         });
+    }
+    private String technicalDetail(String detail) {
+        return detail==null||detail.trim().isEmpty()?activity.getString(R.string.tv_apk_unknown_error):detail;
     }
     private void showDialog() {
         LinearLayout body=new LinearLayout(activity);body.setOrientation(LinearLayout.VERTICAL);
@@ -197,7 +200,7 @@ public final class ApkReceiveController {
                     setInstallEnabled(true);install.requestFocus();
                     if(launchAfter)launchInstaller();
                 });
-            }catch(Exception e){main.post(()->{if(epoch==generation){validating=false;validationTask=null;setInstallEnabled(false);message.setText(activity.getString(R.string.apk_invalid,e.getMessage()));discardFile();}});}
+            }catch(Exception e){main.post(()->{if(epoch==generation){validating=false;validationTask=null;setInstallEnabled(false);message.setText(activity.getString(R.string.apk_invalid,technicalDetail(e.getMessage())));discardFile();}});}
         });
     }
     private void installClicked() {
@@ -207,7 +210,7 @@ public final class ApkReceiveController {
         if(!activity.getPackageManager().canRequestPackageInstalls()) {
             setInstallEnabled(false);
             permissionDialog=new AlertDialog.Builder(activity).setTitle(R.string.apk_permission_title).setMessage(R.string.apk_permission_detail)
-                    .setNegativeButton(android.R.string.cancel,null).setPositiveButton(R.string.apk_open_settings,(d,w)->{
+                    .setNegativeButton(R.string.cancel,null).setPositiveButton(R.string.apk_open_settings,(d,w)->{
                         if(pending==null || consentEpoch!=generation)return;
                         external=true;settingsReturn.begin();setInstallEnabled(false);message.setText(R.string.apk_returning_settings);
                         try{

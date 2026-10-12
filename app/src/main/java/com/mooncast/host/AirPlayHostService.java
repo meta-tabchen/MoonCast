@@ -16,6 +16,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Exclusive outbound AirPlay screen + eligible playback-audio sender. This service owns
  * one MediaProjection grant. Protocol switching waits for the :host process to exit. */
 public final class AirPlayHostService extends Service {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     private final Handler main = new Handler(Looper.getMainLooper());
     private final HandlerThread commands = new HandlerThread("AirPlayCommands");
     private Messenger binder, subscriber;
@@ -90,7 +94,7 @@ public final class AirPlayHostService extends Service {
             // Private, backup-excluded store. Separate from Sunshine certificates/PINs.
             Airplaylib.setCredentialsPath(new File(getFilesDir(), "airplay-credentials.json").getAbsolutePath());
             connect(intent.getStringExtra("airplayPin"));
-        } catch (Exception | LinkageError failure) { fail(failure.getMessage()); }
+        } catch (Exception | LinkageError failure) { fail(PhoneMessages.message(R.string.phone_capture_failed,failure.getMessage())); }
         return START_NOT_STICKY;
     }
     private static int boundedEven(int value, int min, int max) { return Math.max(min, Math.min(max, value)) & ~1; }
@@ -151,11 +155,11 @@ public final class AirPlayHostService extends Service {
             });
             video.start(projection, width, height, fps, legacy ? Math.min(bitrate, 4_000_000) : bitrate, legacy, scaleMode, wholeScreen);
             connected = true; pinPending = false;
-            state = getString(R.string.ap_service_casting); detail = host + " · " + width + "×" + height + " · " + fps + " FPS · H.264";
+            state = getString(R.string.ap_service_casting); detail = getString(R.string.phone_airplay_stream,host,width,height,fps);
             if (wantsAudio && active.hasAudio()) startAudio(active, token);
             else log(getString(legacy ? R.string.ap_service_legacy_video : wantsAudio ? R.string.ap_service_receiver_no_audio : R.string.ui_video_only_sound_stays_on_the_phone));
             publish();
-        } catch (Exception | LinkageError failure) { fail(failure.getMessage()); }
+        } catch (Exception | LinkageError failure) { fail(PhoneMessages.message(R.string.phone_capture_failed,failure.getMessage())); }
     }
     private void startAudio(Session active, int token) {
         try {
@@ -186,7 +190,7 @@ public final class AirPlayHostService extends Service {
     private void closeAudio() { restoreVolume(); AirPlayPlaybackAudio old = audio; audio = null; if (old != null) old.close(); }
     private void fail(String message) {
         if (stopping) return;
-        error = boundedDiagnostic(message == null || message.isEmpty() ? getString(R.string.ap_service_failed) : message);
+        error = boundedDiagnostic(PhoneMessages.render(this, message == null || message.isEmpty() ? getString(R.string.ap_service_failed) : message));
         state = getString(R.string.ap_service_failed); detail = error; log(error); publish(); stopSender();
     }
     private synchronized void stopSender() {
@@ -219,7 +223,7 @@ public final class AirPlayHostService extends Service {
     @Override public void onDestroy() { if (ownsCapture) stopSender(); else commands.quitSafely(); super.onDestroy(); }
     private void notification() {
         NotificationManager manager = getSystemService(NotificationManager.class);
-        manager.createNotificationChannel(new NotificationChannel("airplay", "AirPlay", NotificationManager.IMPORTANCE_LOW));
+        manager.createNotificationChannel(new NotificationChannel("airplay", getString(R.string.phone_airplay_channel), NotificationManager.IMPORTANCE_LOW));
         PendingIntent open = PendingIntent.getActivity(this, 2, new Intent(this, MainActivity.class), PendingIntent.FLAG_IMMUTABLE);
         PendingIntent stop = PendingIntent.getService(this, 3, new Intent(this, AirPlayHostService.class).setAction("stop"), PendingIntent.FLAG_IMMUTABLE);
         Notification notification = new Notification.Builder(this, "airplay").setSmallIcon(R.drawable.ic_launcher)
@@ -235,7 +239,7 @@ public final class AirPlayHostService extends Service {
         }
         return safe.toString();
     }
-    private void log(String message) { logs.add(boundedDiagnostic(message)); if (logs.size() > 60) logs.remove(0); }
+    private void log(String message) { logs.add(boundedDiagnostic(PhoneMessages.render(this,message))); if (logs.size() > 60) logs.remove(0); }
     private void publish() {
         if (subscriber == null) return;
         Bundle b = new Bundle(); b.putString("state", state); b.putString("detail", detail); b.putString("error", error);
@@ -243,7 +247,7 @@ public final class AirPlayHostService extends Service {
         b.putInt("scaleMode", scaleMode); b.putString("protocol", "airplay"); b.putInt("pid", android.os.Process.myPid());
         b.putString("logs", String.join("\n", logs));
         FrameStatistics.Sample stats = video == null ? new FrameStatistics.Sample(0, 0, 0) : video.statistics();
-        b.putString("metrics", String.format(java.util.Locale.getDefault(), "%d frames · %.1f FPS · H.264 / %s", connectedFrames, stats.fps(), audio == null ? "video" : "44.1 kHz ALAC"));
+        b.putString("metrics", getString(R.string.phone_airplay_metrics, connectedFrames, stats.fps(), audio == null ? getString(R.string.phone_video_only) : "44.1 kHz ALAC"));
         try { Message response = Message.obtain(null, HostService.STATUS); response.setData(b); subscriber.send(response); } catch (RemoteException ignored) { subscriber = null; }
     }
 }

@@ -33,9 +33,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Own one instance from the foreground service. Stop/start on interface/address changes.
  * The Android owner must hold a Wi-Fi multicast lock while this receiver is running. */
 public final class DlnaReceiver implements AutoCloseable {
+    public enum Failure { LISTENER_STOPPED, DISCOVERY_STOPPED }
     public interface Listener {
         void onStatus(String message);
-        void onError(String message);
+        void onError(Failure failure, String detail);
     }
     private static final String DEVICE = "urn:schemas-upnp-org:device:MediaRenderer:1";
     private static final String SERVER = "Android/1.0 UPnP/1.0 MoonCastTV/0.1";
@@ -74,7 +75,7 @@ public final class DlnaReceiver implements AutoCloseable {
     public int getPort() { Session s = session; return s == null ? -1 : s.http.getLocalPort(); }
     public String getDescriptionUrl() { Session s = session; return s == null ? "" : s.location; }
     private void status(String message) { if (listener != null) try { listener.onStatus(message); } catch (RuntimeException ignored) {} }
-    private void error(String message) { if (listener != null) try { listener.onError(message); } catch (RuntimeException ignored) {} }
+    private void error(Failure failure, String detail) { if (listener != null) try { listener.onError(failure, detail); } catch (RuntimeException ignored) {} }
     private static ThreadFactory threads(String prefix) { return r -> { Thread t = new Thread(r, prefix); t.setDaemon(true); return t; }; }
 
     private final class Session implements AutoCloseable {
@@ -135,7 +136,7 @@ public final class DlnaReceiver implements AutoCloseable {
                 try { workers.execute(() -> serve(socket)); }
                 catch (RejectedExecutionException e) { sockets.remove(socket); quietClose(socket); }
             } catch (IOException e) {
-                if (!closed) { error("DLNA listener stopped: " + e.getClass().getSimpleName()); close(); }
+                if (!closed) { error(Failure.LISTENER_STOPPED, e.getClass().getSimpleName()); close(); }
             }
         }
         void serve(Socket socket) {
@@ -277,7 +278,7 @@ public final class DlnaReceiver implements AutoCloseable {
                     }, ThreadLocalRandom.current().nextInt(delayBoundMillis), TimeUnit.MILLISECONDS);
                 }
             } catch (IOException | RuntimeException e) {
-                if (!closed) { error("DLNA discovery stopped: " + e.getClass().getSimpleName()); close(); }
+                if (!closed) { error(Failure.DISCOVERY_STOPPED, e.getClass().getSimpleName()); close(); }
             }
         }
         void announce(String kind) {

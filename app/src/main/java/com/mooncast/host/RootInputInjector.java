@@ -18,7 +18,7 @@ final class RootInputInjector implements RemoteInputController.Backend {
     RootInputInjector() throws Exception {this(false);}
     RootInputInjector(boolean allowShell) throws Exception {
         int uid=android.os.Process.myUid();
-        if(uid!=0 && !(allowShell && uid==2000))throw new SecurityException("Privileged input requires root or an authorized shell service");
+        if(uid!=0 && !(allowShell && uid==2000))throw new SecurityException(PhoneMessages.message(R.string.phone_privilege_required));
         try{Class<?> runtime=Class.forName("dalvik.system.VMRuntime");Object vm=runtime.getDeclaredMethod("getRuntime").invoke(null);runtime.getDeclaredMethod("setHiddenApiExemptions",String[].class).invoke(vm,(Object)new String[]{"L"});}catch(Exception ignored){}
         Class<?> type;
         try{type=Class.forName("android.hardware.input.InputManagerGlobal");}catch(ClassNotFoundException e){type=Class.forName("android.hardware.input.InputManager");}
@@ -31,8 +31,8 @@ final class RootInputInjector implements RemoteInputController.Backend {
     private void inject(InputEvent event){try{
         if(displayId!=0)InputEvent.class.getDeclaredMethod("setDisplayId",int.class).invoke(event,displayId);
         Object accepted=inject.invoke(manager,event,0);
-        if(Boolean.FALSE.equals(accepted))throw new IllegalStateException("系统拒绝输入事件");
-    }catch(Exception e){throw new IllegalStateException("Root 输入失败: "+e.getClass().getSimpleName(),e);}}
+        if(Boolean.FALSE.equals(accepted))throw new IllegalStateException(PhoneMessages.message(R.string.phone_input_event_rejected));
+    }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_root_injection_failed , e.getClass().getSimpleName()),e);}}
     public void touch(int type,int id,float x,float y,float pressure){
         if(type==4 || type==7){cancel();return;}
         if(type!=1 && type!=2 && type!=3)return;

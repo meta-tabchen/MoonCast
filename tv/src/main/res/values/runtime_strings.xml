@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_language">Language / 语言</string>
+    <string name="tv_airplay_listening">AirPlay is listening; registering discovery…</string>
+    <string name="tv_airplay_ready">AirPlay is ready</string>
+    <string name="tv_airplay_discovery_failed">AirPlay discovery failed (code %1$d)</string>
+    <string name="tv_airplay_audio_configuration_unavailable">AirPlay audio configuration is unavailable</string>
+    <string name="tv_airplay_reconnecting">AirPlay is reconnecting: %1$s</string>
+    <string name="tv_airplay_audio_paused">AirPlay audio is paused because another app is using audio</string>
+    <string name="tv_airplay_audio_waiting">AirPlay audio is waiting for audio access</string>
+    <string name="tv_airplay_audio_output_unavailable">AirPlay audio output is unavailable</string>
+    <string name="tv_airplay_sender_unknown">AirPlay sender (identity unavailable)</string>
+    <string name="tv_receiver_stopped">Receiver stopped</string>
+    <string name="tv_mirror_ended">Screen mirroring ended</string>
+    <string name="tv_audio_ended">Audio playback ended</string>
+    <string name="tv_video_decoder_failed">Video decoder failed</string>
+    <string name="tv_video_decoder_stalled">Video decoder stopped producing frames</string>
+    <string name="tv_sender_disconnected">Sender disconnected</string>
+    <string name="tv_native_session_reset">AirPlay session was reset (code %1$d)</string>
+    <string name="tv_unsupported_media_url">This media address is not supported</string>
+    <string name="tv_video_runtime">%1$d × %2$d · %3$s · %4$s · %5$.1f fps · dropped frames: %6$d</string>
+    <string name="tv_playback_playing">Playing</string>
+    <string name="tv_playback_buffering">Buffering</string>
+    <string name="tv_playback_paused_stopped">Paused / stopped</string>
+    <string name="tv_airplay_unavailable">AirPlay is unavailable.\nTechnical details: %1$s</string>
+    <string name="tv_dlna_ready">DLNA is ready</string>
+    <string name="tv_receiver_unavailable">The receiver is unavailable.\nTechnical details: %1$s</string>
+    <string name="tv_airplay_restart_failed">AirPlay could not restart</string>
+    <string name="tv_dlna_listener_stopped">DLNA reception stopped.\nTechnical details: %1$s</string>
+    <string name="tv_dlna_discovery_stopped">DLNA discovery stopped.\nTechnical details: %1$s</string>
+    <string name="tv_diagnostic_code">%1$s\nDiagnostic code: %2$s</string>
+    <string name="tv_gamestream_audio_focus_lost">GameStream stopped because another app is using audio.</string>
+    <string name="tv_gamestream_video_failed">GameStream video output failed. Try connecting again.</string>
+    <string name="tv_gamestream_audio_failed">GameStream audio output failed. Try connecting again.</string>
+    <string name="tv_gamestream_hdr_unsupported">This GameStream receiver does not support HDR. Use SDR on the sender.</string>
+    <string name="tv_gamestream_session_ended">The GameStream session ended. Reconnect when the phone is ready.</string>
+    <string name="tv_media_playback_failed">Media playback failed. Check that the source is reachable and its format is supported.</string>
+    <string name="tv_apk_unknown_error">No technical details were reported</string>
+    <string name="tv_community_signing_notice">Community test build: this public test signature only keeps the signing identity consistent for future community updates. It does not verify an official publisher. Download APKs only from trusted project Releases.</string>
+</resources>

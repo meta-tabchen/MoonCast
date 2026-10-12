@@ -40,7 +40,9 @@ final class ApkSendController implements AutoCloseable {
     private Future<?> task;
 
     ApkSendController(Context context, Listener listener) {
-        this.context = context.getApplicationContext(); this.listener = listener;
+        // This controller has the Activity lifetime. Keep its newly wrapped locale after a
+        // language change; the process-wide Application can still have the previous locale.
+        this.context = context; this.listener = listener;
         worker.execute(() -> ApkStager.clearStale(this.context));
     }
     void prepare(Uri uri) {
@@ -86,18 +88,25 @@ final class ApkSendController implements AutoCloseable {
                 catch (Exception error) {
                     ApkStager.Work current = work;
                     if (run == generation && current != null) current.cancelAndDelete();
-                    post(run, () -> { selected = null; listener.failed(network, failureReason(error)); });
+                    post(run, () -> { selected = null; listener.failed(network, failureReason(error, network)); });
                 }
             });
         } catch (RejectedExecutionException ignored) {
             cancel(); if (!closed) listener.failed(network, context.getString(R.string.apk_busy_error));
         }
     }
-    private String failureReason(Exception error) {
+    private String failureReason(Exception error, boolean network) {
         if (error instanceof SecurityException) return context.getString(R.string.apk_access_error);
-        if (error instanceof java.io.InterruptedIOException) return context.getString(R.string.apk_timeout_error);
-        if (error instanceof java.io.IOException && error.getMessage() != null)
-            return ApkStager.displayText(error.getMessage(), 240);
+        if (error instanceof java.io.InterruptedIOException)
+            return context.getString(network ? R.string.phone_apk_transfer_timeout : R.string.apk_timeout_error);
+        if (error instanceof java.io.IOException && error.getMessage() != null) {
+            String detail = ApkStager.displayText(error.getMessage(), 240);
+            if (network) return context.getString(R.string.phone_technical_details,
+                context.getString(R.string.phone_apk_network_detail), detail);
+            if (PhoneMessages.isApkParserDiagnostic(detail)) return context.getString(R.string.phone_technical_details,
+                context.getString(R.string.phone_apk_invalid_container), detail);
+            return context.getString(R.string.phone_technical_details, context.getString(R.string.apk_prepare_error), detail);
+        }
         return context.getString(R.string.apk_metadata_error, error.getClass().getSimpleName());
     }
     private void post(int run, Runnable callback) { main.post(() -> { if (run == generation && !closed) callback.run(); }); }
