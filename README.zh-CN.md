@@ -1,93 +1,162 @@
-# MoonCast · 手机与电视统一预览版
+<p align="center"><img src="https://raw.githubusercontent.com/meta-tabchen/MoonCast/unified/community/docs/assets/mooncast-hero-v2.png" alt="MoonCast: your Android phone on a bigger screen; model-generated concept artwork" width="100%"></p>
 
-**当前下载：[MoonCast 0.5.0 统一预览版](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)。**
+<p align="center"><sub>模型生成品牌概念图，非设备截图或实际互通测试。</sub></p>
 
-手机和电视安装同一个 APP。普通手机默认发送，Android TV 默认接收；设置中可手动切换角色。ARM64、ARMv7 是 CPU 架构版本，功能相同，每台设备只需选一个。
+<p align="center">
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview"><img src="https://img.shields.io/badge/download-0.5.0_preview-547BEB" alt="Current download: 0.5.0 preview"></a>
+  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
+  <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
+  <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
+</p>
 
-- [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk)
-- [当前源码与完整说明](https://github.com/meta-tabchen/MoonCast/tree/unified/android-0.5.0) · [使用与排障](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-guide.md)
-- [构建和固定依赖恢复](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-build.md) · [完整对应源码 ZIP](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
-
-AirPlay、DLNA、GameStream 按各自流程使用；**未实现 Miracast、Google Cast、Lelink**。统一「我的电视」显示已发现设备及能力。电视开启 APK 接收后，手机可通过固定端口 48152 推送普通 APK，无额外配对码；电视仍须确认并交由 Android 系统安装。APK 传输未加密，仅适合可信局域网。包含电视待机主题和半透明播放设置。
-
-这是独立包名、临时测试签名的实验并存版，不保证未来覆盖升级。最终统一版 UI、视频叠加、设备互通和系统安装尚未实机验收；编译和主机测试不能替代实机结果。CI unsigned 文件不是可安装发布包。
-
-**main 保留历史手机发送端源码。** 当前统一源码请切换 `unified/android-0.5.0` 分支，旧分支和 Release 均保留。
-
-<details>
-<summary>历史 0.3.1 手机发送端说明（不是当前推荐下载）</summary>
-
-<p align="center"><img src="docs/assets/banner.svg" alt="MoonCast — 安卓手机作为 Moonlight 发射端" width="920"></p>
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview">下载 APK</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md">使用指南</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/cropping.zh-CN.md">裁剪算法</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md">构建</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/CONTRIBUTING.md">参与贡献</a></p>
 
-# MoonCast
+# MoonCast · 让手机视频，真正用好大屏
 
-**让安卓手机成为 Moonlight 的发射端。** 在局域网内将手机画面投到 iPad、Android TV 或其他 Moonlight 客户端，无需电脑中转。
+**一个安卓应用，兼顾手机发送与电视接收，也认真处理让大屏变小的投屏黑边。**
 
-专注手机投屏：保留完整画面、内置视频区域裁切、同步播放声音，可选关闭手机本地声音，以及默认关闭的 Root／非 Root 反控。普通录屏无需 Root 或 ADB。
+视频本身可能已经被黑边包在手机画面里。把整张手机画面等比放进电视，又会增加一层留白。MoonCast 帮你利用这部分空间：检测稳定黑边、按比例显示有效画面，并在自动判断不确定时提供手动调整。
 
-当前为 **0.3.1 预览版**，APK 使用本地 debug 密钥签名。安卓 → iPad 基础投屏已有一次真机使用记录；用户试用 0.2.0 后反馈「貌似没啥问题」，但这不等于裁切、静音、反控已逐项验证。0.3.1 新功能已进行 MuMu 生成内容测试；多路完整串流、真机屏幕电源行为及实际播放器兼容性仍需真机验证。[逐项开发与测试记录](docs/feature-development.md)。主要界面跟随系统语言，底层诊断尚未完全翻译。
+当前统一实现与构建请使用 [`unified/community`](https://github.com/meta-tabchen/MoonCast/tree/unified/community)。本页展示当前项目说明，main 的历史源码仍保留；下方技术链接明确指向统一版分支。
 
-## 下载与开始
+## 为什么用 MoonCast
 
-1. 在 Android 8.0+ 手机安装 [0.3.1 Preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)。
-2. 接收端安装 [官方 Moonlight](https://moonlight-stream.org/)，两端连接同一可信局域网。
-3. 手机点击「启动投屏」，授权共享**整个屏幕**。
-4. Moonlight 添加手机 IP，将接收端显示的四位 PIN 输入手机配对框。
-5. Moonlight 打开 `Desktop`，手机切换到要播放的视频或应用。
+- **减少黑边占用。** 电视「自动去黑边」寻找稳定、成对的黑色边缘，再把保留区域等比适配到屏幕，不靠拉伸人物和画面来填满。
+- **减少画面来回跳变。** 电视检测器积累多次一致证据才锁定裁剪。锁定后，如果裁剪外出现可见内容，安全检查可以放宽区域，而不是不断收紧和放大。
+- **遥控器就能微调画面。** 保留完整画面、自动去边、填满屏幕，或手动调整四边、缩放与位置。播放时的半透明设置面板便于边看边调，内容改变后可重新扫描。
+- **手机电视装同一个应用。** 手机默认发送，Android TV / Leanback 默认接收；设置可切换并记住角色。切换会先停止旧角色，不支持同时收发。
+- **找电视与传 APK 共用设备入口。**「我的电视」展示投屏及 APK 接收能力；传完仍由你在电视上确认安装。
 
-建议先使用 1080p60、H.264/HEVC、30–50 Mbps 验证，设备编码器、解码器和网络决定上限。这不是性能承诺。
+MoonCast 0.5 为实验预览版，欢迎提交设备体验与兼容性反馈。
 
-[详细中文使用说明](docs/usage.zh-CN.md) · [英文快速入门](docs/getting-started.md) · [Release 下载](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)
+## 去掉黑边，不等于无损填满屏幕
 
-## 有什么特点？
+![Auto and Fill concept comparison](https://raw.githubusercontent.com/meta-tabchen/MoonCast/unified/community/docs/assets/mooncast-auto-vs-fill.png)
 
-- 接收端直接使用 Moonlight，复用其配对、硬件解码和客户端生态。
-- 保留原有四种显示模式，新增「智能影院」稳定检测后锁定区域，浮层和暗场不再改变已锁定裁切，内容变化时可重新检测。
-- 独立 iPad／电视／电脑配置、观影／游戏／省电预设，以及捕获帧率、应用上行流量和温控面板。
-- Android 14+ 单应用授权、Shizuku 独立应用显示，以及可选 Shizuku 持续触摸与键盘。
-- 原文件影院：选择一个照片／视频／音频，在接收端浏览器打开局域网链接；字节不转码，播放器兼容性另行判断。
-- 实验性最多三设备共用捕获、单独断开，以及 Root／Shizuku 本地熄屏与恢复。
-- Android 10+ 可同步允许被捕获的播放声音，可选仅投音频时静音手机并在结束后恢复。
-- 非 Root 反控使用无障碍点击与单指滑动；Root 可尝试持续触摸和基础键盘。两者均需明确授权。
-- 运行时无需 MoonCast 账号、广告或云端服务。
+*模型生成示意：左侧保留宽银幕内容与必要上下留白；右侧放大覆盖屏幕，红屋与边缘树木被裁掉。不是设备实测，也不是精确比例仿真。*
 
-## 与其他方案比较
+| 电视画面模式 | 怎么处理 | 需要知道 |
+|---|---|---|
+| **自动去黑边** | 检测稳定的近黑边，保留区域等比适配 | 检测可能暂不确定；宽高比不同仍可能留边 |
+| **适应／完整画面** | 将完整源画面等比放入屏幕 | 保留源画面边缘，也保留原有黑边 |
+| **填满屏幕** | 放大完整源画面直到覆盖屏幕 | 超出屏幕的内容会被裁掉 |
+| **手动** | 独立调整四边、缩放和位置 | 由你选择允许隐藏哪些内容 |
 
-| 方案 | 主要用途 | MoonCast 的定位 |
-| --- | --- | --- |
-| [Mirror](https://github.com/jqssun/android-display-mirror) | 安卓多协议显示分享，支持 Moonlight/AirPlay/DisplayLink，可选 Shizuku 反控 | 本项目复用其原生核心，应用层专注视频比例、手机声音和两种反控后端 |
-| [scrcpy](https://github.com/Genymobile/scrcpy) | 安卓 → 电脑的成熟镜像、录制和控制，普通镜像通过 ADB | MoonCast 直接连接现有 Moonlight 接收端，无需电脑中转 |
-| [Sunshine](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html) | 桌面作为 Moonlight 发射端 | MoonCast 面向安卓手机，兼容相同客户端生态 |
+自动检测不能补回像素、识别主体，也不能区分所有暗场与黑边。字幕、控制条、过暗或不对称画面都可能阻止锁定。想恢复完整画面就选「适应」，内容变了可「重新扫描」。**裁掉冗余黑色像素，不保证任何视频都能保留全部内容并铺满屏幕。**
 
-这是使用方式的对比，没有进行延迟或画质性能排名。[详细对比与来源](docs/comparison.md)。
+## 三步开始投屏
 
-## 需要了解的限制
+安装并准备好网络后：
 
-默认一个接收端；开启「多人观看」可尝试最多三个，但依赖手机多路编码能力、共用画面模式及相同音频包时长，且关闭反控。MuMu 没有兼容的硬件 H.264 编码器，两路完整串流仍待真机验收。H.264/HEVC SDR 屏幕镜像仍为有损编码，没有实现数学无损、HDR、AV1 或 DRM 捕获；原文件影院是单独的浏览器播放方式。固定 16:9 假定横屏视频居中；自动去黑边属于启发式，需要更多真实播放器验证。较方的 iPad 要保留完整 16:9 视频时，必要的上下黑边仍会存在。
+1. 电视打开 MoonCast 的**接收模式**。手机与电视连接同一可信局域网，网络允许设备互访。
+2. 安卓手机选择 **AirPlay → 我的电视**，选接收端、开始分享并确认系统录屏授权。iPhone / iPad 在系统 AirPlay 屏幕镜像或媒体输出列表中选择 MoonCast。
+3. 播放视频。电视首次安装默认「自动去黑边」；给稳定、可见的画面几秒钟，再按需要选择适应、填满、手动或重新扫描。
 
-Root 屏幕捕获、Root／Shizuku 反控、独立显示和本地熄屏为实验功能；非 Root 滑动在抬手后执行，不支持任意文字键盘、多指和持续按住。Root 捕获目前仅视频。新版静音的实际扬声器／捕获行为仍需 ROM 实测。
+GameStream 和 DLNA 的连接方式见下文。
 
-[兼容性范围](docs/compatibility.md) · [英文验证记录](docs/validation.md) · [详细历史验证](VALIDATION.md)
+## 自动裁剪如何工作
 
-## 构建
+电视从小尺寸预览采样，扫描成对近黑边，检查内部是否存在分布足够广的可见内容，再等待边界稳定后等比显示。普通黑边需要 8 个有效样本，宽黑边需要 12 个。锁定后，如果连续两次在裁剪外发现可见内容，安全检查可放宽裁剪。
 
-需要 JDK 17、Android SDK 35、Build Tools 35.0.0。
+这是**像素阈值与几何规则算法，不是 AI 场景识别**。手机发送端使用另一套裁剪规则，不能把电视端的所有保护都视为发送端能力。[查看具体实现、阈值与限制 →](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/cropping.zh-CN.md)
+
+## 按场景选择用法
+
+**在电视上看片：** 使用 MoonCast 接收模式，先选自动去黑边；遇到字幕或特殊构图，可随时切回适应。接收端也可播放兼容 DLNA 控制端推送的受支持媒体地址。
+
+**手机投到已有 Moonlight 的 iPad、电视或电脑：** 安卓手机启动 GameStream 主机，从 Moonlight 客户端配对连接，无需电脑中转。配对、客户端参数与硬件解码沿用 Moonlight 工作流。
+
+**播放原文件：** 手机的「原文件影院」将选中的照片、视频或音频通过带令牌的局域网浏览器链接提供，传输字节不转码。能否播放仍取决于浏览器的容器和编码支持。这与屏幕镜像、DLNA 接收、Moonlight 是不同路径。
+
+## 能力与实际边界
+
+| 领域 | 已实现能力 | 范围／限制 |
+|---|---|---|
+| 手机 → Moonlight | H.264 / HEVC SDR 屏幕编码，使用现有 Moonlight 客户端 | 有损编码；不宣称 HDR、AV1 或延迟实测成绩 |
+| 手机 → AirPlay | 安卓录屏发送到兼容 AirPlay 接收端 | 协议变体和设备兼容性有差异 |
+| 电视接收 | AirPlay 镜像／媒体、受支持 DLNA 地址、GameStream 客户端 | 各自独立协议路径，不是安卓系统投屏通用接收器 |
+| 手机裁剪 | 完整屏幕、自动适应／填满、居中 16:9、稳定影院 | 自动检测仅横屏；固定 16:9 假设内容居中 |
+| 电视裁剪 | 自动、适应、填满、四边手动、缩放／平移与重新扫描 | 基于规则；暗场和浮层可能影响判断 |
+| 播放声音 | 可选转发允许采集的播放声音，本地静音与恢复 | Android 10+ 且源应用允许；Root 捕获仅视频 |
+| 配置与预设 | 接收端偏好，观影／游戏／省电预设 | 不替代 Moonlight 分辨率／帧率／码率设置，也不自动授权 |
+| 运行信息 | 捕获提交帧率、应用 UID 流量与温控信息 | 不是端到端延迟、接收端帧率或省电实测 |
+| 可选反控 | 无障碍手势；Root／Shizuku 持续触摸与基础按键 | 默认关闭，需明确授权，受后端和 ROM 限制 |
+| 应用捕获 | Android 14+ 系统单应用选择；Shizuku 独立显示 | 系统单应用缺少可靠输入映射；独立显示仅视频 |
+| 多人观看 | 实验性最多三个 Moonlight 接收端 | 受编码器／网络限制；共用画面及音频包时长；关闭反控 |
+| 本地屏幕电源 | 可选 Root／Shizuku 熄屏请求与恢复租约 | 实验性、依赖 ROM；实际面板与省电效果待实机验证 |
+| 电视体验 | 遥控器设置、四种待机主题、半透明播放设置 | 主题用于待机，不覆盖正在播放的视频 |
+| APK 传输 | 电视主动开启、包信息审阅、调用系统安装器 | 仅普通 `.apk`；无静默安装、`.apks` 或 `.xapk` 处理 |
+
+进阶发送功能保留[逐项实现与历史验证说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/feature-development.md)。历史结果不能替当前统一 APK 验收；当前范围见[统一版验证矩阵](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/community-validation.md)。
+
+## 下载 0.5.0 合并预览版
+
+[版本说明与全部附件](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview) · [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk) · [完整对应源码](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
+
+最低 Android 8.0（API 26）。64 位 ARM 安卓系统选 ARM64，32 位 ARM 安卓系统选 ARMv7；以系统实际支持的 ABI 为准，不只看处理器宣传名称。两个安装包功能相同，均包含手机和电视模式，每台设备只选一个安装。下载附件是已签名的实验预览包；CI 生成的 unsigned 验证包不能直接作为安装版使用。本次不发布 x86 安装包。
+
+上方 0.5.0 源码 ZIP 对应旧预览版。以下构建策略适用于下一社区版，其源码在 `unified/community` 分支。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md)操作；完整源 ZIP 已含这些固定依赖，但不含 MoonCast 应用的 PKCS12 签名文件；可按构建指南生成独立包名的无签名验证产物。签名社区构建使用完整 Git checkout 中由用户一次初始化的固定公开测试身份。
+
+## 两台设备怎么配合
+
+- 安卓手机 → AirPlay：手机选 AirPlay，在统一「My TV」设备列表选择电视，再开始分享并确认系统录屏授权。接收端可以是 MoonCast 电视模式或兼容的第三方 AirPlay 接收器。
+- 安卓手机 → Moonlight：手机选 Moonlight 并启动主机，电视模式或官方 Moonlight 客户端连接手机，按提示完成 GameStream PIN 配对。
+- iPhone / iPad → 电视：在苹果系统的屏幕镜像或媒体输出列表选 MoonCast。
+- DLNA：兼容控制端把支持的媒体地址推给 MoonCast 电视模式。
+
+My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。取消配对码指的是 APK 传输；GameStream 自身的 PIN 安全配对仍保留。
+
+## 手机发送 APK 到电视
+
+电视开启「安装手机 APK」，手机选择 `.apk` → My TV 选择支持 APK 的电视 → 上传。固定端口为 TCP 48152，不需要额外传输配对码。电视核对包信息并明确确认后，才打开 Android 系统安装器。
+
+首次允许「安装未知应用」必须由你在系统设置操作。授权回来无需重新上传，在保留的审核页面再次确认即可。不会静默安装，也不能绕过 Android 的签名、降级、设备兼容或分包要求；扩展名为 APK 不代表任意文件都能成功安装。
+
+## 重要边界
+
+- APK 使用未加密 HTTP，仅限可信局域网，不能暴露公网。仍保留文件大小、并发、速率、超时、私有路径、哈希、解析及 FileProvider 限制。
+- 本项目未实现 Miracast、Google Cast/Chromecast、Lelink、其他厂商系统投屏协议或 AirPlay 2 多房间；GameStream 不进入 Android 系统投屏列表。
+- DRM 视频、禁止录屏或禁止音频捕获的应用可能黑屏或无声音。屏幕镜像有损，不宣称原画无损或假 4K。
+- Root / Shizuku / 无障碍控制仍为可选功能，不会自动授权，不改路由器或系统安全设置。
+- 编译、主机测试和模拟器测试不等于所有手机电视实机兼容。发布时须列出实际通过及未验证项目。
+
+## 社区版升级与旧版迁移
+
+当前可下载的 0.5.0 使用 `com.mooncast.unified.preview` 与一次性测试签名。原签名身份已不再可用，不能承诺用后续构建覆盖它。
+
+下一社区版本采用固定包名 `com.mooncast.community` 与仓库公开的固定测试签名，后续递增 versionCode，以支持社区版之间正常覆盖升级。旧 0.5.0 到社区版需要一次迁移，不是每次更新都换包名或长期要求多版本共存。配对、权限与私有设置不能自动跨包搬运。
+
+公开测试密钥不能证明安装包来自维护者：任何人都可用它签名。只从可信发布入口下载并核对发布校验和。未来商店版将使用独立包名与私有生产密钥，不与公开测试身份混用。新社区版尚未发布时，请使用上面的现有下载；不要把源码中的版本号当作可下载成品。
+
+社区签名身份与构建失败保护见[签名说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/signing/community/README.md)。
+
+## 语言设置
+
+手机设置和电视高级设置提供「跟随系统」、English、简体中文。取消或选择当前语言不会停止会话；确认更换语言后才结束旧会话并重新打开当前角色。Android 13 及以上也支持系统应用语言选择。直接从系统设置切换时，活跃通知可能延后刷新，见[语言使用说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md)。
+
+## 构建与参与
+
+需要 JDK 17、Android SDK 35、Build Tools 35.0.0 与 Gradle 8.9 / AGP 8.7.3。当前实现位于 `unified/community`。
 
 ```sh
-./gradlew :app:assembleDebug :app:lintDebug
-python scripts/run_unit_tests.py
-python scripts/verify_apk.py app/build/outputs/apk/debug/app-debug.apk
+git clone --branch unified/community https://github.com/meta-tabchen/MoonCast.git
+cd MoonCast
+python3 scripts/restore_release_inputs.py
+python3 scripts/prepare_airplay.py --verify-sources
+python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
+python3 scripts/prepare_unified_native.py
+gradle :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
 ```
 
-Windows 使用 `gradlew.bat`。默认构建使用已固定、已校验的原生库，仓库保留完整对应源码及依赖许可证。从源码重编译原生核心需要额外 NDK/CMake 工具链，本预览版尚未验证该路径。[完整构建说明](docs/building.md)。
+完整 Git checkout 的社区 release 构建使用用户一次初始化的固定公开测试身份。运行 `python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk` 校验；添加 `--previous /path/to/previous-community.apk` 可检查升级身份与递增 versionCode。缺失或被修改的签名输入会令构建失败，不会临时生成替代身份。独立私有身份实现前，production 构建明确禁用。Release 源码 ZIP 不含 MoonCast 应用的 PKCS12 签名文件；可显式加 `-PmooncastUnsignedVerification=true` 构建独立 `com.mooncast.community.verification` 无签名验证产物，不可覆盖社区版。原生库重建、依赖与源码打包见[构建指南](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md)。
 
-## 参与
+设备报告请附发送端／接收端型号、系统和应用版本、协议、编码／分辨率／帧率／码率、画面模式及复现步骤。将「能连接」「有画面」「有声音」「裁剪正确」分别描述，删除日志中的隐私及配对信息。[反馈问题](https://github.com/meta-tabchen/MoonCast/issues) · [参与贡献](https://github.com/meta-tabchen/MoonCast/blob/unified/community/CONTRIBUTING.md) · [安全说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/SECURITY.md)。
 
-欢迎提交设备兼容性报告、修复、翻译和真实测试结果。请附手机型号／系统、Moonlight 版本、码率／帧率／分辨率和复现步骤，删除日志中的私密信息。[贡献指南](CONTRIBUTING.md) · [路线图](docs/roadmap.md) · [问题反馈](https://github.com/meta-tabchen/MoonCast/issues)。如果有用，欢迎 Star 帮更多 Moonlight 用户找到它。
+[历史 0.3.1 手机发送端 README](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/historical-sender-0.3.1.zh-CN.md) 单独保留，不再折叠进当前项目介绍；内容仅适用于历史版本。
 
-## 许可证与致谢
+## 源码与致谢
 
-[GPLv3](LICENSE)。原生核心复用 [Mirror](https://github.com/jqssun/android-display-mirror) 对 [Sunshine](https://github.com/LizardByte/Sunshine) 的安卓移植，并非本项目从零实现。感谢 Mirror、Sunshine、Moonlight 和依赖维护者。[完整署名](THIRD_PARTY_NOTICES.md) · [固定源码版本](native/SOURCE_LOCK.json)。本项目独立维护，不代表上游官方。
+手机 GameStream 主机基于 Mirror / Sunshine，AirPlay 发送采用固定版本 Go 发送库；接收端使用带补丁的 AndroidAirPlay / UxPlay、Media3 / DLNA 与 Moonlight core。两套 OpenSSL 通过不同库名与进程隔离，并非任意合并。MoonCast 是独立 GPLv3 项目，不是 Apple、Moonlight 或 Sunshine 的官方发行版。
 
-</details>
+项目按 GPLv3 提供对应源码。完整源包包含发送/接收依赖源、补丁、原生库校验和与构建方法。第三方许可见 [THIRD_PARTY_NOTICES.md](https://github.com/meta-tabchen/MoonCast/blob/unified/community/THIRD_PARTY_NOTICES.md)，背景来源见 [主题说明](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/tv-themes.md)。GitHub 发布需同步 APK、完整对应源码和 SHA256SUMS，不能只放截图或源码地址。
