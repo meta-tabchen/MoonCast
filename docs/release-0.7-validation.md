@@ -1,8 +1,8 @@
 # 0.7 validation / 验证范围
 
-VersionName **0.7**, versionCode **57**. Final runtime/source local build commit is `5ab1b3064d57ddd02416d6e3734eabc818d66b1e`. Public main/tag `v0.7` targets `70ee18591e4ae6fed1c7d42e96338d53189d1871`, with the exact same Git tree `0489e0fa1bca7ade608db7ff84582835f0d80a88`. The local SHA is a build-provenance identifier, not a claim of a publicly browsable commit. Final changes after reviewed candidate b677abd were limited to connecting-state CSS and its cancellation fixture.
+VersionName **0.7**, versionCode **57**. Final runtime/source local build commit is `5ab1b3064d57ddd02416d6e3734eabc818d66b1e`. The public release-source tag `v0.7` targets `70ee18591e4ae6fed1c7d42e96338d53189d1871`, with the exact same Git tree `0489e0fa1bca7ade608db7ff84582835f0d80a88`. The local SHA is a build-provenance identifier, not a claim of a publicly browsable commit. Final changes after reviewed candidate b677abd were limited to connecting-state CSS and its cancellation fixture.
 
-版本0.7/code57。最终本地构建提交为 `5ab1b3064d57ddd02416d6e3734eabc818d66b1e`，公开main／v0.7目标为 `70ee18591e4ae6fed1c7d42e96338d53189d1871`，二者Git树完全相同：`0489e0fa1bca7ade608db7ff84582835f0d80a88`。本地SHA用于构建溯源，不冒充公开可浏览提交。相对先前b677abd候选，最终仅修连接中控件CSS并增加取消测试。
+版本0.7/code57。最终本地构建提交为 `5ab1b3064d57ddd02416d6e3734eabc818d66b1e`，公开运行源码标签v0.7指向 `70ee18591e4ae6fed1c7d42e96338d53189d1871`，二者Git树完全相同：`0489e0fa1bca7ade608db7ff84582835f0d80a88`。本地SHA用于构建溯源，不冒充公开可浏览提交。相对先前b677abd候选，最终仅修连接中控件CSS并增加取消测试。
 
 The source archive is verified; the first CI needed a test-resolver-only repair and the rerun passed. The manual device job was skipped. See the latest CI/source section below. This is not an all-green or user-device acceptance claim.
 
@@ -68,3 +68,4 @@ The first CI on `70ee18591e4ae6fed1c7d42e96338d53189d1871` failed in the host-te
 **CI snapshot:** [run38278828071](https://github.com/meta-tabchen/MoonCast/actions/runs/38278828071) **completed successfully** on b8be236: host/BC tests, ARM64/ARMv7 builds, lint, QR roundtrips, APK type closure and signing guards passed. The manual device job was skipped, not passed. Tag `v0.7` stays at70ee, exactly matching the original build's source tree. The earlier Mac OriginalMediaServerTest connection-reset failure remains disclosed separately.
 
 **CI快照：** 重跑38278828071在b8be236上**成功完成**：主机／BC测试、双ABI构建、lint、QR回环、APK类型闭包与签名检查通过。手动设备任务跳过，不当作通过。v0.7仍指向70ee，与原始构建源码树一致；此前Mac OriginalMediaServerTest连接重置失败独立保留。
+
