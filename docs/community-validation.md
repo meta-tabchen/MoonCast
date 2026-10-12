@@ -60,3 +60,17 @@ The implementation confirms session cleanup before an in-app language change; Ca
 The dependency bootstrap still downloads hash-pinned legacy native inputs from the 0.5.0 source archive. The **new 0.5.1 complete-source archive corresponds to the app commit above**. These archives serve different purposes; restoration does not replace current application code. See [build instructions](unified-build.md).
 
 依赖引导仍从旧 0.5.0 源包取得哈希固定的原生输入；**新 0.5.1 完整对应源码属于上方应用提交**。两者用途不同，恢复依赖不会将当前应用代码替换成旧版。详见[构建说明](unified-build.md)。
+
+## Follow-up startup diagnosis / 后续启动诊断
+
+[Diagnostic run 38206995486](https://github.com/meta-tabchen/MoonCast/actions/runs/38206995486), on the separate `diagnostics/community-startup` branch, rebuilt only the exact released commit's x86_64 debug and instrumentation APKs. Both matched the prior APK bytes (debug SHA-256 `18142c09116fdab2bebcc26cd92de2117c68d648cfc7c81ae7e71600d1d3d4fd`; test `d5bfa343ffa6f7aff01765cad300c660cac6b498c3e1ac92123442d1a7106361`). The fixtures were saved before starting the emulator.
+
+The first cold `verify/system` start failed before any `select/system` language change. The captured main thread was **Runnable**, in Android's `Security.increaseVersion` → `insertProviderAt` → `NetworkSecurityConfigProvider.install` → `ActivityThread.handleBindApplication`, with no MoonCast frame in that stack. Its scheduler statistics showed approximately **2.294 seconds running versus 30.152 seconds waiting on the run queue**. CPU pressure was 89.59%; system phone, Google services and keyboard processes also reported startup ANRs. Even before installing MoonCast, the captured system CPU sample was 99% busy. The held class lock in the stack is not evidence of a monitor-wait deadlock.
+
+Taken together, this strongly supports software-emulator scheduling starvation for this observed failure. It does not establish that every application path is correct, or that physical devices behave the same way. No production-code fix was isolated, no ANR threshold was relaxed, and the same configuration was not repeatedly rerun until green. The original failed CI result remains a failure. Full UI regression, real-device casting, screenshots and GIFs are still pending; this diagnosis does not turn them into passed checks.
+
+The run retains reconstructed fixtures, full logcat, ANR/exit diagnostics and an exact-byte manifest as Actions artifacts. [Linux scheduler field definitions](https://www.kernel.org/doc/html/v6.12/scheduler/sched-stats.html) explain the runtime/run-queue-wait interpretation. Artifact retention is finite; a missing or expired artifact is not additional verification.
+
+中文：上述独立诊断只重建已发布提交的 x86_64 debug 与测试 APK，两个文件均与原始 SHA-256 完全一致，且在启动模拟器前保存。第一次冷启动 `verify/system` 就失败，尚未执行语言切换。主线程处于 Runnable，在 Android 安全配置初始化调用链中，没有 MoonCast 方法栈；实际运行约 2.294 秒、排队等待约 30.152 秒，CPU 压力 89.59%。系统电话、Google 服务及输入法也发生启动 ANR，安装 MoonCast 前的系统采样已达 99% CPU。
+
+这些证据强烈支持本次软件模拟器发生严重调度饥饿；不代表已经排除所有应用问题，更不能代替真机验证。没有定位到需要修改的产品代码，没有放宽 ANR 阈值，也没有重复跑到通过为止。原 CI 失败事实保留。完整 UI、真实设备投屏、截图和 GIF 仍待验证。原始 APK、完整日志和诊断清单已保存为该次 Actions 产物，须注意其保留期限。
