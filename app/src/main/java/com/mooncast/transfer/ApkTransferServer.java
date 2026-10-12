@@ -40,6 +40,7 @@ public final class ApkTransferServer implements Closeable {
     private int requestCount;
     private Session session;
     private ServerSocket server;
+    private Thread acceptThread;
     private volatile File partial;
     private long deadlineNanos;
     public ApkTransferServer(File privateDir, InetAddress bindAddress,
@@ -63,7 +64,7 @@ public final class ApkTransferServer implements Closeable {
         deadlineNanos = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ApkTransfer.SESSION_MILLIS);
         timer.schedule(() -> { if (!closed) { boolean notify = !completed; close(); if (notify) safeError("Receive session expired. Open a new session on TV."); } },
             ApkTransfer.SESSION_MILLIS, TimeUnit.MILLISECONDS);
-        Thread accept = new Thread(this::acceptLoop, "apk-accept"); accept.setDaemon(true); accept.start();
+        acceptThread = new Thread(this::acceptLoop, "apk-accept"); acceptThread.setDaemon(true); acceptThread.start();
         return session;
     }
     private void acceptLoop() {
@@ -72,10 +73,16 @@ public final class ApkTransferServer implements Closeable {
             try {
                 socket = server.accept();
                 if (!peerAllowed.test(socket.getInetAddress())) { socket.close(); continue; }
-                socket.setSoTimeout(15000); sockets.add(socket);
-                final Socket accepted = socket;
-                try { workers.execute(() -> handle(accepted)); }
-                catch (RejectedExecutionException busy) { sockets.remove(socket); socket.close(); }
+                socket.setSoTimeout(15000);
+                synchronized (this) {
+                    // close() may race the return from accept or the peer check. Never
+                    // register a socket after close has finished clearing the owned set.
+                    if (closed) { socket.close(); break; }
+                    sockets.add(socket);
+                    final Socket accepted = socket;
+                    try { workers.execute(() -> handle(accepted)); }
+                    catch (RejectedExecutionException busy) { sockets.remove(socket); socket.close(); }
+                }
             } catch (IOException e) { if (!closed) { close(); safeError("Receiver connection failed"); } }
         }
     }
@@ -214,11 +221,33 @@ public final class ApkTransferServer implements Closeable {
         out.write(bytes);out.flush();
     }
     private void safeError(String message) { try { listener.onError(message); } catch (RuntimeException ignored) {} }
-    @Override public synchronized void close() {
-        if (closed) return; closed=true;
-        if (server != null) try { server.close(); } catch(IOException ignored) {}
-        synchronized(sockets) { for(Socket s:sockets)try{s.close();}catch(IOException ignored){} }
-        workers.shutdownNow();timer.shutdownNow(); File f=partial;if(f!=null)f.delete();
+    @Override public void close() {
+        final Thread accepting;
+        synchronized (this) {
+            if (!closed) {
+                closed=true;
+                if (server != null) try { server.close(); } catch(IOException ignored) {}
+                synchronized(sockets) { for(Socket s:sockets)try{s.close();}catch(IOException ignored){} }
+                workers.shutdownNow();timer.shutdownNow(); File f=partial;if(f!=null)f.delete();
+            }
+            accepting=acceptThread;
+        }
+        // Linux/JDK may retain the listening descriptor until a blocked accept unwinds,
+        // even after ServerSocket.close returns. Wait for that owner before allowing an
+        // immediate new receive window on the same fixed port. This is not a bind retry.
+        // Do not hold the lifecycle/socket locks, join ourselves, or let an interrupted
+        // caller skip the release acknowledgement. A blocked peer callback is bounded.
+        if (accepting!=null && accepting!=Thread.currentThread()) {
+            boolean interrupted=false;
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(1);
+            while (accepting.isAlive()) {
+                long remaining=deadline-System.nanoTime();
+                if (remaining<=0) break;
+                try { TimeUnit.NANOSECONDS.timedJoin(accepting,remaining); }
+                catch (InterruptedException e) { interrupted=true; }
+            }
+            if (interrupted) Thread.currentThread().interrupt();
+        }
     }
     private static final class Request {
         final String method,path;final Map<String,String> headers;final long length;

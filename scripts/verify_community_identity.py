@@ -25,7 +25,8 @@ def info(apk):
         raise ValueError('Missing APK identity')
     manifest = subprocess.check_output([tools / 'aapt', 'dump', 'xmltree', apk, 'AndroidManifest.xml'], text=True)
     for attr in ['debuggable', 'testOnly']:
-        if not not re.search('android:' + attr + '\\([^)]*\\)=\\(type 0x12\\)0xffffffff', manifest):
+        value = re.search('android:' + attr + r'\([^)]*\)=\(type 0x12\)0x([0-9a-fA-F]+)', manifest)
+        if value and int(value[1], 16) != 0:
             raise ValueError('Release may not enable ' + attr)
     return (match[1], int(match[2]), signers[0].lower())
 package, version, cert = info(a.apk)

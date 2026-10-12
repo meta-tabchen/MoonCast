@@ -111,9 +111,52 @@ public final class TransferTest {
             rejects(()->ApkTransfer.checkContainer(file),"actual inflated resource bytes cannot bypass a falsely small declared size");
         }finally{file.delete();}
     }
+    static void closeAcknowledgementChecks()throws Exception{
+        // Pause the real accept owner at the peer boundary. close must wait for its
+        // release acknowledgement, but must not hold the lifecycle lock while waiting.
+        File dir=Files.createTempDirectory("apk-close-ack").toFile();
+        CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1),closed=new CountDownLatch(1);
+        ApkTransferServer receiver=new ApkTransferServer(dir,LOOP,peer->{
+            entered.countDown();try{release.await();}catch(InterruptedException e){Thread.currentThread().interrupt();}return true;
+        },"12345678-1234-1234-1234-123456789abc",new ApkTransferServer.Listener(){
+            public void onProgress(long n,long total){}public void onReceived(File f,String h){}public void onError(String message){}
+        });
+        Thread closer=new Thread(()->{receiver.close();closed.countDown();},"test-apk-close");
+        try{
+            ApkTransferServer.Session session=receiver.start();
+            try(Socket peer=new Socket(LOOP,session.port)){
+                check(entered.await(2,TimeUnit.SECONDS),"accept owner reached peer boundary");closer.start();
+                long deadline=System.nanoTime()+TimeUnit.MILLISECONDS.toNanos(500);
+                while(closed.getCount()!=0 && closer.getState()!=Thread.State.TIMED_WAITING && System.nanoTime()<deadline)Thread.yield();
+                check(closed.getCount()!=0 && closer.getState()==Thread.State.TIMED_WAITING,
+                    "close waits for accept owner acknowledgement outside lifecycle lock");
+                release.countDown();
+                check(closed.await(2,TimeUnit.SECONDS),"accept-close race finishes without a lock deadlock");
+                peer.setSoTimeout(1000);boolean ended;
+                try{ended=peer.getInputStream().read()==-1;}catch(SocketException reset){ended=true;}
+                check(ended,"socket accepted during close is not admitted after cleanup");
+            }
+        }finally{release.countDown();receiver.close();if(closer.isAlive())closer.join(2000);dir.delete();}
+        try(Receiver restarted=new Receiver()){
+            check(raw(restarted,"GET /info HTTP/1.1\r\n\r\n").startsWith("HTTP/1.1 200"),"fixed-port reopen works immediately after accept-close race");
+        }
+        // An already-interrupted UI/worker must still wait for the listener release,
+        // then restore its interrupt status rather than silently bypassing cleanup.
+        try(Receiver interrupted=new Receiver()){
+            Thread.currentThread().interrupt();interrupted.server.close();
+            check(Thread.interrupted(),"close preserves caller interruption after release acknowledgement");
+        }finally{Thread.interrupted();}
+        // Exercise the actual kernel listener close/rebind path repeatedly, with no
+        // sleep, bind retries or random receiver ports between consecutive sessions.
+        for(int i=0;i<50;i++)try(Receiver restarted=new Receiver()){
+            if(!raw(restarted,"GET /info HTTP/1.1\r\n\r\n").startsWith("HTTP/1.1 200"))throw new AssertionError("restart "+i);
+        }
+        check(true,"50 immediate fixed-port close/reopen sessions without retries");
+    }
     public static void main(String[]args)throws Exception{
         File valid=apk(true),invalid=apk(false);String hash=ApkTransfer.hash(valid);
         try{
+            closeAcknowledgementChecks();
             ApkTransfer.checkContainer(valid);check(true,"ordinary APK structural acceptance");
             directoryChecks(valid);
             resourceChecks();

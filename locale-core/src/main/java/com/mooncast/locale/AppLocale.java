@@ -39,9 +39,17 @@ public final class AppLocale {
   }
  }
  public static Context wrap(Context base) {
-  if(Build.VERSION.SDK_INT>=33)return base; // Follow the OS per-app setting, including changes in Settings.
   String value=selected(base);
-  if("system".equals(value))return base;
+  if("system".equals(value)) {
+   LocaleList system;
+   if(Build.VERSION.SDK_INT>=33) {
+    LocaleManager manager=base.getSystemService(LocaleManager.class);
+    system=manager==null?android.content.res.Resources.getSystem().getConfiguration().getLocales():manager.getSystemLocales();
+   } else system=android.content.res.Resources.getSystem().getConfiguration().getLocales();
+   // A single explicit resource locale also prevents untranslated dependency
+   // resources or the OS second-choice locale from creating a mixed-language UI.
+   value=LocalePolicy.resourceLanguage(system.isEmpty()?"en":system.get(0).getLanguage());
+  }
   Configuration configuration=new Configuration(base.getResources().getConfiguration());
   configuration.setLocales(new LocaleList(Locale.forLanguageTag(value)));
   configuration.setLayoutDirection(Locale.forLanguageTag(value));

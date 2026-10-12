@@ -42,8 +42,13 @@ jobs:
           python3 scripts/run_apk_transfer_tests.py
           python3 scripts/run_apk_settings_lifecycle_tests.py
           python3 scripts/run_apk_archive_signature_tests.py
+          python3 scripts/run_tv_unit_tests.py
+          python3 scripts/run_airplay_unit_tests.py
+          python3 scripts/run_airplay_decoder_tests.py
           python3 scripts/run_tv_audio_tests.py
           python3 scripts/run_airplay_rtp_transition_tests.py
+      - name: Community identity fail-closed build guards
+        run: bash scripts/test_community_build_guards.sh
       - name: Build fixed-signature community ARM64 app and lint
         run: gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
       - name: Inspect combined APK
@@ -124,7 +129,7 @@ jobs:
           if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
           echo "Emulator acceleration: $accel (no chmod, udev or privilege changes)"
           mkdir -p "$RUNNER_TEMP/mooncast-device/evidence"
-          "$ANDROID_HOME/emulator/emulator" -avd mooncast -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel "$accel" > "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt" 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd mooncast -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt" 2>&1 &
           for i in $(seq 1 120); do
             if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
             sleep 5

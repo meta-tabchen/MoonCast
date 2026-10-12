@@ -103,7 +103,7 @@ def main() -> None:
     remote = f'/sdcard/Android/data/{PACKAGE}/files/community-locale/{marker}'
 
     def install(apk: Path, package: str):
-        result = adb('install', '-r', apk, timeout=240)
+        result = adb('install', '-r', *(['-t'] if package == TEST_PACKAGE else []), apk, timeout=240)
         if 'Success' not in result.stdout:
             raise RuntimeError(f'install -r did not succeed: {apk}\n{result.stdout}\n{result.stderr}')
         paths = adb('shell', 'pm', 'path', package).stdout.strip().splitlines()
@@ -112,7 +112,7 @@ def main() -> None:
         installed_hash = adb('shell', 'sha256sum', paths[0][len('package:'):]).stdout.split()[0]
         if installed_hash != digest(apk):
             raise RuntimeError(f'Installed bytes do not match {apk}')
-        return {'operation': 'adb install -r', 'success': True, 'installedSha256': installed_hash}
+        return {'operation': 'adb install -r -t' if package == TEST_PACKAGE else 'adb install -r', 'success': True, 'installedSha256': installed_hash}
 
     def instrument(phase: str, language='en', version=None):
         options = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'suite', 'locale', '-e', 'phase', phase,
