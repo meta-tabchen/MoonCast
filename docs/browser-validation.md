@@ -1,8 +1,55 @@
 # Browser preview validation
 
-This record describes local Mac validation on 2026-10-12. **Android-to-browser
-end-to-end playback remains untested.** The device QA task owns ADB and installation;
-this development task did not install, uninstall, stop ADB, or operate its tablet.
+This record describes local Mac validation on 2026-10-12. The final code-54 APK
+was installed on a Xiaomi Pad 8 (Android 17), then its real screen capture and
+permitted playback capture were received in Mac Chrome. The source content was a
+dedicated, permission-free synthetic color-bar/moving-dot/440 Hz test application.
+The user authorized this development task to operate ADB after the separate QA
+task relinquished the device. No ADB server reset, permission override, user-data
+clear, certificate bypass or personal-content recording was used.
+
+## Real Android to Mac Chrome
+
+APK `0.6.0-browser-preview.3`, versionCode 54, build `7a843a1`, SHA-256
+`04792d9fccd097461f659e2b9f8bfc2499eeb293724b546977ab2685e02bb825`,
+keeps the fixed community package and signer. Its normal MediaProjection consent
+was accepted on the device. The actual production Android HTTP/signaling server
+and WebRTC stack delivered H.264 video at 1280×854 and Opus audio at 48 kHz to
+Chrome 154.0.8037.99 on macOS. No SDP/candidate rewriting or browser-generated
+sender was used for this test. Decoded frames, received audio bytes/samples and
+nonzero audio energy rose over successive observations after the sound gesture.
+Physical speaker listening and audio/video synchronization were not measured.
+
+The live picture continued during Fit/Fill controls. A short recording of the
+actual receiver page shows the labelled synthetic Android content. Its GIF/WebM
+contains no recorded audio track; captured-audio evidence is in receiver RTP
+statistics. The initial recording attempt missed its content-review deadline;
+that failed evidence was retained, and a fresh run completed the recording.
+`tests/browser_android_receiver.cjs` records these conditions and explicit
+recorded/skipped status instead of inferring success from a generic phase marker.
+
+Normal Android Stop ended MediaProjection, removed the BrowserHostService, closed
+the browser peer/tracks and stopped serving the old session URL. The temporary
+test application was then uninstalled; MoonCast and user data were retained.
+Published UI screenshots are from code 54 and contain no session URL. Phone
+sharing screenshots containing private addresses/tokens were retained only for
+internal review. The About screenshot confirms the installed version/build.
+
+This is a real Android capture-to-browser result using synthetic source content.
+It does not validate every Android device, protected source app, TV browser,
+network configuration, rotation, single-app capture, latency or lossless quality.
+
+![Real Android capture received in Mac Chrome; synthetic source content](assets/browser-android-demo.gif)
+
+![Installed code-54 Android browser page](assets/browser-android-ui-code54.png)
+
+![Installed version and build identity](assets/browser-android-about-code54.png)
+
+The Android test decoded 5→84 H.264 frames over three seconds. After sound was
+enabled, decoded samples rose 160,320→257,280 and total audio energy rose
+0.000325059→0.013733485 over two seconds. The full report and capture assets are
+delivered as the code-54 real-device evidence bundle. A separate earlier
+browser-only fixture is documented below and must not be used as Android evidence.
 
 ## Browser media and UI
 
@@ -66,14 +113,15 @@ The portable Java suite covers signaling bounds, local HTTP policy, session stat
 and three-mode transitions. Separate dialog callback tests exercise cancel/back,
 reselecting the active role, and confirmed role changes for both phone and TV.
 The audio callback has been locally checked for a bounded 10 ms cadence and
-silence filling; it still needs Android AudioPlaybackCapture validation.
+silence filling, and allowed test-app AudioPlaybackCapture produced nonzero
+decoded browser audio in the real-device test above.
 
-## Required device acceptance
+## Remaining device acceptance
 
-QA should first retest phone and TV role-menu cancel/back and same-role selection.
-Then test the new tab navigation and About version against the installed APK.
-On the same trusted LAN, start Browser sharing, open its temporary URL on Mac
-Chrome, connect, enable sound and use content that explicitly permits capture.
+The earlier QA task verified phone/TV role-menu cancel and current-role selection
+on code 52. Code 54's reference-style tab and installed About version were reviewed
+on the actual tablet. Remaining acceptance should include wider phone/TV layouts
+and the cases below; a passing Mac/tablet test is not universal compatibility.
 
 Check screen and single-app capture, portrait/landscape rotation, hardware codec
 selection, actual audible allowed playback, protected-content behavior, Stop from

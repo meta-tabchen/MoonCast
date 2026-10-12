@@ -10,7 +10,8 @@
   },
   "wrapper": {
     "repository": "https://github.com/webrtc-sdk/android",
-    "tag": "v144.7559.15"
+    "tag": "v144.7559.15",
+    "commit": "0c62f604c97087664e412ec04e0ec79721a263b1"
   },
   "upstream_build_repository": "https://github.com/webrtc-sdk/webrtc-build",
   "licenses": [
@@ -74,6 +75,18 @@
       "source_path": "src/third_party/jni_zero",
       "path_within_repository": "jni_zero",
       "license_path": "app/src/main/assets/browser-webrtc-JNI-ZERO-LICENSE.txt"
+    },
+    "chromium": {
+      "repository": "https://chromium.googlesource.com/chromium/src",
+      "commit": "dd64a1bc0f36e9b9c690a8a00f1328ad68805e27"
+    },
+    "build": {
+      "repository": "https://github.com/webrtc-sdk/build",
+      "commit": "be1a8f6dcd7df7e46320192c5e2f364e50d79bbf"
+    },
+    "chromium_third_party": {
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party",
+      "commit": "a3b630c291f1cf3b711687b1c4be322d3015512e"
     }
   }
 }
