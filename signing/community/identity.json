@@ -1,0 +1,10 @@
+{
+  "purpose": "PUBLIC COMMUNITY TEST IDENTITY; never a confidential production credential",
+  "applicationId": "com.mooncast.community",
+  "alias": "mooncast-community",
+  "publicPassword": "mooncast-public-test",
+  "keystore": "signing/community/mooncast-public-test.p12",
+  "keystoreSha256": "92b19d3d38f47f5201984acbc443ca109712ec4fd84c34f42addb3c95bd78957",
+  "certificateSha256": "290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2",
+  "firstVersionCode": 51
+}
