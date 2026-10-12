@@ -88,7 +88,7 @@ public final class BrowserHostService extends Service {
             publish();
             boolean audio = intent.getBooleanExtra("audio", false);
             lifecycle.execute(() -> prepare(audio, source == 0));
-        } catch (Exception | LinkageError failure) { fail(failure.getMessage()); }
+        } catch (Exception | LinkageError failure) { fail(failureSummary(failure)); }
         return START_NOT_STICKY;
     }
 
@@ -146,7 +146,7 @@ public final class BrowserHostService extends Service {
                 urls = links;
                 updateState("waiting");
             });
-        } catch (Exception | LinkageError failure) { main.post(() -> fail(failure.getMessage())); }
+        } catch (Exception | LinkageError failure) { main.post(() -> fail(failureSummary(failure))); }
     }
 
     private Inet4Address lanAddress() throws Exception {
@@ -197,6 +197,14 @@ public final class BrowserHostService extends Service {
         state = getString(R.string.browser_service_failed);
         publish();
         stopSender();
+    }
+
+    private String failureSummary(Throwable failure) {
+        // Record the failure type without exposing a session URL, SDP or capture contents.
+        android.util.Log.e("MoonCastBrowser", "Initialization failed: " + failure.getClass().getSimpleName());
+        String message = failure.getMessage();
+        return failure.getClass().getSimpleName() + (message == null || message.isEmpty()
+                ? ": " + getString(R.string.browser_service_failed) : ": " + message);
     }
 
     private synchronized void stopSender() {

@@ -25,7 +25,7 @@ public final class MainActivity extends Activity {
     private LinearLayout airPanel, advancedContent, airAdvanced;
     private Button advancedToggle;
     private boolean advancedExpanded;
-    private LinearLayout browserPanel;
+    private LinearLayout browserPanel,browserConnect;
     private RadioButton browserTab;
     private Button browserStart,browserStop,browserCopy;
     private TextView browserState,browserDetail,browserLink;
@@ -151,6 +151,9 @@ public final class MainActivity extends Activity {
     }
     private void hostGone(){
         int oldMode=session.active();
+        if(oldMode==CastSessionCoordinator.BROWSER && lastFailure.isEmpty()
+                && !stopPending && session.phase()!=CastSessionCoordinator.STOPPING)
+            lastFailure=getString(R.string.browser_service_unexpected_exit);
         detachHost();stopPending=false;senderPid=-1;session.hostGone();
         getPreferences(0).edit().putBoolean("hostExpected",false).remove("activeHostPid").putInt("selectedProtocol",session.selected()).apply();
         running(false);applyProtocol();
@@ -237,16 +240,18 @@ public final class MainActivity extends Activity {
             else view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());
             return insets.consumeSystemWindowInsets();
         });
-        LinearLayout page=new LinearLayout(this);page.setOrientation(LinearLayout.VERTICAL);page.setPadding(dp(22),dp(20),dp(22),dp(28));page.setBackgroundColor(PhoneVisuals.CANVAS);scroll.addView(page);setContentView(scroll);
-        TextView title=text("MoonCast",28,INK);title.setGravity(Gravity.CENTER);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setPadding(0,dp(8),0,dp(10));page.addView(title);
+        FrameLayout content=new FrameLayout(this);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+        LinearLayout page=PhoneVisuals.contentColumn(this);page.setPadding(dp(22),dp(12),dp(22),dp(28));page.setBackgroundColor(PhoneVisuals.CANVAS);content.addView(page,new FrameLayout.LayoutParams(-1,-2,Gravity.TOP|Gravity.CENTER_HORIZONTAL));setContentView(scroll);
+        LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);header.setPadding(0,0,0,dp(16));page.addView(header,new LinearLayout.LayoutParams(-1,-2));
+        TextView title=text("MoonCast",26,INK);title.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));header.addView(title,new LinearLayout.LayoutParams(0,dp(48),1));
         if((getPackageName().equals("com.mooncast.unified.preview") || getPackageName().equals("com.mooncast.community"))){
-            Button deviceMode=smallButton(getString(R.string.phone_device_settings));
+            ImageButton deviceMode=PhoneVisuals.settingsButton(this,getString(R.string.phone_settings_title));deviceMode.setTag("open_settings");
             deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle(R.string.phone_settings_title)
                 .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version)},(d,w)->{
                     if(w==0){PhoneRolePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("role_choice",choice).putExtra("require_cleanup",true));finish();});}
                     else if(w==1){com.mooncast.locale.LanguagePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));finish();});}
                     else showAbout();
-                }).show());page.addView(deviceMode);
+                }).show());header.addView(deviceMode,new LinearLayout.LayoutParams(dp(48),dp(48)));
         }
         buildProtocolTabs(page);
         buildAirPlayPanel(page);
@@ -351,9 +356,8 @@ public final class MainActivity extends Activity {
         submit=button(getString(R.string.ui_pair),BLUE);pinBox.addView(submit);submit.setOnClickListener(v->{String code=pin.getText().toString();if(!code.matches("[0-9]{4}")){toast(getString(R.string.ui_enter_a_4_digit_pin));return;}Bundle data=new Bundle();data.putString("pin",code);send(HostService.PIN,data);pin.setText("");});
         TextView moonlightHelp=text(getString(R.string.ui_use_the_same_lan_and_official_moonlight_nshare_the_entire_phone_screen),12,MUTED);moonlightOnly.add(moonlightHelp);page.addView(moonlightHelp);
         // Reorder presentation only. All original controls/listeners remain alive and retain state.
-        page.removeView(sound);page.addView(sound,4);
-        page.removeView(pinBox);page.addView(pinBox,4);
-        page.removeView(hero);page.addView(hero,4);
+        page.removeView(pinBox);page.addView(pinBox,page.indexOfChild(hero)+1);
+        page.removeView(sound);page.addView(sound,page.indexOfChild(pinBox)+1);
         advancedContent=new LinearLayout(this);advancedContent.setOrientation(LinearLayout.VERTICAL);advancedContent.setTag("advanced_content");
         for(View item:new View[]{cinema,devices,dashboard,capture,picture,input,settings,moonlightHelp}){page.removeView(item);advancedContent.addView(item);}
         airPanel.removeView(airAdvanced);advancedContent.addView(airAdvanced,0);
@@ -376,8 +380,11 @@ public final class MainActivity extends Activity {
         open.setOnClickListener(v->startActivity(new Intent(this,ApkSendActivity.class)));transfer.addView(open,new LinearLayout.LayoutParams(-1,dp(52)));
     }
     private void styleHero(LinearLayout hero){
+        styleHero(hero,R.drawable.ic_cast);
+    }
+    private void styleHero(LinearLayout hero,int iconResource){
         hero.setBackgroundColor(Color.TRANSPARENT);hero.setPadding(0,dp(18),0,dp(10));
-        ImageView icon=PhoneVisuals.icon(this,R.drawable.ic_cast,100,BLUE);LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(dp(100),dp(100));layout.gravity=Gravity.CENTER_HORIZONTAL;layout.bottomMargin=dp(14);hero.addView(icon,layout);
+        ImageView icon=PhoneVisuals.icon(this,iconResource,48,BLUE);LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(dp(48),dp(48));layout.gravity=Gravity.CENTER_HORIZONTAL;layout.bottomMargin=dp(10);hero.addView(icon,layout);
     }
     private void updateAdvancedLabel(){advancedToggle.setText(advancedExpanded?R.string.visual_advanced_close:R.string.visual_advanced);}
 
@@ -387,7 +394,7 @@ public final class MainActivity extends Activity {
         moonlightTab=protocolTabs.addTab(getString(R.string.phone_tab_gamestream),"protocol_tab_gamestream",CastSessionCoordinator.MOONLIGHT);
         browserTab=protocolTabs.addTab(getString(R.string.browser_tab),"protocol_tab_browser",CastSessionCoordinator.BROWSER);
         page.addView(protocolTabs,new LinearLayout.LayoutParams(-1,-2));
-        protocolHint=text("",12,MUTED);protocolHint.setGravity(Gravity.CENTER);page.addView(protocolHint);
+        protocolHint=text("",12,MUTED);protocolHint.setGravity(Gravity.CENTER);protocolHint.setPadding(dp(8),dp(10),dp(8),0);page.addView(protocolHint);
     }
     private void showAbout(){
         String message=com.mooncast.locale.AppBuildInfo.describe(this);
@@ -396,15 +403,16 @@ public final class MainActivity extends Activity {
     }
     private void buildBrowserPanel(LinearLayout page){
         browserPanel=new LinearLayout(this);browserPanel.setOrientation(LinearLayout.VERTICAL);page.addView(browserPanel);
-        LinearLayout hero=card(browserPanel);styleHero(hero);
-        browserState=text(getString(R.string.browser_ready),26,INK);browserState.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));browserState.setGravity(Gravity.CENTER);hero.addView(browserState);
+        LinearLayout hero=card(browserPanel);styleHero(hero,R.drawable.ic_tv);
+        browserState=text(getString(R.string.browser_ready),24,INK);browserState.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));browserState.setGravity(Gravity.CENTER);browserState.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);hero.addView(browserState);
         browserDetail=text(getString(R.string.browser_start_hint),13,MUTED);browserDetail.setGravity(Gravity.CENTER);hero.addView(browserDetail);
         browserStart=button(getString(R.string.browser_start),BLUE);browserStart.setTag("browser_start");browserStart.setOnClickListener(v->begin());hero.addView(browserStart);
         browserStop=button(getString(R.string.ui_stop_casting),0xff8a97ad);browserStop.setOnClickListener(v->requestStop());hero.addView(browserStop);
 
-        LinearLayout connect=card(browserPanel);section(connect,getString(R.string.browser_open_link),getString(R.string.browser_open_link_hint));
+        LinearLayout connect=card(browserPanel);browserConnect=connect;connect.setTag("browser_connection");section(connect,getString(R.string.browser_open_link),getString(R.string.browser_open_link_hint));
         browserAddress=spinner(new String[]{});browserAddress.setContentDescription(getString(R.string.browser_address));connect.addView(browserAddress);
-        browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);connect.addView(browserLink);
+        LinearLayout linkRow=new LinearLayout(this);linkRow.setOrientation(LinearLayout.VERTICAL);connect.addView(linkRow);
+        browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);linkRow.addView(browserLink,new LinearLayout.LayoutParams(-1,-2));
         browserAddress.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(AdapterView<?> parent){}
             public void onItemSelected(AdapterView<?> parent,View view,int position,long id){Object address=browserAddress.getSelectedItem();if(address!=null)browserLink.setText(address.toString());}
@@ -412,15 +420,16 @@ public final class MainActivity extends Activity {
         browserCopy=smallButton(getString(R.string.browser_copy_link));browserCopy.setOnClickListener(v->{
             Object address=browserAddress.getSelectedItem();if(address==null || browserUrls.isEmpty())return;
             getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",address.toString()));toast(getString(R.string.ui_file_link_copied));
-        });connect.addView(browserCopy);showBrowserUrls("");
+        });LinearLayout.LayoutParams copyLayout=new LinearLayout.LayoutParams(-2,dp(48));copyLayout.gravity=Gravity.END;copyLayout.topMargin=dp(8);linkRow.addView(browserCopy,copyLayout);showBrowserUrls("");
 
-        LinearLayout capture=card(browserPanel);section(capture,getString(R.string.ui_capture_source),getString(R.string.browser_capture_hint));
+        LinearLayout capture=card(browserPanel);capture.addView(text(getString(R.string.ui_capture_source),14,INK));
         browserSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});
         browserSource.setSelection(Math.max(0,Math.min(1,getPreferences(0).getInt("browserSource",0))));capture.addView(browserSource);
         browserSource.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> parent){}public void onItemSelected(AdapterView<?> parent,View view,int position,long id){if(uiReady && !session.busy())saveBrowser();}});
-        browserAudio=toggle(capture,getString(R.string.ui_stream_playback_audio),getString(R.string.browser_audio_hint),getPreferences(0).getBoolean("browserAudio",false));
+        browserAudio=toggle(capture,getString(R.string.ui_stream_playback_audio),getString(R.string.browser_audio_option_hint),getPreferences(0).getBoolean("browserAudio",false));
         browserAudio.setOnCheckedChangeListener((button,checked)->{if(uiReady && !session.busy())saveBrowser();});
-        capture.addView(text(getString(R.string.browser_controls_hint),12,MUTED));
+        Button connectionHelp=smallButton(getString(R.string.browser_connection_details));connectionHelp.setBackgroundColor(Color.TRANSPARENT);connectionHelp.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
+        connectionHelp.setOnClickListener(v->new AlertDialog.Builder(this).setTitle(R.string.browser_connection_details).setMessage(getString(R.string.browser_protocol_hint)+"\n\n"+getString(R.string.browser_capture_hint)+"\n\n"+getString(R.string.browser_audio_hint)+"\n\n"+getString(R.string.browser_controls_hint)).setPositiveButton(android.R.string.ok,null).show());capture.addView(connectionHelp,new LinearLayout.LayoutParams(-1,-2));
     }
     private void showBrowserUrls(String urls){
         String normalized=urls==null?"":urls.trim();
@@ -435,6 +444,7 @@ public final class MainActivity extends Activity {
         if(browserUrls.isEmpty())browserLink.setText(R.string.browser_link_pending);
         browserAddress.setVisibility(browserAddress.getAdapter().getCount()>1?View.VISIBLE:View.GONE);
         browserCopy.setEnabled(!browserUrls.isEmpty() && session.hasHost() && session.phase()!=CastSessionCoordinator.STOPPING);
+        browserConnect.setVisibility(browserUrls.isEmpty()?View.GONE:View.VISIBLE);
     }
     private void saveBrowser(){
         if(browserSource==null || browserAudio==null)return;
@@ -506,6 +516,7 @@ public final class MainActivity extends Activity {
         pinBox.setVisibility(View.GONE);airPanel.setVisibility(air?View.VISIBLE:View.GONE);browserPanel.setVisibility(browser?View.VISIBLE:View.GONE);
         advancedToggle.setVisibility(browser?View.GONE:View.VISIBLE);advancedContent.setVisibility(!browser && advancedExpanded?View.VISIBLE:View.GONE);
         protocolTabs.select(session.selected());
+        protocolHint.setVisibility(browser?View.GONE:View.VISIBLE);
         protocolHint.setText(browser?R.string.browser_protocol_hint:air?R.string.ui_airplay_protocol_hint:R.string.ui_moonlight_protocol_hint);
         getPreferences(0).edit().putInt("selectedProtocol",session.selected()).apply();
         refreshControlOptions();updateSessionUi();updateDiscovery();

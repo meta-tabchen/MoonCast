@@ -26,7 +26,7 @@ android {
   applicationId (verificationOnly ? 'com.mooncast.community.verification' : 'com.mooncast.community')
   minSdk 26; targetSdk 35
   manifestPlaceholders.mooncastBuildId = providers.gradleProperty('mooncastBuildId').orElse('').get()
-  versionCode 53; versionName '0.6.0-browser-preview.2'
+  versionCode 54; versionName '0.6.0-browser-preview.3'
   testInstrumentationRunner 'com.mooncast.unified.UnifiedInstrumentation'
   ndk { if (abi != null) abiFilters abi else abiFilters 'arm64-v8a','armeabi-v7a','x86_64' }
  }

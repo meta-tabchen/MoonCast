@@ -95,7 +95,10 @@ final class ProtocolTabsChecks {
                 check(flow(activity).generation()==generation && ((CompoundButton)field(activity,"audio")).isChecked()==audioBefore,"presentation disclosure never changes capture or audio session");
                 check(((View)field(activity,"pinBox")).getParent()!=advanced,"pairing stays outside advanced disclosure");
                 button(activity,"moonlightTab").performClick();
-                check(button(activity,"airTab").getLayoutParams().height >= 64 * context.getResources().getDisplayMetrics().density,"large top AirPlay tab");
+                int touchHeight=(int)Math.ceil(48 * context.getResources().getDisplayMetrics().density);
+                check(button(activity,"airTab").getHeight()>=touchHeight
+                    && button(activity,"airTab").getHeight()==button(activity,"moonlightTab").getHeight()
+                    && button(activity,"airTab").getHeight()==button(activity,"browserTab").getHeight(),"three equal accessible protocol touch targets");
                 ((Spinner)field(activity,"source")).setSelection(0);
                 ((CompoundButton)field(activity,"root")).setChecked(false);
             });

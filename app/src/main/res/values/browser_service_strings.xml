@@ -9,5 +9,6 @@
     <string name="browser_service_connecting">Connecting browser</string>
     <string name="browser_service_reconnecting">Waiting for browser reconnection</string>
     <string name="browser_service_waiting">Ready for your browser</string>
-    <string name="browser_service_failed">Browser sharing stopped</string>
+    <string name="browser_service_failed">Browser sharing failed</string>
+    <string name="browser_service_unexpected_exit">Sharing ended unexpectedly. Start sharing again. If it repeats, the sender service needs investigation.</string>
 </resources>

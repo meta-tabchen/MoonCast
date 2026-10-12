@@ -9,5 +9,6 @@
     <string name="browser_service_connecting">正在连接浏览器</string>
     <string name="browser_service_reconnecting">等待浏览器重新连接</string>
     <string name="browser_service_waiting">浏览器共享已就绪</string>
-    <string name="browser_service_failed">浏览器共享已停止</string>
+    <string name="browser_service_failed">浏览器共享失败</string>
+    <string name="browser_service_unexpected_exit">共享意外中断，请重新开始。若再次出现，需要检查发送服务的异常原因。</string>
 </resources>
