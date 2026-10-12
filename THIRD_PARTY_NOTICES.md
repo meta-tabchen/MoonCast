@@ -83,9 +83,14 @@ The optional browser mode uses the unchanged Maven Central AAR
 `30d5e63ae91da483e06577b5c35ee91cc5e5c3db`; the artifact and native ABI hashes are in
 [`native/webrtc/SOURCE_LOCK.json`](native/webrtc/SOURCE_LOCK.json). WebRTC is BSD
 3-Clause with its PATENTS grant; fork patches retain their Apache-2.0 NOTICE and
-the Android packaging repository has an MIT license. The complete upstream
-third-party notice bundle and these license texts are packaged as
-`app/src/main/assets/browser-webrtc-*`.
+the Android packaging repository has an MIT license. The upstream third-party
+notice collection is preserved in full, alongside these license texts and
+exact BoringSSL/JNI Zero licenses from the pinned DEPS revisions, as
+`app/src/main/assets/browser-webrtc-*`. The collection contains build-tool
+notices and differs from current pinned component licenses; preserving it is
+not proof of complete coverage or an actual linked-component SBOM. The added
+BoringSSL and JNI Zero files address identified differences; complete component
+and corresponding-source coverage remain subject to release review.
 
 Source URLs, the build entry point, and the distinction between the published AAR
 and a locally reproduced native build are in

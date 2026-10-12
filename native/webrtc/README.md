@@ -18,10 +18,25 @@ under `app/src/main/assets/browser-webrtc-*`.
 - WebRTC's BSD license and PATENTS grant are preserved, along with the fork's
   Apache 2.0 patch NOTICE. The packaging repository has a separate MIT license;
   this does not replace the native dependency's licenses.
-- The complete 788,358-byte [upstream bundled third-party notices](https://github.com/webrtc-sdk/android/blob/v144.7559.15/Licenses/WEBRTC.md)
-  are retained unchanged, including notices for codecs, cryptography and other
-  linked components. Their presence is not a claim that MoonCast uses every
-  optional codec present in the general-purpose AAR.
+- The 788,358-byte [upstream third-party notice collection](https://github.com/webrtc-sdk/android/blob/v144.7559.15/Licenses/WEBRTC.md)
+  is retained unchanged. Its 30 component headings include build tools as well
+  as codec and cryptography components; it is not a verified list of the exact
+  components linked into this AAR.
+- Additional exact license files are included for the pinned [DEPS](https://github.com/webrtc-sdk/webrtc/blob/30d5e63ae91da483e06577b5c35ee91cc5e5c3db/DEPS)
+  revisions of BoringSSL (`b94d71f87ff943a617d77f3ff029f9a01a1ec6bc`)
+  and JNI Zero (within Chromium third_party
+  `a3b630c291f1cf3b711687b1c4be322d3015512e`). Their source URLs and
+  hashes are in `SOURCE_LOCK.json` under `licenses` and `dependency_pins`.
+  The BoringSSL revision's license differs from the older composite text in
+  the upstream collection; JNI Zero's BSD copyright is absent from that
+  collection. The original collection is preserved, with these files supplied
+  as an addendum. This addresses the identified notice gaps, not a claim that
+  all component coverage has been audited.
+
+The actual Maven POM declares no transitive Maven dependencies. This does not
+describe the dependencies embedded in the native library. No complete linked
+SBOM, exact upstream build run or generated GN dependency graph has yet been
+verified for the published artifact. These remain release-audit requirements.
 
 No SDK source or native bytes were changed. MoonCast's Java integration calls
 public APIs: `SurfaceTextureHelper`, `VideoSource`, hardware video encoders,
@@ -60,6 +75,15 @@ established byte-for-byte reproducibility of that command. The full, multi-GB
 WebRTC/Chromium source checkout is not vendored in this repository. A MoonCast
 source archive alone must not be described as a self-contained WebRTC native
 source distribution.
+
+GPLv3 corresponding-source delivery remains subject to release review. Section
+6(d) permits equivalent source access on another server with clear directions
+next to the binary and an obligation to maintain availability; it does not
+require one offline archive. A fixed source URL alone does not establish the
+complete corresponding source required by section 1. The necessary dependency
+sources, build configuration, modifications and scripts, and the applicable
+system-library/tool exceptions must be checked for this artifact. Building
+MoonCast with a cached AAR does not demonstrate rebuilding WebRTC from source.
 
 ## Integration boundaries
 

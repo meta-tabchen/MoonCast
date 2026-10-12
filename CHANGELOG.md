@@ -1,4 +1,4 @@
-# 0.6.0 browser preview (code 52, development branch)
+# 0.6.0 browser preview.2 (code 53, development branch)
 
 - Add an independent Android-to-browser WebRTC mode using the existing MediaProjection/GLES capture pipeline.
 - Serve a temporary LAN receiver page and bounded HTTP signaling, with one viewer, full ICE negotiation and reconnection leases.
@@ -7,6 +7,7 @@
 - Replace the phone's large protocol buttons with one lightweight selection strip, including Browser.
 - Read installed versionName/versionCode in phone and TV About; show an optional recorded build ID.
 - Keep role-menu cancel, Back and same-role selection in the active page without tearing down its sender or receiver.
+- Preserve JNI Zero classes required by the native WebRTC SDK in shrunk release APKs.
 - Preserve existing protocols and fixed community signing identity. See docs/browser-validation.md for measured and untested scope.
 
 # 0.5.0 unified preview (code 50)

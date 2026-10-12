@@ -54,8 +54,13 @@ final APK hash and checks after all UI changes.
 The pinned WebRTC AAR resolved and compiled against Android API 35. The release APK
 verifier checks all 11 native payloads, ELF dependencies, packaged webpage bytes,
 license notices and WebRTC classes. The community identity verifier checks the
-unchanged package and certificate and versionCode 52 above the published 51. An
+unchanged package and certificate and versionCode 53 above the published 51. An
 upgrade-compatible static result is not a device installation result.
+
+The initial code-52 release lacked the JNI Zero `JniInit` class despite a literal
+native SDK reference and no AAR consumer shrinker rules. Code 53 explicitly keeps
+JNI Zero classes and the APK verifier now requires `JniInit`. This is a necessary
+native initialization safeguard; device behavior is recorded separately by QA.
 
 The portable Java suite covers signaling bounds, local HTTP policy, session state
 and three-mode transitions. Separate dialog callback tests exercise cancel/back,

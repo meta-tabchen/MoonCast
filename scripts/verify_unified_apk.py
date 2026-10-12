@@ -59,7 +59,7 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
     for notice in webrtc['licenses']:
         if sha(z.read('assets/' + Path(notice['path']).name)) != notice['sha256']:
             raise ValueError('WebRTC license notice mismatch')
-    for cls in ['com/mooncast/host/MainActivity', 'com/mooncast/tv/TvActivity', 'com/mooncast/unified/RoleActivity', 'com/mooncast/transfer/ApkTransfer', 'com/mooncast/host/BrowserHostService', 'org/webrtc/PeerConnection']:
+    for cls in ['com/mooncast/host/MainActivity', 'com/mooncast/tv/TvActivity', 'com/mooncast/unified/RoleActivity', 'com/mooncast/transfer/ApkTransfer', 'com/mooncast/host/BrowserHostService', 'org/webrtc/PeerConnection', 'org/jni_zero/JniInit']:
         if not ('L' + cls + ';').encode() in dex:
             raise ValueError(cls)
     if not a.debug:
@@ -68,7 +68,7 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
     sdk = Path(os.environ['ANDROID_HOME'])
     aapt = sdk / 'build-tools/35.0.0/aapt'
     badge = subprocess.check_output([aapt, 'dump', 'badging', a.apk], text=True)
-    if not "package: name='com.mooncast.community' versionCode='52' versionName='0.6.0-browser-preview'" in badge:
+    if not "package: name='com.mooncast.community' versionCode='53' versionName='0.6.0-browser-preview.2'" in badge:
         raise ValueError('Verification failed')
     if not ("sdkVersion:'26'" in badge and "targetSdkVersion:'35'" in badge):
         raise ValueError('Verification failed')

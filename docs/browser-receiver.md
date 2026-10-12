@@ -75,7 +75,7 @@ and closes active sockets on Stop. The link is not logged in native diagnostics.
 ## Development and evidence
 
 Use the existing [community build instructions](unified-build.md). This branch
-uses versionCode **52**, `0.6.0-browser-preview`, and the unchanged fixed community
+uses versionCode **53**, `0.6.0-browser-preview.2`, and the unchanged fixed community
 test identity. Both `app` and `phone-ui` resolve the same pinned open-source AAR;
 `verifyBrowserWebRtc` checks its SHA-256 before build. Existing protocol binaries,
 their source locks and signing fixtures are unchanged.
