@@ -12,8 +12,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible,su
 .app{max-width:1560px;margin:auto;padding:0 44px}
 .header{height:100px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #1c2538;gap:20px}
 .brand{display:flex;align-items:center;gap:11px;text-decoration:none;color:#f4f6ff;font-size:23px;letter-spacing:-.6px;font-weight:650}
-.moon{display:block;width:27px;height:27px;border-radius:50%;background:linear-gradient(135deg,#cafcee,#7eb9ec);position:relative;overflow:hidden;box-shadow:0 0 25px #8fbfed20}
-.moon:after{content:"";position:absolute;background:#0e1524;border-radius:50%;width:24px;height:24px;top:-5px;left:10px}
+.brand-icon{display:block;width:32px;height:32px;flex:none;object-fit:contain}
 .preview{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#b3bed8;border:1px solid #364158;border-radius:5px;padding:4px 6px;margin-left:5px;font-weight:550}
 .header-right{display:flex;align-items:center;gap:25px}
 .local{font-size:12px;color:var(--muted);white-space:nowrap}
