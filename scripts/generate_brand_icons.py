@@ -20,7 +20,14 @@ for module, name, foreground in [('app', 'ic_launcher', 'mooncast_brand'),
     (res / 'drawable' / (name + '.xml')).unlink(missing_ok=True)
     for density, size in [('mdpi', 48), ('hdpi', 72), ('xhdpi', 96), ('xxhdpi', 144), ('xxxhdpi', 192)]:
         save(master.resize((size, size), Image.Resampling.LANCZOS), res / ('drawable-' + density) / (name + '.png'))
-    save(master.resize((432, 432), Image.Resampling.LANCZOS), res / 'drawable-nodpi' / (foreground + '.png'))
+    # Adaptive foreground layers are 108dp, with an outer 18dp overscan on each
+    # side. Map the full master onto the 72dp visible viewport so the launcher
+    # shows its intended proportions instead of magnifying and clipping it.
+    layer = Image.new('RGB', (432, 432), master.getpixel((0, 0)))
+    # The enlarged crescent lies near a corner: use 90% of that viewport only
+    # for adaptive masks. Ordinary launcher sizes and web images use full master.
+    layer.paste(master.resize((260, 260), Image.Resampling.LANCZOS), (86, 86))
+    save(layer, res / 'drawable-nodpi' / (foreground + '.png'))
     adaptive = res / 'drawable-anydpi-v26' / (name + '.xml')
     adaptive.parent.mkdir(parents=True, exist_ok=True)
     adaptive.write_text('<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
