@@ -1,0 +1,84 @@
+name: User initialization of PUBLIC community test signing
+# Deliberately manual only. Assistants/build jobs must not dispatch this workflow.
+# The account owner must review and press Run workflow with the confirmation below.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Creates and commits a PUBLIC test key. Anyone can sign this app. Type PUBLIC-TEST-SIGNING to accept.'
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  initialize_once:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'meta-tabchen/MoonCast' && inputs.confirmation == 'PUBLIC-TEST-SIGNING'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout only the community development branch
+        uses: actions/checkout@v4
+        with:
+          ref: unified/community
+          fetch-depth: 1
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Refuse replacement of any existing community identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in mooncast-public-test.p12 identity.json certificate.pem certificate-sha256.txt; do
+            if [ -e "signing/community/$file" ]; then
+              echo 'A community identity or partial identity already exists. Refusing replacement.' >&2
+              exit 1
+            fi
+          done
+          test -z "$(git status --porcelain)"
+      - name: User-authorized one-time PUBLIC TEST identity creation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p signing/community
+          keytool -genkeypair -keystore signing/community/mooncast-public-test.p12 \
+            -storetype PKCS12 -storepass mooncast-public-test -keypass mooncast-public-test \
+            -alias mooncast-community -keyalg RSA -keysize 3072 -validity 36500 \
+            -dname 'CN=MoonCast Public Community Test, OU=PUBLIC TEST FIXTURE, O=MoonCast Open Source, C=CN' -noprompt
+          keytool -exportcert -rfc -keystore signing/community/mooncast-public-test.p12 \
+            -storepass mooncast-public-test -alias mooncast-community -file signing/community/certificate.pem
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json,ssl
+          root=Path('signing/community')
+          cert=ssl.PEM_cert_to_DER_cert((root/'certificate.pem').read_text())
+          fingerprint=hashlib.sha256(cert).hexdigest()
+          identity={'purpose':'PUBLIC COMMUNITY TEST IDENTITY; never a confidential production credential',
+                    'applicationId':'com.mooncast.community','alias':'mooncast-community',
+                    'publicPassword':'mooncast-public-test','keystore':'signing/community/mooncast-public-test.p12',
+                    'keystoreSha256':hashlib.sha256((root/'mooncast-public-test.p12').read_bytes()).hexdigest(),
+                    'certificateSha256':fingerprint,'firstVersionCode':51}
+          (root/'identity.json').write_text(json.dumps(identity,indent=2)+'\n')
+          (root/'certificate-sha256.txt').write_text(fingerprint+'\n')
+          print('PUBLIC certificate SHA256:',fingerprint)
+          PY
+      - name: Commit the fixed public test fixture without force or overwrite
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- signing/community/mooncast-public-test.p12 signing/community/certificate.pem signing/community/identity.json signing/community/certificate-sha256.txt
+          git commit -m 'Initialize owner-approved public community test signing identity'
+          git push origin HEAD:refs/heads/unified/community
+      - name: Record the public identity and limitations
+        shell: bash
+        run: |
+          {
+            echo '## Public community test signing initialized'
+            echo 'The test key is deliberately public. It does not authenticate the official publisher. Never use it for production or store distribution.'
+            echo 'Fixed package: com.mooncast.community. Future releases must retain this certificate and increase versionCode.'
+            echo 'The old 0.5.0 preview key cannot be recovered; community requires one initial migration.'
+            echo 'Certificate SHA256:'
+            cat signing/community/certificate-sha256.txt
+          } >> "$GITHUB_STEP_SUMMARY"
