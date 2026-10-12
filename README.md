@@ -3,20 +3,22 @@
 <p align="center"><sub>Model-generated brand illustration, not a device screenshot or an interoperability test.</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview"><img src="https://img.shields.io/badge/download-0.5.0_preview-547BEB" alt="Current download: 0.5.0 preview"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1"><img src="https://img.shields.io/badge/download-0.5.1_community_preview-547BEB" alt="Current download: 0.5.1 community preview"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview">Download APK</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md">Get started</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/cropping.md">Cropping explained</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md">Build</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1">Download APK</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md">Get started</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/cropping.md">Cropping explained</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md">Build</a> · <a href="https://github.com/meta-tabchen/MoonCast/blob/unified/community/CONTRIBUTING.md">Contribute</a></p>
 
 # MoonCast · Phone to TV. A better fit.
 
 **An Android sender and TV receiver in one app, with practical controls for the black bars that make a big screen feel small.**
 
 A video can already have black bars inside the phone's captured screen. Fitting that entire capture onto a TV adds another layer of empty space. MoonCast helps you reclaim that space: detect stable black borders, keep the useful picture in proportion, and adjust the framing when automatic detection is uncertain.
+
+**0.5.1 preview limitations:** Builds, signing and a synthetic same-certificate emulator upgrade passed, but [the overall CI failed](https://github.com/meta-tabchen/MoonCast/actions/runs/38203238592): Android 15 hit a startup ANR in a later locale process, and Android 11 lost its package-manager service during installation. CPU saturation was recorded; the ANR root cause is unknown. Full UI regression, actual screenshots/GIFs and physical-device casting remain unverified. [Full validation](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/community-validation.md) · [Previous 0.5.0 download](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
 
 Use [`unified/community`](https://github.com/meta-tabchen/MoonCast/tree/unified/community) for the current implementation and builds. This page presents the current project; main retains historical source. Technical links below explicitly target the unified branch.
 
@@ -90,13 +92,13 @@ This is a deterministic pixel-threshold and geometry algorithm, **not AI scene r
 
 Advanced sender features retain their [per-feature implementation and historical test notes](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/feature-development.md). That historical evidence does not certify the current unified APK. Use the [unified validation matrix](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/community-validation.md) for the current scope.
 
-## Download 0.5.0 unified preview
+## Download 0.5.1 community preview
 
-[Release notes and all assets](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk) · [Complete corresponding source](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
+[Release notes and all assets](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-armeabi-v7a.apk) · [Complete corresponding source](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/MoonCast-0.5.1-community-complete-source.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/community-v0.5.1/SHA256SUMS)
 
 Minimum Android 8.0 (API 26). Use ARM64 for a device with a 64-bit ARM Android system; use ARMv7 for a 32-bit ARM system. Check the device's supported ABI rather than its marketing CPU name. Both APKs contain the same phone and TV roles; install only one variant per device. These are signed experimental preview APKs. CI's unsigned verification APK is not an installable release download. No x86 APK is published in this release.
 
-The currently linked 0.5.0 source ZIP corresponds to that older preview. The following build policy describes the next community release, whose source branch is `unified/community`. Before building a Git checkout, run `python3 scripts/restore_release_inputs.py`; see [build instructions](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md). The complete source ZIP includes these pinned dependencies but excludes the MoonCast app-signing PKCS12 fixture. It supports an explicit unsigned verification build with a separate package. Signed community builds use the full Git checkout and the fixed test identity initialized once by the owner.
+The corresponding-source ZIP matches these 0.5.1 APKs: application source commit `27967d778c55042bb2adc926074bc3b1d94e19b9`, tag `community-v0.5.1`. Ongoing development is on `unified/community`. The dependency-restoration script still verifies pinned native inputs from the old 0.5.0 source asset; it does not replace this version’s application source. Before building a Git checkout, run `python3 scripts/restore_release_inputs.py`; see [build instructions](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md). The complete source ZIP includes these pinned dependencies but excludes the MoonCast app-signing PKCS12 fixture. It supports an explicit unsigned verification build with a separate package. Signed community builds use the full Git checkout and the fixed test identity initialized once by the owner.
 
 ## How the devices cooperate
 
@@ -123,17 +125,17 @@ On TV enable **Install phone APK**. On the phone select an `.apk`, choose a capa
 
 ## Community updates and one-time migration
 
-The currently downloadable 0.5.0 uses `com.mooncast.unified.preview` and a disposable test signature. Its original signing identity is no longer available, so later builds cannot promise an in-place update of that package.
+The older 0.5.0 uses `com.mooncast.unified.preview` and a disposable test signature. Its original signing identity is no longer available, so later builds cannot promise an in-place update of that package.
 
-The next community release uses the fixed package `com.mooncast.community` and a fixed public test-signing identity in the repository. Increasing versionCode will allow subsequent community builds to update in place. Moving from 0.5.0 requires a one-time migration, not a new package for every update. Private pairing state, settings and permissions do not automatically move across packages.
+Community 0.5.1 uses the fixed package `com.mooncast.community` and a fixed public test-signing identity in the repository. Increasing versionCode will allow subsequent community builds to update in place. Moving from 0.5.0 requires a one-time migration, not a new package for every update. Private pairing state, settings and permissions do not automatically move across packages.
 
-A public test key cannot establish maintainer authenticity: anyone can sign with it. Download from a trusted release source and check its published hashes. A future store edition will use a separate package and private production identity. Until the community build is published, use the existing download above; a source version number is not an available APK.
+A public test key cannot establish maintainer authenticity: anyone can sign with it. Download from a trusted release source and check its published hashes. A future store edition will use a separate package and private production identity.
 
 See the [community signing policy](https://github.com/meta-tabchen/MoonCast/blob/unified/community/signing/community/README.md) for the fixed identity and fail-closed build checks.
 
-## Language · upcoming community 0.5.1
+## Language
 
-This language picker is implemented on the community branch but is not yet in a published APK. The currently downloadable 0.5.0 does not have this menu.
+0.5.1 includes the in-app language picker; old 0.5.0 does not. Only part of the system-language resource checks completed in this run; full locale and UI regression did not pass.
 
 Choose **Follow system**, **English** or **简体中文** in phone settings or TV advanced settings. Cancel and choosing the current language keep the session running; accepting another language stops the old session before reopening the selected role. Android 13+ also supports the system app-language selector. See the [language guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md) for the active-notification refresh limitation when changing language outside MoonCast.
 
