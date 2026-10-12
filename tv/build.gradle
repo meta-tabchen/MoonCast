@@ -18,8 +18,8 @@ android {
         testInstrumentationRunner 'com.mooncast.tv.TvUiInstrumentation'
         minSdk 26
         targetSdk 35
-        versionCode 9
-        versionName '0.4.5-audiofix'
+        versionCode 56
+        versionName '0.6.0'
         ndk { if (tvAbi != null) abiFilters tvAbi else abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     buildFeatures { buildConfig true }
@@ -56,7 +56,6 @@ android {
         audiofix {
             initWith release
             applicationIdSuffix '.audiofix.preview'
-            versionNameSuffix '-experimental'
             debuggable false
             matchingFallbacks = ['release']
             signingConfig null
@@ -64,7 +63,6 @@ android {
         coexist {
             initWith release
             applicationIdSuffix '.preview'
-            versionNameSuffix '-coexist'
             debuggable false
             matchingFallbacks = ['release']
             signingConfig coexistSigning ? signingConfigs.existingPreviewTest : null

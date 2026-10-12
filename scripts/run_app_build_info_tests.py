@@ -51,9 +51,9 @@ fixtures = {
             };
             static void check(boolean good,String reason){if(!good)throw new AssertionError(reason);}
             public static void main(String[] args){
-                installed.versionName="dynamic-preview";installed.versionCode=7;installed.longVersionCode=4294967303L;
+                installed.versionName="0.6.0";installed.versionCode=7;installed.longVersionCode=4294967303L;
                 String description=AppBuildInfo.describe(context);
-                check(description.contains("Version: dynamic-preview")&&description.contains("Code: 4294967303"),"use installed version and long code");
+                check(description.contains("Version: 0.6.0")&&description.contains("Code: 4294967303"),"use installed version and long code");
                 check(description.contains("Package: com.mooncast.example")&&!description.contains("Build:"),"missing build ID stays hidden");
                 installed.applicationInfo=new ApplicationInfo();installed.applicationInfo.metaData=new Bundle();
                 installed.applicationInfo.metaData.put(AppBuildInfo.BUILD_ID_METADATA,"  abc1234  ");

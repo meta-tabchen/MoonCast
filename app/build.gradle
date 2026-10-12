@@ -17,8 +17,8 @@ android {
         applicationId 'com.mooncast.host'
         minSdk 26
         targetSdk 35
-        versionCode 16
-        versionName '0.4.6-apk-selection-fix'
+        versionCode 56
+        versionName '0.6.0'
         testInstrumentationRunner 'com.mooncast.host.RenderingInstrumentation'
         ndk { abiFilters.addAll(selectedPhoneAbis) }
         if (fromSource) {
@@ -55,7 +55,6 @@ android {
             initWith release
             debuggable false
             jniDebuggable false
-            versionNameSuffix "-coexist"
             // Explicit opt-in variant only. This never changes production release signing.
             signingConfig signingConfigs.debug
             matchingFallbacks = ["release"]

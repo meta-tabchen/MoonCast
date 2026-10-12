@@ -1,3 +1,9 @@
+# 0.6.0 (code 56)
+
+- Use numeric version names throughout app metadata and About, and `MoonCast-0.6.0-<abi>.apk` release filenames.
+- Preserve the fixed package/signing identity, final selected icon and casting behavior.
+- Keep earlier tagged versions and downloads available; stage and validation limits remain in documentation.
+
 # 0.6.0 browser preview.4 (code 55, local development candidate)
 
 - Generate temporary browser-link QR codes offline with pinned Apache-2.0 ZXing; copy and QR share one selected link and Stop clears both.
