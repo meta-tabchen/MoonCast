@@ -50,11 +50,13 @@ Phone panel-off/root input features remain experimental and opt-in.
 
 ## Downloads and platform limits / 下载与协议边界
 
-Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. For the exact community build, signature and device-test results, see [community validation](community-validation.md); historical 0.5.0 results describe that older package only.
+Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. For the current 0.7 / versionCode 57 build, fixed public test signature and actual test boundaries, see [0.7 validation](release-0.7-validation.md). No new physical-device or full GameStream/iPhone interoperability test is claimed for 0.7. [Community validation](community-validation.md) records historical 0.5.1 results; historical 0.5.0 results describe that older package only.
 
 Miracast, Google Cast/Chromecast, OEM system casting and AirPlay 2 multiroom are not implemented. A manual AirPlay IP is a fallback attempt, not verified evidence that the address supports AirPlay or APK installation. APK receiving must be explicitly enabled on a capable MoonCast TV and confirmed there; GameStream still requires its protocol PIN.
 
-请从 README 下载已签名的 ARM64 或 ARMv7 附件，按安卓系统 ABI 选择，不按手机/电视区分。自动发现失败可在 My TV 手动输入 IP；这不代表已经验证对方支持 AirPlay，更不代表支持 APK。APK 须在支持该功能的 MoonCast 电视端开启、核对并确认。GameStream 的协议 PIN 配对仍须完成。Miracast、Chromecast、厂商系统投屏和 AirPlay 2 多房间未实现。
+请从 README 下载已签名的 ARM64 或 ARMv7 附件，按安卓系统 ABI 选择，不按手机/电视区分。
+当前 0.7 / code57 的固定公开测试签名及实际验证范围见[0.7 验证记录](release-0.7-validation.md)；
+[社区版验证](community-validation.md)保留的是历史 0.5.1 结果，不能作为本版新增真机验收。自动发现失败可在 My TV 手动输入 IP；这不代表已经验证对方支持 AirPlay，更不代表支持 APK。APK 须在支持该功能的 MoonCast 电视端开启、核对并确认。GameStream 的协议 PIN 配对仍须完成。Miracast、Chromecast、厂商系统投屏和 AirPlay 2 多房间未实现。
 
 主题设置中，遥控器左右移动只预览；确认键应用并保存，返回或关闭会放弃未应用的预览。四种背景只用于待机，播放中的半透明设置不会替换视频画面。实际声画质量、实体设备互通和系统安装仍以验证文档的未测试边界为准。
 

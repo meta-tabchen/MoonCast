@@ -32,9 +32,13 @@ link. Guest Wi-Fi/client isolation or blocked local UDP may prevent connection.
 Android MediaProjection still owns consent and protected-content behavior. The
 shared MoonCast `VideoPipeline` samples the capture surface, then renders into a
 WebRTC `SurfaceTextureHelper`; WebRTC negotiates a hardware H.264 or VP8 encoder,
-packetizes media and sends DTLS-SRTP over LAN ICE. The target is 30 fps with the
-longest side at most 1280 pixels and an 8 Mbit/s upper bound, subject to hardware
-and network adaptation. This is lossy encoding and has measurable latency.
+packetizes media and sends DTLS-SRTP over LAN ICE. The default **Balanced** preset
+targets 30 fps, a longest side of at most 1280 pixels and an 8 Mbit/s upper bound.
+**Smooth**, **Balanced** and **Clear**, plus advanced limits, are described in
+[QR and quality settings](browser-qr-quality.md); changes apply to the next sharing
+session. These are requested ceilings, subject to encoder capability and network
+adaptation, not guaranteed resolution, frame rate or bitrate. In particular, a 4K
+request does not guarantee 4K output. This is lossy encoding and has measurable latency.
 
 Android 10+ playback capture uses only media/game/unknown usages that Android and
 the source application permit. A bounded 40 ms PCM queue feeds 48 kHz stereo to
@@ -75,14 +79,18 @@ and closes active sockets on Stop. The link is not logged in native diagnostics.
 ## Development and evidence
 
 Use the existing [community build instructions](unified-build.md). This branch
-uses versionCode **54**, `0.6.0-browser-preview.3`, and the unchanged fixed community
+currently uses versionName **0.7**, versionCode **57**, and the unchanged fixed community
 test identity. Both `app` and `phone-ui` resolve the same pinned open-source AAR;
 `verifyBrowserWebRtc` checks its SHA-256 before build. Existing protocol binaries,
 their source locks and signing fixtures are unchanged.
 
 Run the portable Java suite, localization checks, unified build/lint, identity
 verification and native payload verification. The browser fixture and acceptance
-evidence are described in [browser validation](browser-validation.md). A synthetic
+evidence for the current release are described in [0.7 validation](release-0.7-validation.md).
+[Browser validation](browser-validation.md) retains earlier, version-scoped evidence;
+[QR and quality settings](browser-qr-quality.md) separates requested limits from
+historical measured results. No new physical-device or full GameStream/iPhone
+interoperability test is claimed for 0.7. A synthetic
 browser sender verifies only the webpage's WebRTC path and controls. It does not
 validate Android capture, hardware encode, allowed playback audio, rotation or
 physical-device interoperability.
@@ -101,4 +109,9 @@ AirPlay/DLNA/GameStream 或 iPhone 镜像，电视浏览器需要另测。受保
 不能绕过 DRM、录屏限制或音频捕获策略。HTTP 网页/信令只用于可信局域网，
 不会要求安装证书、忽略证书警告或关闭浏览器安全策略。网络变化后需重新开始共享。
 
-构建、单元测试和合成轨道网页播放均不能代替 Android 真机端到端验收；准确结果见验证记录。
+当前版本为 **0.7 / code57**，沿用固定公开测试签名。默认「均衡」请求最长边不超过
+1280、30 fps、最高 8 Mbit/s；另有流畅、清晰和高级限制，修改在下次共享生效。
+目标上限不等于实收规格，也不保证 4K；详见[二维码与画质](browser-qr-quality.md)。
+构建、单元测试和合成轨道网页播放均不能代替 Android 真机端到端验收；
+[0.7 验证记录](release-0.7-validation.md)列出本版范围，
+[早期浏览器验证](browser-validation.md)仅代表其标注的历史版本。
