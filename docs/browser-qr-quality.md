@@ -1,6 +1,6 @@
 # Browser QR and quality controls
 
-This local preview extends the already published browser mode. In **Browser**,
+This preview extends the already published browser mode. In **Browser**,
 start sharing and accept Android's normal capture consent. The connection card
 then displays a QR code automatically, with **Copy link** for the same complete,
 temporary LAN URL. There is no extra QR button or expansion step. A QR-capable browser/device may open it; typing or copying remains the
@@ -58,3 +58,54 @@ records actual pixels, decoded frames and measured RTP video throughput; measure
 receive throughput is not the sender's exact encoding bitrate or total LAN traffic.
 New preset and camera-scanning device evidence must be recorded separately from
 the code-54 real-device evidence. Do not reuse old screenshots as proof of this UI.
+
+## Development-round measurements / 本轮开发观察
+
+The release is `0.6.0-browser-preview.4`, versionCode 55. These observations
+belong to pre-icon source snapshot `d44a4c4`. Final icon-only build identity is
+recorded below; no additional final-build device run was performed.
+
+Short observation windows recorded Clear reception at **3200×2136**, approximately
+**25.2 decoded fps** and **2.6 Mbps RTP video**, against target ceilings of a
+3840-pixel long edge / 30 fps / 24 Mbps. Smooth reception was **720×480**, about
+**22 decoded fps** and **0.48 Mbps RTP video**, against 720 / 24 / 2 Mbps ceilings.
+These are receiver observations, not guaranteed sustained rates, the sender's
+exact encoder bitrate or total network traffic.
+
+Clear passed five checks. Smooth's automated Stop observation timed out; that
+failure remains recorded. An independent subsequent observation confirmed Stop
+and closure of the old link. This does not turn the timed-out automated check
+into a pass. Balanced, rotation and physical camera scanning were not tested in
+this round. Software decoding of generated QR pixels is distinct from camera
+scanning. Existing code-54 recordings remain labelled historical evidence.
+
+本版本为 `0.6.0-browser-preview.4` / code55，图标变更前源码为
+`d44a4c4`；最终图标构建身份见下文，但未追加真机验证，不能把观察值写成最终图标构建重新实测。短窗观察：清晰目标长边3840／30fps／24Mbps，实际接收3200×2136、
+约25.2解码fps、2.6Mbps RTP视频；流畅目标720／24／2，实际720×480、约22fps、
+0.48Mbps。这些不是持续性能、发送端精确编码码率或全部网络流量。
+
+清晰5项检查通过；流畅自动停止观察超时，保留失败记录，随后独立检查确认停止和旧链接
+关闭，不能把原自动检查改记为通过。本轮均衡、旋转、真实摄像头扫码未测试。二维码
+软件像素解码与摄像头扫码是不同证据；已有code54录屏继续保留历史版本标注。
+
+
+## Final icon build and static encoder-selection risk
+
+Final source/runtime is `c0936675193c49e3bcd64bb0a76171059b9f9210`, version
+`0.6.0-browser-preview.4` / code55. Its delta from `d44a4c4` is icon-only.
+No additional device testing was performed on this final icon build at the user's
+request. The measurements above remain pre-icon functional evidence.
+
+Capability preflight can accept any encoder that reports support for a requested
+combination, while WebRTC may actually choose another encoder with the same MIME
+type. That selected encoder need not support the same advanced combination. This
+is a statically identified compatibility risk, not a device-observed universal
+failure. It does not negate the measured tablet Clear/Smooth results. On other
+devices, inspect the actual receiver statistics; if connection or encoder setup
+fails, choose Balanced/Smooth and restart sharing.
+
+最终源码／运行提交为 `c0936675193c49e3bcd64bb0a76171059b9f9210`，相对
+`d44a4c4` 仅改图标。按用户要求未追加最终图标构建真机测试，上文保留为图标修改前
+的功能证据。静态兼容风险：预检可能接受某个报告支持目标的编码器，而WebRTC实际
+选用同MIME的另一个编码器，其高级组合支持未必相同。这不是已观察的通用失败，
+不否定平板清晰／流畅结果；其他设备应看实际统计，失败改均衡／流畅后重开。

@@ -4,9 +4,11 @@ Thanks for helping test and improve MoonCast. English and Chinese reports are we
 
 ## Before coding
 
-For the unified phone/TV app, use the [`unified/community` branch](https://github.com/meta-tabchen/MoonCast/tree/unified/community) and its [current build and signing guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-build.md), [usage guide](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/unified-guide.md), and [actual verification/limitations](https://github.com/meta-tabchen/MoonCast/blob/unified/community/docs/community-validation.md). The current target is `:unified`, not `:app`; follow that guide for pinned native inputs, community signing or the explicitly unsigned verification build. Do not regenerate a signing identity as a build fallback. The main branch still retains historical sender code.
+Use the **main** branch for the complete phone/TV/browser implementation. Start with the [unified build/signing guide](docs/unified-build.md), [TV setup](docs/unified-guide.md), [browser guide](docs/browser-receiver.md) and [current browser evidence](docs/browser-validation.md). The current application target is **`:unified`**, not `:app`. Follow the guide for pinned native inputs, fixed community signing or an explicitly unsigned verification build; never generate a replacement signing identity as a fallback.
 
-统一手机/电视版请切换到上述 `unified/community` 分支，按当前构建文档操作；构建目标为 `:unified`。`main` 的旧发送端代码及下列 `:app` 命令仅供历史维护，不能用它们构建当前统一版。
+Current browser preview.4 is `0.6.0-browser-preview.4`, versionCode 55; historical browser preview.3 is code54. The [0.5.1/code51 record](docs/community-validation.md) and older sender documents are historical, not current-version acceptance. Read [browser source scope](docs/browser-release-source.md): the bundle includes application source and pinned external SDK source/DEPS/build mappings, not a full offline WebRTC checkout or proof of an independent SDK rebuild.
+
+当前完整手机／电视／浏览器实现以 **main** 为主分支，构建目标是 **`:unified`**。当前浏览器 preview.4 为 code55；历史 preview.3 为 code54；0.5.1/code51 与以下发送端记录为历史。应用源码包提供 WebRTC 固定外部源码、DEPS 和构建映射，不等于完整离线 SDK 源树或已独立重建原生 SDK。不要在缺少固定社区签名时生成临时身份。
 
 ### Historical sender-only maintenance
 
@@ -24,14 +26,18 @@ Use `gradlew.bat` on Windows. Add behavior tests when changing crop stabilizatio
 
 ## Pull requests
 
-Describe the user-visible problem and resulting behavior, verification performed, and remaining limits. For visual changes, include an original screenshot or test-pattern image with private information removed. For native changes, include source provenance and corresponding-source build details. CI does not run Root or Moonlight end-to-end tests.
+Describe the user-visible problem and resulting behavior, verification performed, and remaining limits. For visual changes, include an original screenshot or test-pattern image with private information removed. For native changes, include source provenance and corresponding-source build details. Do not infer Root, Moonlight, TV-browser, rotation or audible-speaker acceptance from a successful build or browser-only fixture; report the exact run and device scope.
 
 ## Translation
 
-On `unified/community`, check English `values/*.xml` and Chinese `values-zh/*.xml` in `app`, `tv`, `unified`, and `locale-core`; run `python3 scripts/check_localization.py` and the relevant behavior checks. The historical sender-only resources are under `app/src/main/res/`. Preserve resource names and escapes; test long labels and small screens. Documentation starts at `README.md` / `README.zh-CN.md`. Lower-level native/Root diagnostic strings are not all localized yet.
+On the current `main` implementation, check English `values/*.xml` and Chinese `values-zh/*.xml` in `app`, `tv`, `unified`, and `locale-core`; run `python3 scripts/check_localization.py` and the relevant behavior checks. The historical sender-only resources are under `app/src/main/res/`. Preserve resource names and escapes; test long labels and small screens. Documentation starts at `README.md` / `README.zh-CN.md`. Lower-level native/Root diagnostic strings are not all localized yet.
 
 ## Reports
 
 Use the bug/compatibility/feature forms. Include the protocol/action, each device’s sender/receiver role, model, OS/API/ABI (unknown is acceptable), exact versions and relevant settings, steps, and expected/actual behavior. Moonlight version applies only to GameStream reports. Never upload keys, certificates, pairing identities, phone serial numbers, unredacted screens, or private logs. Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
 By submitting a contribution, you agree to distribute it under the project's GPLv3 license with applicable retained third-party notices. No CLA is required. Follow the [code of conduct](CODE_OF_CONDUCT.md).
+
+Browser preview.4 QR and quality behavior is documented in [docs/browser-qr-quality.md](docs/browser-qr-quality.md). Target ceilings and device capability reports are not measured throughput or sustained quality. Final build identity and artifact verification must be recorded before describing a candidate as published.
+
+Final preview.4 source/runtime: c0936675193c49e3bcd64bb0a76171059b9f9210. Its delta from d44a4c4 is icon-only; no additional device test was requested or performed. Pre-icon quality observations and code54 media remain separately scoped.
