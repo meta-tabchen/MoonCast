@@ -87,19 +87,21 @@ public final class BrowserHostService extends Service {
             detail = getString(R.string.browser_service_lan_hint);
             publish();
             boolean audio = intent.getBooleanExtra("audio", false);
-            lifecycle.execute(() -> prepare(audio, source == 0));
+            BrowserQuality quality = BrowserQuality.of(
+                    intent.getIntExtra("browserLongEdge", BrowserQuality.DEFAULT.longEdge),
+                    intent.getIntExtra("browserFps", BrowserQuality.DEFAULT.fps),
+                    intent.getIntExtra("browserBitrate", BrowserQuality.DEFAULT.maxBitrateBps));
+            lifecycle.execute(() -> prepare(audio, source == 0, quality));
         } catch (Exception | LinkageError failure) { fail(failureSummary(failure)); }
         return START_NOT_STICKY;
     }
 
-    private void prepare(boolean audio, boolean wholeScreen) {
+    private void prepare(boolean audio, boolean wholeScreen, BrowserQuality quality) {
         try {
             if (stopping) return;
             DisplayMetrics display = VideoPipeline.metrics(getSystemService(DisplayManager.class));
-            double scale = Math.min(1d, 1280d / Math.max(display.widthPixels, display.heightPixels));
-            int width = Math.max(2, (int) (display.widthPixels * scale) & ~1);
-            int height = Math.max(2, (int) (display.heightPixels * scale) & ~1);
-            BrowserRtcSession ready = new BrowserRtcSession(this, projection, audio, width, height, 30,
+            int[] size = quality.dimensions(display.widthPixels, display.heightPixels);
+            BrowserRtcSession ready = new BrowserRtcSession(this, projection, audio, size[0], size[1], quality,
                     new BrowserRtcSession.Listener() {
                         @Override public void state(String value) { main.post(() -> updateState(value)); }
                         @Override public void error(String message) { main.post(() -> fail(message)); }

@@ -97,3 +97,15 @@ and a locally reproduced native build are in
 [`native/webrtc/README.md`](native/webrtc/README.md). The full WebRTC/Chromium
 dependency checkout is external and is not included in the MoonCast source ZIP.
 No proprietary casting SDK or hosted signaling service is used.
+
+## Offline browser session QR
+
+The offline session QR uses `com.google.zxing:core:3.5.3` (Apache-2.0), without
+runtime Maven dependencies. Exact upstream LICENSE/NOTICE texts are bundled as
+`app/src/main/assets/browser-qr-ZXING-*`; the original project-wide appendices
+are retained and do not describe additional runtime dependencies of core.
+[`native/browser-qr/SOURCE_LOCK.json`](native/browser-qr/SOURCE_LOCK.json) pins
+the binary, complete core production source JAR, POM metadata and notice hashes.
+The source JAR is bundled in the source distribution after commit. Source scope,
+offline compilation and QR pixel test evidence are described in
+[`native/browser-qr/README.md`](native/browser-qr/README.md).

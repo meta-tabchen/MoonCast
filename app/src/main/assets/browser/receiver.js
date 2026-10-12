@@ -34,6 +34,11 @@
       mediaTimeout: 'No video arrived. Check Android sharing and local network device access.',
       playbackError: 'Playback could not start. Select Play video, or reconnect.',
       fullscreenError: 'Fullscreen is unavailable here. You can still resize the browser window.',
+      statsTitle: 'Media stats', statsTargetTitle: 'Sender limits', statsActualTitle: 'Received video',
+      statsTargetResolutionLabel: 'Resolution', statsTargetFpsLabel: 'Frame rate', statsTargetBitrateLabel: 'Video bitrate budget',
+      statsResolutionLabel: 'Video pixels', statsCodecLabel: 'Codec', statsFpsLabel: 'Decoded frame rate', statsBitrateLabel: 'Video RTP received',
+      statsNotProvided: 'Not provided', statsMeasuring: 'Measuring…', statsLongEdge: '≤ {value} px long edge',
+      statsNote: 'Network, content, and encoder may reduce actual output. Limits do not guarantee constant resolution, frame rate, or bitrate. Rates are sampled about every 3 seconds.',
       framing: 'Picture framing', stageLabel: 'Screen. Arrow keys to pan; plus or minus to zoom; 0 to reset; F for fullscreen.',
       videoLabel: 'Shared Android screen', viewerLabel: 'Screen receiver', pageTitle: 'MoonCast · Browser receiver'
     },
@@ -66,6 +71,11 @@
       mediaTimeout: '尚未收到画面。请检查 Android 分享状态及局域网设备互访设置。',
       playbackError: '无法开始播放。请点击“播放画面”，或重新连接。',
       fullscreenError: '当前无法进入全屏，仍可调整浏览器窗口大小。',
+      statsTitle: '媒体统计', statsTargetTitle: '发送端上限', statsActualTitle: '实际接收视频',
+      statsTargetResolutionLabel: '分辨率', statsTargetFpsLabel: '帧率', statsTargetBitrateLabel: '视频码率预算',
+      statsResolutionLabel: '视频像素', statsCodecLabel: '编码格式', statsFpsLabel: '解码帧率', statsBitrateLabel: '视频 RTP 接收速率',
+      statsNotProvided: '未提供', statsMeasuring: '测量中…', statsLongEdge: '长边 ≤ {value} 像素',
+      statsNote: '网络、内容和编码器可能降低实际输出；上限不保证分辨率、帧率或码率恒定。速率约每 3 秒采样一次。',
       framing: '画面适配', stageLabel: '画面。方向键平移，加减号缩放，0 重置，F 全屏。',
       videoLabel: '分享的 Android 画面', viewerLabel: '画面接收端', pageTitle: 'MoonCast · 浏览器接收端'
     }
@@ -94,6 +104,8 @@
   let peer = null, controller = null, generation = 0, wanted = false, retry = 0;
   let retryTimer = null, heartbeatTimer = null, connectionTimer = null, disconnectTimer = null, stableTimer = null;
   let hasAudio = false, audioAllowed = false, framing = 'fit', zoom = 1, panX = 0, panY = 0, drag = null;
+  let statsTimer = null, statsPrevious = null, statsQuality = null, statsRevision = 0;
+  let statsValues = {width:0, height:0, codec:null, fps:null, mbps:null};
   const MAX_RETRIES = 6;
 
   function setHint(key, values = {}) { hint = key; hintValues = values; $('hint').textContent = text(key, values); }
@@ -106,7 +118,7 @@
     video.setAttribute('aria-label', text('videoLabel'));
     $('viewer').setAttribute('aria-label', text('viewerLabel'));
     $('fit-controls').setAttribute('aria-label', text('framing'));
-    renderState(); renderSound(); renderFullscreen();
+    renderState(); renderSound(); renderFullscreen(); renderStats();
     setHint(hint, hintValues);
   }
   function renderState() {
@@ -129,6 +141,61 @@
   function renderFullscreen() {
     const label = text(document.fullscreenElement ? 'exitFullscreen' : 'fullscreen');
     $('fullscreen').setAttribute('aria-label', label); $('fullscreen').title = label;
+  }
+  function readQuality(value) {
+    // Sender metadata is optional. Never retain the answer, SDP or session identity here.
+    const positive = (key) => Number.isSafeInteger(value?.[key]) && value[key] > 0 ? value[key] : null;
+    return {longEdge:positive('longEdge'), maxFps:positive('maxFps'), maxVideoBitrateBps:positive('maxVideoBitrateBps')};
+  }
+  function renderStats() {
+    const unknown = text('statsNotProvided'), pending = statsValues.width ? text('statsMeasuring') : '—';
+    $('stats-target-resolution').textContent = statsQuality?.longEdge ? text('statsLongEdge', {value:statsQuality.longEdge}) : unknown;
+    $('stats-target-fps').textContent = statsQuality?.maxFps ? `≤ ${statsQuality.maxFps} fps` : unknown;
+    $('stats-target-bitrate').textContent = statsQuality?.maxVideoBitrateBps ? `≤ ${Number((statsQuality.maxVideoBitrateBps / 1e6).toFixed(2))} Mbps` : unknown;
+    $('stats-resolution').textContent = statsValues.width && statsValues.height ? `${statsValues.width} × ${statsValues.height}` : '—';
+    $('stats-codec').textContent = statsValues.codec || '—';
+    $('stats-fps').textContent = statsValues.fps === null ? pending : `${statsValues.fps.toFixed(1)} fps`;
+    $('stats-bitrate').textContent = statsValues.mbps === null ? pending : `${statsValues.mbps.toFixed(2)} Mbps`;
+  }
+  function resetStats(keepQuality = false) {
+    statsRevision++; statsPrevious = null;
+    const connected = keepQuality && peer?.connectionState === 'connected';
+    statsValues = {width:connected ? video.videoWidth : 0, height:connected ? video.videoHeight : 0, codec:null, fps:null, mbps:null};
+    if (!keepQuality) statsQuality = null;
+    renderStats();
+  }
+  async function sampleStats(connection, current) {
+    if (current !== generation || connection !== peer || !wanted) return;
+    const revision = statsRevision;
+    try {
+      const reports = await connection.getStats();
+      if (current !== generation || connection !== peer || !wanted || revision !== statsRevision) return;
+      if (connection.connectionState !== 'connected') { resetStats(true); return; }
+      const streams = [...reports.values()].filter((item) => item.type === 'inbound-rtp' && (item.kind || item.mediaType) === 'video');
+      if (streams.length !== 1) { resetStats(true); return; }
+      const stream = streams[0], mime = reports.get(stream.codecId)?.mimeType;
+      const width = video.videoWidth, height = video.videoHeight;
+      statsValues = {width, height, codec:typeof mime === 'string' && /^video\/[a-z0-9.+_-]{1,32}$/i.test(mime) ? mime : null, fps:null, mbps:null};
+      const valid = width > 0 && height > 0 && Number.isFinite(stream.timestamp) &&
+        Number.isSafeInteger(stream.framesDecoded) && stream.framesDecoded >= 0 && Number.isSafeInteger(stream.bytesReceived) && stream.bytesReceived >= 0;
+      if (valid) {
+        const previous = statsPrevious;
+        if (previous && previous.connection === connection && previous.id === stream.id && previous.ssrc === stream.ssrc && previous.width === width && previous.height === height) {
+          const seconds = (stream.timestamp - previous.timestamp) / 1000;
+          const frames = stream.framesDecoded - previous.frames, bytes = stream.bytesReceived - previous.bytes;
+          // A throttled/background tab or reset counter must start a fresh window.
+          if (Number.isFinite(seconds) && seconds >= 2 && seconds <= 10 && frames >= 0 && bytes >= 0) {
+            statsValues.fps = frames / seconds; statsValues.mbps = bytes * 8 / seconds / 1e6;
+          }
+        }
+        statsPrevious = {connection, id:stream.id, ssrc:stream.ssrc, width, height, timestamp:stream.timestamp, frames:stream.framesDecoded, bytes:stream.bytesReceived};
+      } else statsPrevious = null;
+      renderStats();
+    } catch (_) {
+      if (current === generation && connection === peer && revision === statsRevision) resetStats(true);
+    } finally {
+      if (current === generation && connection === peer && wanted) statsTimer = setTimeout(() => sampleStats(connection, current), 3000);
+    }
   }
   function renderFrame() {
     const width = stage.clientWidth, height = stage.clientHeight;
@@ -182,8 +249,9 @@
   function closePeer() {
     generation++;
     if (controller) { controller.abort(); controller = null; }
-    [retryTimer, heartbeatTimer, connectionTimer, disconnectTimer, stableTimer].forEach(clearTimeout);
+    [retryTimer, heartbeatTimer, connectionTimer, disconnectTimer, stableTimer, statsTimer].forEach(clearTimeout);
     retryTimer = heartbeatTimer = connectionTimer = disconnectTimer = stableTimer = null;
+    statsTimer = null; resetStats();
     if (peer) { peer.ontrack = null; peer.onconnectionstatechange = null; peer.oniceconnectionstatechange = null; peer.close(); peer = null; }
     if (video.srcObject) video.srcObject.getTracks().forEach((track) => track.stop());
     video.srcObject = null; $('play').hidden = true; stage.classList.remove('has-video');
@@ -279,6 +347,7 @@
         if (current !== generation) return;
         if (connection.connectionState === 'failed' || connection.iceConnectionState === 'failed') { handleFailure(fail('networkError')); return; }
         if (connection.connectionState === 'disconnected' || connection.iceConnectionState === 'disconnected') {
+          resetStats(true);
           if (!disconnectTimer) disconnectTimer = setTimeout(() => { if (current === generation) handleFailure(fail('networkError')); }, 4000);
         } else { clearTimeout(disconnectTimer); disconnectTimer = null; }
         maybeLive();
@@ -292,10 +361,12 @@
       if (!answer || !validId(answer.id) || answer.type !== 'answer' || typeof answer.sdp !== 'string' || answer.sdp.length > 262144) throw fail('invalidAnswer', true);
       sessionId = answer.id; write('sessionStorage', sessionKey, sessionId);
       audioAllowed = answer.audio === true;
+      statsQuality = readQuality(answer.quality); renderStats();
       await connection.setRemoteDescription({ type: 'answer', sdp: answer.sdp });
       if (current !== generation) return;
       hasAudio = audioAllowed && stream.getAudioTracks().some((track) => track.readyState === 'live'); renderSound();
       heartbeatTimer = setTimeout(() => heartbeat(current), 5000);
+      sampleStats(connection, current);
       maybeLive();
     } catch (error) { if (current === generation) handleFailure(error.key ? error : fail('networkError')); }
   }
@@ -323,7 +394,8 @@
   }
   $('fullscreen').addEventListener('click', fullscreen);
   document.addEventListener('fullscreenchange', () => { renderFullscreen(); renderFrame(); });
-  ['loadeddata', 'playing', 'resize'].forEach((event) => video.addEventListener(event, () => { renderFrame(); maybeLive(); }));
+  ['loadeddata', 'playing'].forEach((event) => video.addEventListener(event, () => { renderFrame(); maybeLive(); }));
+  video.addEventListener('resize', () => { resetStats(true); renderFrame(); maybeLive(); });
   video.addEventListener('pause', () => { if (wanted && peer) { $('play').hidden = false; setHint('playHint'); } });
   video.addEventListener('error', () => { if (wanted) setHint('playbackError'); });
   window.addEventListener('resize', renderFrame);

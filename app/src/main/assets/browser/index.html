@@ -54,6 +54,29 @@
         </div>
       </section>
 
+      <details class="media-stats" id="media-stats">
+        <summary id="stats-summary" data-i18n="statsTitle">Media stats</summary>
+        <div class="stats-columns">
+          <section aria-labelledby="stats-target-title">
+            <h2 id="stats-target-title" data-i18n="statsTargetTitle">Sender limits</h2>
+            <dl>
+              <div><dt data-i18n="statsTargetResolutionLabel">Resolution</dt><dd id="stats-target-resolution">Not provided</dd></div>
+              <div><dt data-i18n="statsTargetFpsLabel">Frame rate</dt><dd id="stats-target-fps">Not provided</dd></div>
+              <div><dt data-i18n="statsTargetBitrateLabel">Video bitrate budget</dt><dd id="stats-target-bitrate">Not provided</dd></div>
+            </dl>
+          </section>
+          <section aria-labelledby="stats-actual-title">
+            <h2 id="stats-actual-title" data-i18n="statsActualTitle">Received video</h2>
+            <dl>
+              <div><dt data-i18n="statsResolutionLabel">Video pixels</dt><dd id="stats-resolution">—</dd></div>
+              <div><dt data-i18n="statsCodecLabel">Codec</dt><dd id="stats-codec">—</dd></div>
+              <div><dt data-i18n="statsFpsLabel">Decoded frame rate</dt><dd id="stats-fps">—</dd></div>
+              <div><dt data-i18n="statsBitrateLabel">Video RTP received</dt><dd id="stats-bitrate">—</dd></div>
+            </dl>
+          </section>
+        </div>
+        <p id="stats-note" data-i18n="statsNote">Network, content, and encoder may reduce actual output. Limits do not guarantee constant resolution, frame rate, or bitrate. Rates are sampled about every 3 seconds.</p>
+      </details>
       <div class="details"><p id="hint" role="status">Video starts muted. Enable sound when you’re ready.</p><p data-i18n="panHint">Drag the picture to pan · Fit preserves the whole frame</p></div>
       <footer><p data-i18n="privacy">Only the screen and audio allowed by Android and the source app can be shared. Protected content may appear black or silent.</p><p data-i18n="network">Keep both devices on the same trusted network. Keep this private session link to yourself.</p></footer>
     </main>

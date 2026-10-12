@@ -27,11 +27,16 @@ public final class MainActivity extends Activity {
     private boolean advancedExpanded;
     private LinearLayout browserPanel,browserConnect;
     private RadioButton browserTab;
-    private Button browserStart,browserStop,browserCopy;
-    private TextView browserState,browserDetail,browserLink;
+    private Button browserStart,browserStop,browserCopy,browserQrButton;
+    private TextView browserState,browserDetail,browserLink,browserQualitySummary;
     private Spinner browserSource,browserAddress;
     private CompoundButton browserAudio;
-    private String browserUrls="";
+    private String browserUrls="",browserSelectedUrl="";
+    private AlertDialog browserQrDialog;
+    private ImageView browserQrImage;
+    private android.graphics.Bitmap browserQrBitmap;
+    private BrowserQuality pendingBrowserQuality=BrowserQuality.DEFAULT;
+    private BrowserQuality browserClearQuality;
     private MyTvPicker airPicker;
     private AlertDialog airChangeDialog;
     private Button airChange;
@@ -43,6 +48,9 @@ public final class MainActivity extends Activity {
     private TextView airState,airDetail,airMetrics,airLogs,airSelection,protocolHint,airPinHint;
     private EditText airPin;
     private Spinner airSource,airQuality;
+    private Button airQualityAdvanced;
+    private TextView airQualitySummary;
+    private AirQuality pendingAirQuality=new AirQuality(1920,1080,30,8_000_000,false);
     private CompoundButton airLegacy;
     private LinearLayout airPinBox;
     private int pendingToken=-1,pendingMode=-1,pendingAudioRequest=-1,pendingProjectionRequest=-1;
@@ -95,6 +103,15 @@ public final class MainActivity extends Activity {
     private int currentProfile,currentScenario;
     private boolean loadingProfile;
     private boolean updatingScale;
+    private static final class AirQuality {
+        final int width,height,fps,bitrate;final boolean legacy;
+        AirQuality(int width,int height,int fps,int bitrate,boolean legacy){
+            boolean valid=(width==1280&&height==720 || width==1920&&height==1080 || width==2560&&height==1440 || width==3840&&height==2160)
+                && (fps==15||fps==24||fps==30||fps==60) && bitrate>=1_000_000 && bitrate<=40_000_000;
+            this.legacy=legacy;this.width=legacy?1280:valid?width:1920;this.height=legacy?720:valid?height:1080;
+            this.fps=legacy?30:valid?fps:30;this.bitrate=legacy?4_000_000:valid?bitrate:8_000_000;
+        }
+    }
     private HostConnection connection;
     private final class HostConnection implements ServiceConnection {
         final Messenger response=new Messenger(new Handler(Looper.getMainLooper(),msg->{
@@ -191,11 +208,11 @@ public final class MainActivity extends Activity {
     }
     private void requestStop(){
         pendingShizukuStart=false;pendingToken=-1;pendingAudioRequest=pendingProjectionRequest=-1;
+        if(browserMode())showBrowserUrls("");
         if(!session.hasHost()){
             session.stop();pendingEndpoint=null;activeState().setText(R.string.ui_stopped);
             activeDetail().setText(browserMode()?R.string.browser_start_hint:airMode()?R.string.ui_airplay_start_hint:R.string.ui_starting_again_will_request_screen_sharing_permission);updateSessionUi();return;
         }
-        if(browserMode())showBrowserUrls("");
         session.stop();stopPending=true;activeState().setText(R.string.ui_stopping);
         if(lastFailure.isEmpty())activeDetail().setText("");updateSessionUi();
         if(remote!=null)send(HostService.STOP,null);
@@ -219,6 +236,8 @@ public final class MainActivity extends Activity {
             pendingToken=b.getInt("pendingToken",-1);pendingMode=b.getInt("pendingMode",-1);
             pendingAudioRequest=b.getInt("pendingAudioRequest",-1);pendingProjectionRequest=b.getInt("pendingProjectionRequest",-1);
             pendingAudioAllowed=b.getBoolean("pendingAudioAllowed");lastFailure=b.getString("lastFailure","");
+            pendingBrowserQuality=validBrowserQuality(b.getInt("pendingBrowserLongEdge",BrowserQuality.DEFAULT.longEdge),b.getInt("pendingBrowserFps",BrowserQuality.DEFAULT.fps),b.getInt("pendingBrowserBitrate",BrowserQuality.DEFAULT.maxBitrateBps));
+            pendingAirQuality=new AirQuality(b.getInt("pendingAirWidth",1920),b.getInt("pendingAirHeight",1080),b.getInt("pendingAirFps",30),b.getInt("pendingAirBitrate",8_000_000),b.getBoolean("pendingAirLegacy"));
             pendingEndpoint=AirPlayEndpoint.parse(b.getString("pendingEndpoint",""));
             stopPending=session.phase()==CastSessionCoordinator.STOPPING;senderPid=b.getInt("senderPid",-1);
         }else{
@@ -412,15 +431,15 @@ public final class MainActivity extends Activity {
         LinearLayout connect=card(browserPanel);browserConnect=connect;connect.setTag("browser_connection");section(connect,getString(R.string.browser_open_link),getString(R.string.browser_open_link_hint));
         browserAddress=spinner(new String[]{});browserAddress.setContentDescription(getString(R.string.browser_address));connect.addView(browserAddress);
         LinearLayout linkRow=new LinearLayout(this);linkRow.setOrientation(LinearLayout.VERTICAL);connect.addView(linkRow);
-        browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);linkRow.addView(browserLink,new LinearLayout.LayoutParams(-1,-2));
+        browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);browserLink.setSaveEnabled(false);linkRow.addView(browserLink,new LinearLayout.LayoutParams(-1,-2));
         browserAddress.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(AdapterView<?> parent){}
-            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){Object address=browserAddress.getSelectedItem();if(address!=null)browserLink.setText(address.toString());}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){Object address=browserAddress.getSelectedItem();selectBrowserUrl(address==null?"":address.toString());}
         });
-        browserCopy=smallButton(getString(R.string.browser_copy_link));browserCopy.setOnClickListener(v->{
-            Object address=browserAddress.getSelectedItem();if(address==null || browserUrls.isEmpty())return;
-            getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",address.toString()));toast(getString(R.string.ui_file_link_copied));
-        });LinearLayout.LayoutParams copyLayout=new LinearLayout.LayoutParams(-2,dp(48));copyLayout.gravity=Gravity.END;copyLayout.topMargin=dp(8);linkRow.addView(browserCopy,copyLayout);showBrowserUrls("");
+        LinearLayout linkActions=new LinearLayout(this);linkActions.setGravity(Gravity.END);linkActions.setPadding(0,dp(8),0,0);linkRow.addView(linkActions);
+        browserQrButton=smallButton(getString(R.string.browser_show_qr));browserQrButton.setOnClickListener(v->showBrowserQr());linkActions.addView(browserQrButton,new LinearLayout.LayoutParams(0,dp(48),1));
+        browserCopy=smallButton(getString(R.string.browser_copy_link));browserCopy.setOnClickListener(v->copyBrowserLink());
+        LinearLayout.LayoutParams copyLayout=new LinearLayout.LayoutParams(0,dp(48),1);copyLayout.setMarginStart(dp(8));linkActions.addView(browserCopy,copyLayout);showBrowserUrls("");
 
         LinearLayout capture=card(browserPanel);capture.addView(text(getString(R.string.ui_capture_source),14,INK));
         browserSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});
@@ -428,6 +447,10 @@ public final class MainActivity extends Activity {
         browserSource.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> parent){}public void onItemSelected(AdapterView<?> parent,View view,int position,long id){if(uiReady && !session.busy())saveBrowser();}});
         browserAudio=toggle(capture,getString(R.string.ui_stream_playback_audio),getString(R.string.browser_audio_option_hint),getPreferences(0).getBoolean("browserAudio",false));
         browserAudio.setOnCheckedChangeListener((button,checked)->{if(uiReady && !session.busy())saveBrowser();});
+        LinearLayout qualityRow=new LinearLayout(this);qualityRow.setGravity(Gravity.CENTER_VERTICAL);qualityRow.setPadding(0,dp(8),0,0);capture.addView(qualityRow);
+        LinearLayout qualityText=new LinearLayout(this);qualityText.setOrientation(LinearLayout.VERTICAL);qualityText.addView(text(getString(R.string.browser_quality_title),14,INK));
+        browserQualitySummary=text("",12,MUTED);qualityText.addView(browserQualitySummary);qualityRow.addView(qualityText,new LinearLayout.LayoutParams(0,-2,1));
+        Button quality=smallButton(getString(R.string.browser_quality_change));quality.setContentDescription(getString(R.string.browser_quality_title));quality.setOnClickListener(v->showBrowserQuality());qualityRow.addView(quality,new LinearLayout.LayoutParams(-2,dp(48)));updateBrowserQualitySummary();
         Button connectionHelp=smallButton(getString(R.string.browser_connection_details));connectionHelp.setBackgroundColor(Color.TRANSPARENT);connectionHelp.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);
         connectionHelp.setOnClickListener(v->new AlertDialog.Builder(this).setTitle(R.string.browser_connection_details).setMessage(getString(R.string.browser_protocol_hint)+"\n\n"+getString(R.string.browser_capture_hint)+"\n\n"+getString(R.string.browser_audio_hint)+"\n\n"+getString(R.string.browser_controls_hint)).setPositiveButton(android.R.string.ok,null).show());capture.addView(connectionHelp,new LinearLayout.LayoutParams(-1,-2));
     }
@@ -439,12 +462,100 @@ public final class MainActivity extends Activity {
             String[] addresses=browserUrls.isEmpty()?new String[]{}:browserUrls.split("\\s*\\n\\s*");
             browserAddress.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,addresses));
             int selected=0;for(int i=0;i<addresses.length;i++)if(addresses[i].equals(previous))selected=i;
-            if(addresses.length>0){browserAddress.setSelection(selected);browserLink.setText(addresses[selected]);}
+            if(addresses.length>0)browserAddress.setSelection(selected);
         }
-        if(browserUrls.isEmpty())browserLink.setText(R.string.browser_link_pending);
+        Object address=browserAddress.getSelectedItem();selectBrowserUrl(address==null?"":address.toString());
         browserAddress.setVisibility(browserAddress.getAdapter().getCount()>1?View.VISIBLE:View.GONE);
-        browserCopy.setEnabled(!browserUrls.isEmpty() && session.hasHost() && session.phase()!=CastSessionCoordinator.STOPPING);
-        browserConnect.setVisibility(browserUrls.isEmpty()?View.GONE:View.VISIBLE);
+    }
+    private boolean validBrowserUrl(String url){
+        if(url.isEmpty() || !browserMode() || !session.hasHost() || stopPending || session.phase()==CastSessionCoordinator.STOPPING)return false;
+        boolean advertised=false;for(String address:browserUrls.split("\\s*\\n\\s*"))if(address.equals(url)){advertised=true;break;}
+        if(!advertised)return false;
+        try{java.net.URI address=java.net.URI.create(url);return ("http".equals(address.getScheme())||"https".equals(address.getScheme())) && address.getHost()!=null && address.getRawUserInfo()==null;}
+        catch(IllegalArgumentException invalid){return false;}
+    }
+    private void selectBrowserUrl(String url){
+        String selected=validBrowserUrl(url)?url:"";
+        if(!selected.equals(browserSelectedUrl)){closeBrowserQr();browserSelectedUrl=selected;}
+        if(selected.isEmpty()){closeBrowserQr();browserLink.setText(R.string.browser_link_pending);}else browserLink.setText(selected);
+        browserCopy.setEnabled(!selected.isEmpty());browserQrButton.setEnabled(!selected.isEmpty());
+        browserConnect.setVisibility(selected.isEmpty()?View.GONE:View.VISIBLE);
+    }
+    private void copyBrowserLink(){
+        if(!validBrowserUrl(browserSelectedUrl))return;
+        getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",browserSelectedUrl));toast(getString(R.string.ui_file_link_copied));
+    }
+    private void showBrowserQr(){
+        if(!resumed || isFinishing() || isDestroyed() || !validBrowserUrl(browserSelectedUrl))return;
+        closeBrowserQr();
+        try{browserQrBitmap=BrowserQrCode.encode(browserSelectedUrl,Math.max(128,Math.min(1024,dp(280))));}
+        catch(IllegalArgumentException unavailable){toast(getString(R.string.browser_qr_unavailable));return;}
+        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setGravity(Gravity.CENTER_HORIZONTAL);body.setPadding(dp(20),dp(12),dp(20),dp(12));
+        browserQrImage=new ImageView(this);browserQrImage.setSaveEnabled(false);browserQrImage.setAdjustViewBounds(true);browserQrImage.setScaleType(ImageView.ScaleType.FIT_CENTER);browserQrImage.setImageBitmap(browserQrBitmap);browserQrImage.setContentDescription(getString(R.string.browser_qr_description));
+        body.addView(browserQrImage,new LinearLayout.LayoutParams(-1,dp(280)));body.addView(text(getString(R.string.browser_qr_hint),13,MUTED));
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.browser_show_qr).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(R.string.browser_copy_link,(d,w)->copyBrowserLink()).create();
+        browserQrDialog=dialog;dialog.setOnDismissListener(d->{if(browserQrDialog==dialog)closeBrowserQr();});dialog.show();
+    }
+    private void closeBrowserQr(){
+        AlertDialog dialog=browserQrDialog;browserQrDialog=null;
+        if(browserQrImage!=null)browserQrImage.setImageDrawable(null);
+        browserQrImage=null;browserQrBitmap=null;
+        if(dialog!=null)dialog.dismiss();
+    }
+    private BrowserQuality readBrowserQuality(){
+        return validBrowserQuality(getPreferences(0).getInt("browserLongEdge",BrowserQuality.DEFAULT.longEdge),getPreferences(0).getInt("browserFps",BrowserQuality.DEFAULT.fps),getPreferences(0).getInt("browserBitrate",BrowserQuality.DEFAULT.maxBitrateBps));
+    }
+    private static BrowserQuality validBrowserQuality(int edge,int fps,int bitrate){try{return BrowserQuality.of(edge,fps,bitrate);}catch(IllegalArgumentException invalid){return BrowserQuality.DEFAULT;}}
+    private BrowserQuality browserQualityPreset(int preset){
+        if(preset!=2)return BrowserQuality.fromPreset(preset);
+        if(browserClearQuality==null)browserClearQuality=BrowserEncoderCapabilities.clearProfile(this);
+        return browserClearQuality;
+    }
+    private String describeBrowserQuality(BrowserQuality quality){
+        int label=R.string.browser_quality_custom;
+        int[] labels={R.string.browser_quality_smooth,R.string.browser_quality_balanced,R.string.browser_quality_clear};
+        for(int i=0;i<labels.length;i++){BrowserQuality preset=browserQualityPreset(i);if(preset.longEdge==quality.longEdge && preset.fps==quality.fps && preset.maxBitrateBps==quality.maxBitrateBps){label=labels[i];break;}}
+        return describeBrowserQuality(quality,label);
+    }
+    private String describeBrowserQuality(BrowserQuality quality,int label){return getString(R.string.browser_quality_summary,getString(label),quality.longEdge,quality.fps,quality.maxBitrateBps/1_000_000);}
+    private void updateBrowserQualitySummary(){browserQualitySummary.setText(getString(R.string.browser_quality_next,describeBrowserQuality(readBrowserQuality())));}
+    private boolean saveBrowserQuality(BrowserQuality quality){
+        if(!BrowserEncoderCapabilities.supports(this,quality)){toast(getString(R.string.browser_quality_unsupported));return false;}
+        getPreferences(0).edit().putInt("browserLongEdge",quality.longEdge).putInt("browserFps",quality.fps).putInt("browserBitrate",quality.maxBitrateBps).apply();
+        updateBrowserQualitySummary();toast(getString(session.busy()?R.string.browser_quality_saved_active:R.string.browser_quality_saved));return true;
+    }
+    private void showBrowserQuality(){
+        BrowserQuality[] selected={readBrowserQuality()};
+        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(8),dp(20),dp(8));
+        body.addView(text(getString(R.string.browser_quality_next,describeBrowserQuality(selected[0])),13,INK));body.addView(text(getString(R.string.browser_quality_next_hint),12,MUTED));
+        RadioGroup presets=new RadioGroup(this);body.addView(presets);
+        int[] labels={R.string.browser_quality_smooth,R.string.browser_quality_balanced,R.string.browser_quality_clear};
+        for(int i=0;i<3;i++){
+            BrowserQuality preset=browserQualityPreset(i);RadioButton choice=new RadioButton(this);choice.setId(View.generateViewId());choice.setText(describeBrowserQuality(preset,labels[i]));choice.setTextSize(14);choice.setMinHeight(dp(48));choice.setPadding(0,dp(8),0,dp(8));presets.addView(choice);
+            if(preset.longEdge==selected[0].longEdge && preset.fps==selected[0].fps && preset.maxBitrateBps==selected[0].maxBitrateBps)presets.check(choice.getId());
+            choice.setOnCheckedChangeListener((button,checked)->{if(checked)selected[0]=preset;});
+        }
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.browser_quality_title).setView(scroll).setNegativeButton(android.R.string.cancel,null)
+            .setNeutralButton(R.string.browser_quality_advanced,(d,which)->showBrowserAdvancedQuality(selected[0]))
+            .setPositiveButton(R.string.browser_quality_save,null).create();
+        dialog.show();dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{if(saveBrowserQuality(selected[0]))dialog.dismiss();});
+    }
+    private void showBrowserAdvancedQuality(BrowserQuality initial){
+        int[] edges={640,720,960,1280,1920,2560,3200,3840},frames={15,24,30,60},bitrates={1,2,4,6,8,12,16,24,32,40};
+        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(8),dp(20),dp(8));body.addView(text(getString(R.string.browser_quality_next_hint),12,MUTED));
+        Spinner edge=browserQualitySpinner(body,R.string.browser_quality_long_edge,edges,initial.longEdge,R.string.browser_quality_pixels);
+        Spinner fps=browserQualitySpinner(body,R.string.browser_quality_fps,frames,initial.fps,R.string.browser_quality_frames);
+        Spinner bitrate=browserQualitySpinner(body,R.string.browser_quality_bitrate,bitrates,initial.maxBitrateBps/1_000_000,R.string.browser_quality_mbps);
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.browser_quality_advanced).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(R.string.browser_quality_save,null).create();
+        dialog.show();dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{if(saveBrowserQuality(BrowserQuality.of(edges[edge.getSelectedItemPosition()],frames[fps.getSelectedItemPosition()],bitrates[bitrate.getSelectedItemPosition()]*1_000_000)))dialog.dismiss();});
+    }
+    private Spinner browserQualitySpinner(LinearLayout parent,int title,int[] values,int current,int format){
+        parent.addView(text(getString(title),14,INK));String[] labels=new String[values.length];int selected=0;
+        for(int i=0;i<values.length;i++){labels[i]=getString(format,values[i]);if(values[i]==current)selected=i;}
+        Spinner choice=spinner(labels);choice.setContentDescription(getString(title));choice.setSelection(selected);parent.addView(choice);return choice;
     }
     private void saveBrowser(){
         if(browserSource==null || browserAudio==null)return;
@@ -469,8 +580,14 @@ public final class MainActivity extends Activity {
         LinearLayout capture=card(airAdvanced);section(capture,getString(R.string.ui_capture_source),getString(R.string.ui_airplay_capture_hint));
         airSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});int initial=settings().getInt("source",0);if(initial>1)initial=0;airSource.setSelection(initial);airSource.setTag(initial);capture.addView(airSource);
         airSource.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){boolean changed=!Integer.valueOf(position).equals(airSource.getTag());airSource.setTag(position);if(uiReady && changed && !updatingAirSource && airMode() && !session.busy()){settings().edit().putInt("source",position).apply();source.setSelection(position);}}});
-        capture.addView(text(getString(R.string.ui_airplay_quality),13,INK));airQuality=spinner(new String[]{getString(R.string.phone_quality_720),getString(R.string.phone_quality_1080),getString(R.string.phone_quality_1080_fast)});airQuality.setSelection(Math.max(0,Math.min(2,getPreferences(0).getInt("airplayQuality",1))));capture.addView(airQuality);
+        capture.addView(text(getString(R.string.airplay_quality_next_title),13,INK));
+        LinearLayout qualityRow=new LinearLayout(this);qualityRow.setGravity(Gravity.CENTER_VERTICAL);capture.addView(qualityRow);
+        airQuality=spinner(new String[]{getString(R.string.phone_quality_720),getString(R.string.phone_quality_1080),getString(R.string.phone_quality_1080_fast),getString(R.string.browser_quality_custom)});airQuality.setSelection(Math.max(0,Math.min(3,getPreferences(0).getInt("airplayQuality",1))));qualityRow.addView(airQuality,new LinearLayout.LayoutParams(0,-2,1));
+        airQualityAdvanced=smallButton(getString(R.string.airplay_quality_advanced));airQualityAdvanced.setOnClickListener(v->showAirPlayQuality());qualityRow.addView(airQualityAdvanced,new LinearLayout.LayoutParams(-2,dp(48)));
+        airQualitySummary=text("",12,MUTED);capture.addView(airQualitySummary);
+        airQuality.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> parent){}public void onItemSelected(AdapterView<?> parent,View view,int position,long id){if(uiReady){saveAirPlay();updateAirQualitySummary();}}});
         airLegacy=toggle(capture,getString(R.string.ui_airplay_legacy),getString(R.string.ui_airplay_legacy_hint),getPreferences(0).getBoolean("airplayLegacy",false));airLegacy.setOnCheckedChangeListener((v,checked)->{if(uiReady){saveAirPlay();updateSessionUi();}});
+        updateAirQualitySummary();
         LinearLayout dashboard=card(airAdvanced);section(dashboard,getString(R.string.ui_dashboard),getString(R.string.ui_airplay_diagnostics_hint));airMetrics=text(getString(R.string.ui_dashboard_idle),13,INK);dashboard.addView(airMetrics);airLogs=text("",11,MUTED);airLogs.setTextIsSelectable(true);dashboard.addView(airLogs);
     }
     /** Casting and APK transfer use exactly the same My TV picker and discovery registry. */
@@ -536,10 +653,10 @@ public final class MainActivity extends Activity {
         airStop.setVisibility(busy?View.VISIBLE:View.GONE);airStop.setEnabled(!stopping);airStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
         browserStart.setVisibility(busy?View.GONE:View.VISIBLE);browserStart.setEnabled(!busy);
         browserStop.setVisibility(busy?View.VISIBLE:View.GONE);browserStop.setEnabled(!stopping);browserStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
-        browserSource.setEnabled(!busy);browserAudio.setEnabled(!busy && Build.VERSION.SDK_INT>=29);browserCopy.setEnabled(!browserUrls.isEmpty() && hasHost && !stopping);
+        browserSource.setEnabled(!busy);browserAudio.setEnabled(!busy && Build.VERSION.SDK_INT>=29);browserCopy.setEnabled(validBrowserUrl(browserSelectedUrl));browserQrButton.setEnabled(validBrowserUrl(browserSelectedUrl));
         if(browserMode() && session.phase()==CastSessionCoordinator.PERMISSION){browserState.setText(R.string.browser_permission_title);browserDetail.setText(R.string.browser_permission_hint);}
         start.setVisibility(busy?View.GONE:View.VISIBLE);start.setEnabled(!busy);stop.setVisibility(busy?View.VISIBLE:View.GONE);stop.setEnabled(!stopping);stop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
-        airSource.setEnabled(!busy);airQuality.setEnabled(!busy && !airLegacy.isChecked());airLegacy.setEnabled(!busy);
+        airSource.setEnabled(!busy);airQuality.setEnabled(!airLegacy.isChecked());airQualityAdvanced.setEnabled(!airLegacy.isChecked());airLegacy.setEnabled(!busy);updateAirQualitySummary();
         profile.setEnabled(!busy);source.setEnabled(!busy);scenario.setEnabled(!busy);root.setEnabled(!busy);hevc.setEnabled(!busy);name.setEnabled(!busy);watchParty.setEnabled(!busy);panelOff.setEnabled(!busy);
         scale.setEnabled(!stopping && session.phase()!=CastSessionCoordinator.PERMISSION);
         if(busy && !hasHost){control.setEnabled(false);controlBackend.setEnabled(false);audio.setEnabled(false);muteLocal.setEnabled(false);}
@@ -552,10 +669,41 @@ public final class MainActivity extends Activity {
         if(airPicker!=null && airPicker.isShowing() && (!resumed || !airMode() || session.busy()))dismissAirPicker();
     }
     private void saveAirPlay(){if(airQuality==null)return;getPreferences(0).edit().putString("airplayAddress",selectedAirAddress).putString("airplayReceiverName",selectedAirName).putInt("airplayQuality",airQuality.getSelectedItemPosition()).putBoolean("airplayLegacy",airLegacy.isChecked()).apply();}
+    private AirQuality readAirQuality(){
+        if(airLegacy.isChecked())return new AirQuality(1280,720,30,4_000_000,true);
+        int selected=airQuality.getSelectedItemPosition();
+        if(selected==3)return new AirQuality(getPreferences(0).getInt("airplayCustomWidth",1920),getPreferences(0).getInt("airplayCustomHeight",1080),getPreferences(0).getInt("airplayCustomFps",30),getPreferences(0).getInt("airplayCustomBitrate",8_000_000),false);
+        return new AirQuality(selected==0?1280:1920,selected==0?720:1080,selected==2?60:30,selected==0?5_000_000:selected==2?16_000_000:8_000_000,false);
+    }
+    private void updateAirQualitySummary(){
+        if(airQualitySummary==null || airLegacy==null)return;
+        AirQuality quality=readAirQuality();
+        airQualitySummary.setText(quality.legacy?getString(R.string.airplay_quality_legacy_limit):getString(R.string.airplay_quality_next_summary,quality.width,quality.height,quality.fps,quality.bitrate/1_000_000));
+    }
+    private void showAirPlayQuality(){
+        if(airLegacy.isChecked()){toast(getString(R.string.airplay_quality_legacy_limit));return;}
+        AirQuality initial=readAirQuality();int[] widths={1280,1920,2560,3840},heights={720,1080,1440,2160},frames={15,24,30,60};
+        // Preserve the original 720p preset's 5 Mbps when opening its advanced editor.
+        int[] bitrates=initial.bitrate==5_000_000?new int[]{1,2,4,5,6,8,12,16,24,32,40}:new int[]{1,2,4,6,8,12,16,24,32,40};
+        LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);body.setPadding(dp(20),dp(8),dp(20),dp(8));body.addView(text(getString(R.string.airplay_quality_hint),12,MUTED));
+        body.addView(text(getString(R.string.airplay_quality_output_box),14,INK));String[] boxes=new String[widths.length];int selected=0;
+        for(int i=0;i<widths.length;i++){boxes[i]=getString(R.string.airplay_quality_box,widths[i],heights[i]);if(widths[i]==initial.width)selected=i;}
+        Spinner box=spinner(boxes);box.setContentDescription(getString(R.string.airplay_quality_output_box));box.setSelection(selected);body.addView(box);
+        Spinner fps=browserQualitySpinner(body,R.string.browser_quality_fps,frames,initial.fps,R.string.browser_quality_frames);
+        Spinner bitrate=browserQualitySpinner(body,R.string.browser_quality_bitrate,bitrates,initial.bitrate/1_000_000,R.string.browser_quality_mbps);
+        ScrollView scroll=new ScrollView(this);scroll.addView(body);
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(R.string.airplay_quality_advanced).setView(scroll).setNegativeButton(android.R.string.cancel,null).setPositiveButton(R.string.browser_quality_save,null).create();
+        dialog.show();dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{
+            int index=box.getSelectedItemPosition();AirQuality quality=new AirQuality(widths[index],heights[index],frames[fps.getSelectedItemPosition()],bitrates[bitrate.getSelectedItemPosition()]*1_000_000,false);
+            if(!BrowserEncoderCapabilities.supportsAirPlay(quality.width,quality.height,quality.fps,quality.bitrate)){toast(getString(R.string.browser_quality_unsupported));return;}
+            getPreferences(0).edit().putInt("airplayQuality",3).putInt("airplayCustomWidth",quality.width).putInt("airplayCustomHeight",quality.height).putInt("airplayCustomFps",quality.fps).putInt("airplayCustomBitrate",quality.bitrate).apply();
+            airQuality.setSelection(3);updateAirQualitySummary();toast(getString(session.busy()?R.string.browser_quality_saved_active:R.string.browser_quality_saved));dialog.dismiss();
+        });
+    }
     private void launchAirPlay(Intent grant){
         if(grant==null || pendingEndpoint==null){session.denied(pendingToken);updateSessionUi();return;}
-        int quality=airQuality.getSelectedItemPosition();boolean legacy=airLegacy.isChecked();
-        int width=legacy || quality==0?1280:1920,height=legacy || quality==0?720:1080,fps=!legacy && quality==2?60:30,bitrate=legacy || quality==0?5000000:quality==2?16000000:8000000;
+        AirQuality quality=pendingAirQuality;boolean legacy=quality.legacy;
+        int width=quality.width,height=quality.height,fps=quality.fps,bitrate=quality.bitrate;
         Intent intent=new Intent(this,AirPlayHostService.class).putExtra("grant",grant).putExtra("airplayHost",pendingEndpoint.host).putExtra("airplayPort",pendingEndpoint.port).putExtra("airplayPin","").putExtra("airplayLegacy",legacy).putExtra("airplayWidth",width).putExtra("airplayHeight",height).putExtra("airplayFps",fps).putExtra("airplayBitrate",bitrate).putExtra("source",effectiveSource()).putExtra("frameLimit",fps).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("audio",pendingAudioAllowed && !legacy).putExtra("muteLocal",pendingAudioAllowed && !legacy && muteLocal.isChecked());
         saveAirPlay();startHost(intent);
     }
@@ -651,7 +799,13 @@ public final class MainActivity extends Activity {
             }
         }
         if(effectiveSource()==1 && Build.VERSION.SDK_INT<34){toast(getString(R.string.ui_app_capture_requires_14));return;}
+        BrowserQuality browserQuality=browserMode()?readBrowserQuality():null;
+        if(browserQuality!=null && !BrowserEncoderCapabilities.supports(this,browserQuality)){toast(getString(R.string.browser_quality_unsupported));return;}
+        AirQuality airQuality=airMode()?readAirQuality():null;
+        if(airQuality!=null && !BrowserEncoderCapabilities.supportsAirPlay(airQuality.width,airQuality.height,airQuality.fps,airQuality.bitrate)){toast(getString(R.string.browser_quality_unsupported));return;}
         pendingToken=session.begin();if(pendingToken<0)return;pendingMode=session.selected();lastFailure="";
+        if(browserQuality!=null)pendingBrowserQuality=browserQuality;
+        if(airQuality!=null)pendingAirQuality=airQuality;
         pendingAudioAllowed=Build.VERSION.SDK_INT>=29 && (browserMode()?browserAudio.isChecked():audio.isChecked() && (airMode()?!airLegacy.isChecked():!root.isChecked() && effectiveSource()!=2));
         saveProfile();saveBrowser();updateSessionUi();
         java.util.ArrayList<String> permissions=new java.util.ArrayList<>();
@@ -701,7 +855,8 @@ public final class MainActivity extends Activity {
             if(grant==null){projectionDenied();return;}
             showBrowserUrls("");
             startHost(new Intent(this,BrowserHostService.class).putExtra("grant",grant).putExtra("audio",pendingAudioAllowed)
-                .putExtra("source",effectiveSource()).putExtra("frameLimit",30).putExtra("scaleMode",CropGeometry.SCREEN));
+                .putExtra("source",effectiveSource()).putExtra("frameLimit",pendingBrowserQuality.fps).putExtra("scaleMode",CropGeometry.SCREEN)
+                .putExtra("browserLongEdge",pendingBrowserQuality.longEdge).putExtra("browserFps",pendingBrowserQuality.fps).putExtra("browserBitrate",pendingBrowserQuality.maxBitrateBps));
             return;
         }
         String host=name.getText().toString().trim();
@@ -745,6 +900,7 @@ public final class MainActivity extends Activity {
     }
     private void queryFile(){if(fileRemote==null)return;try{Message m=Message.obtain(null,FileCinemaService.STATUS);m.replyTo=fileResponse;fileRemote.send(m);}catch(RemoteException ignored){}}
     @Override protected void onPause(){resumed=false;saveProfile();saveAirPlay();saveBrowser();main.removeCallbacks(poll);dismissAirPicker();super.onPause();}
+    @Override protected void onStop(){closeBrowserQr();super.onStop();}
     @Override protected void onSaveInstanceState(Bundle out){
         super.onSaveInstanceState(out);saveProfile();saveAirPlay();saveBrowser();
         out.putBoolean("advancedOpen",advancedExpanded);
@@ -752,10 +908,12 @@ public final class MainActivity extends Activity {
         out.putInt("sessionPhase",session.phase());out.putInt("sessionGeneration",session.generation());out.putInt("senderPid",senderPid);
         out.putInt("pendingToken",pendingToken);out.putInt("pendingMode",pendingMode);out.putInt("pendingAudioRequest",pendingAudioRequest);out.putInt("pendingProjectionRequest",pendingProjectionRequest);
         out.putBoolean("pendingAudioAllowed",pendingAudioAllowed);out.putString("pendingEndpoint",pendingEndpoint==null?"":pendingEndpoint.address());
+        out.putInt("pendingBrowserLongEdge",pendingBrowserQuality.longEdge);out.putInt("pendingBrowserFps",pendingBrowserQuality.fps);out.putInt("pendingBrowserBitrate",pendingBrowserQuality.maxBitrateBps);
+        out.putInt("pendingAirWidth",pendingAirQuality.width);out.putInt("pendingAirHeight",pendingAirQuality.height);out.putInt("pendingAirFps",pendingAirQuality.fps);out.putInt("pendingAirBitrate",pendingAirQuality.bitrate);out.putBoolean("pendingAirLegacy",pendingAirQuality.legacy);
         out.putBoolean("airPickerOpen",airPickerOpen);out.putBoolean("reopenAirPickerAfterStop",reopenAirPickerAfterStop);out.putBoolean("airConnected",airConnected);
         out.putInt("airSource",airSource.getSelectedItemPosition());out.putString("lastFailure",lastFailure);
     }
-    @Override protected void onDestroy(){dismissAirPicker();if(airChangeDialog!=null)airChangeDialog.dismiss();detachHost();if(fileBound){unbindService(fileConnection);fileBound=false;fileRemote=null;}rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);main.removeCallbacksAndMessages(null);super.onDestroy();}
+    @Override protected void onDestroy(){showBrowserUrls("");dismissAirPicker();if(airChangeDialog!=null)airChangeDialog.dismiss();detachHost();if(fileBound){unbindService(fileConnection);fileBound=false;fileRemote=null;}rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuPermission);main.removeCallbacksAndMessages(null);super.onDestroy();}
     private int dp(int x){return (int)(x*getResources().getDisplayMetrics().density+.5f);}
     private TextView text(String value,int sp,int color){TextView v=new TextView(this);v.setText(value);v.setTextSize(sp);v.setTextColor(color);v.setPadding(0,dp(5),0,dp(5));return v;}
     private LinearLayout card(LinearLayout parent){LinearLayout v=new LinearLayout(this);v.setOrientation(LinearLayout.VERTICAL);v.setPadding(dp(20),dp(16),dp(20),dp(16));GradientDrawable bg=new GradientDrawable();bg.setColor(Color.WHITE);bg.setCornerRadius(dp(24));bg.setStroke(dp(1),0xffecf0f5);v.setBackground(bg);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=dp(14);parent.addView(v,p);return v;}

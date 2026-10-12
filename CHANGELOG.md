@@ -1,3 +1,13 @@
+# 0.6.0 browser preview.4 (code 55, local development candidate)
+
+- Generate temporary browser-link QR codes offline with pinned Apache-2.0 ZXing; copy and QR share one selected link and Stop clears both.
+- Add device-aware browser quality presets and advanced dimensions/FPS/bitrate ceilings, preserving the verified default. Changes apply to the next capture lifetime.
+- Carry the same immutable profile through initial capture, resize and viewer reconnects; verify WebRTC parameter acceptance.
+- Query reported hardware H.264/VP8 capabilities and filter unsupported browser codecs. Add AirPlay 2 advanced quality controls and select a reported-compatible hardware encoder; retain AirPlay 1 bounds.
+- Display browser target ceilings alongside measured received pixels, codec, decoded FPS and RTP video Mbps. Receiver framing remains independent.
+- Pin and bundle QR core production source, POMs and notices, with offline source rebuild and pixel decode checks.
+- Update code-55 APK/CI/source metadata; no new universal compatibility or lossless-quality claim.
+
 # 0.6.0 browser preview.3 (code 54, development branch)
 
 - Add an independent Android-to-browser WebRTC mode using the existing MediaProjection/GLES capture pipeline.

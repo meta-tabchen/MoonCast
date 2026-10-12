@@ -39,7 +39,9 @@ final class AirPlayVideoEncoder implements AutoCloseable {
             format.setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
             format.setInteger(MediaFormat.KEY_LEVEL, MediaCodecInfo.CodecProfileLevel.AVCLevel4);
         }
-        codec = MediaCodec.createByCodecName(encoders.get(0));
+        String selected = BrowserEncoderCapabilities.airPlayEncoder(format);
+        if (selected == null) throw new IllegalStateException(context.getString(R.string.browser_quality_unsupported));
+        codec = MediaCodec.createByCodecName(selected);
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         surface = codec.createInputSurface(); codec.start(); running = true;
         pipeline = new VideoPipeline(context, surface, width, height, mode, new VideoPipeline.Events() {

@@ -1,0 +1,26 @@
+// Offline QR rendering dependency. Pin the binary and all bundled source/notice inputs.
+def qrLock = new groovy.json.JsonSlurper().parse(rootProject.file('native/browser-qr/SOURCE_LOCK.json'))
+def qrInput = configurations.create('browserQrInput') {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+}
+dependencies {
+    implementation(qrLock.coordinate) { version { strictly(qrLock.version) } }
+    browserQrInput(qrLock.coordinate + '@jar')
+}
+def verifyBrowserQr = tasks.register('verifyBrowserQr') {
+    inputs.files(qrInput)
+    inputs.file(rootProject.file('native/browser-qr/SOURCE_LOCK.json'))
+    inputs.files(qrLock.bundled.collect { rootProject.file(it.path) })
+    doLast {
+        def digest = { File input -> java.security.MessageDigest.getInstance('SHA-256').digest(input.bytes).encodeHex().toString() }
+        if (digest(qrInput.singleFile) != qrLock.sha256)
+            throw new GradleException('Pinned browser QR JAR checksum mismatch')
+        qrLock.bundled.each { entry ->
+            if (digest(rootProject.file(entry.path)) != entry.sha256)
+                throw new GradleException('Pinned browser QR source/notice checksum mismatch: ' + entry.path)
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn verifyBrowserQr }

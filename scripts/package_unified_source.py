@@ -47,6 +47,8 @@ def main():
                     'native/unified-receiver-manifest.json', 'native/airplay-sender/SOURCE_LOCK.json',
                     'native/webrtc/SOURCE_LOCK.json', 'native/webrtc/README.md',
                     'gradle/browser-webrtc.gradle', 'docs/browser-receiver.md',
+                    'native/browser-qr/SOURCE_LOCK.json', 'native/browser-qr/README.md',
+                    'gradle/browser-qr.gradle', 'scripts/run_browser_qr_tests.py',
                     'scripts/prepare_sender_build_inputs.py', 'native/sender-build-inputs/source-input-manifest.json',
                     'README.md', 'README.zh-CN.md', 'LICENSE',
                     'native/sender-build-inputs/openssl-3.5.5.tar.gz',
@@ -64,6 +66,12 @@ def main():
             file = 'native/sender-build-inputs/' + row['file']
             if file not in available or hashlib.sha256(content(file)).hexdigest() != row['sha256']:
                 raise ValueError('Missing or mismatched sender source archive: ' + file)
+        qr_inputs = json.loads(committed.read('native/browser-qr/SOURCE_LOCK.json'))
+        for row in qr_inputs['bundled']:
+            file = row['path']
+            required.add(file)
+            if file not in available or hashlib.sha256(content(file)).hexdigest() != row['sha256']:
+                raise ValueError('Missing or mismatched browser QR source/notice: ' + file)
         if required - available:
             raise ValueError('Incomplete unified source: ' + str(sorted(required - available)))
         for name, (_, checksum) in pinned.items():
@@ -80,7 +88,7 @@ def main():
                 info.compress_type = zipfile.ZIP_DEFLATED
                 out.writestr(info, data)
             provenance = {'sourceCommit': commit, 'applicationId': 'com.mooncast.community',
-                          'version': '0.6.0-browser-preview.3', 'files': inventory,
+                          'version': '0.6.0-browser-preview.4', 'files': inventory,
                           'externalWebRtc': {'lock': 'native/webrtc/SOURCE_LOCK.json',
                                             'sourceGuide': 'native/webrtc/README.md',
                                             'nativeSourceVendored': False,

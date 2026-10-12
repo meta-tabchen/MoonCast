@@ -3,6 +3,7 @@
  * Usage: PUPPETEER_MODULE=/path/to/puppeteer-core node tests/browser_android_receiver.cjs
  *   --url-file /tmp/private-mooncast-url --output /tmp/mooncast-android-evidence
  *   --headful --record --await-stop --control-file /tmp/mooncast-browser-control
+ *   --expected-long-edge 1280 --expected-max-fps 30
  * No ADB, generated sender, SDP rewriting, browser permission override, or user profile.
  * Control file: after a private preview, write "record" only when the owner confirms
  * synthetic-only source content; write "stop" only after the Android owner stopped
@@ -20,10 +21,109 @@ const {execFileSync, spawnSync} = require('node:child_process');
 const args = process.argv.slice(2);
 const value = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const has = name => args.includes(name);
+function optionalPositiveInteger(name, argv = args, maximum = Number.MAX_SAFE_INTEGER) {
+  const index = argv.indexOf(name);
+  if (index < 0) return null;
+  const input = argv[index + 1];
+  if (!/^\d+$/.test(input || '') || !Number.isSafeInteger(Number(input)) || Number(input) < 1 || Number(input) > maximum) {
+    throw new Error(`${name} requires a positive integer no greater than ${maximum}.`);
+  }
+  return Number(input);
+}
+function sanitizeQuality(input) {
+  if (!input || typeof input !== 'object') return null;
+  const fields = ['longEdge', 'maxFps', 'maxVideoBitrateBps'];
+  if (!fields.every(key => Number.isSafeInteger(input[key]) && input[key] > 0)) return null;
+  return Object.fromEntries(fields.map(key => [key, input[key]]));
+}
+function measureVideoWindow(first, second) {
+  assert.ok(first.peerOrdinal > 0 && first.peerOrdinal === second.peerOrdinal, 'Video measurement requires the same peer connection');
+  assert.equal(first.connectionState, 'connected', 'Video window must start connected');
+  assert.equal(second.connectionState, 'connected', 'Video window must end connected');
+  const startStreams = first.inbound.filter(item => item.kind === 'video');
+  const endStreams = second.inbound.filter(item => item.kind === 'video');
+  assert.equal(startStreams.length, 1, 'Video measurement requires one inbound video RTP stream');
+  assert.equal(endStreams.length, 1, 'Video measurement requires one inbound video RTP stream');
+  const start = startStreams[0], end = endStreams[0];
+  assert.ok(start.streamOrdinal > 0 && start.streamOrdinal === end.streamOrdinal, 'Video RTP stream changed during the measurement window');
+  assert.ok(Number.isFinite(start.timestampMs) && Number.isFinite(end.timestampMs), 'Video RTP timestamps are unavailable');
+  const elapsedSeconds = (end.timestampMs - start.timestampMs) / 1000;
+  assert.ok(Number.isFinite(elapsedSeconds) && elapsedSeconds >= 2.5, 'Video RTP measurement interval must be finite and at least 2.5 seconds');
+  for (const counter of ['framesDecoded', 'bytesReceived']) {
+    assert.ok(Number.isSafeInteger(start[counter]) && Number.isSafeInteger(end[counter]) && start[counter] >= 0 && end[counter] >= start[counter], `Video RTP ${counter} is missing or reset`);
+  }
+  for (const frame of [first.media, second.media]) {
+    assert.ok(frame && Number.isInteger(frame.width) && Number.isInteger(frame.height) && frame.width > 0 && frame.height > 0, 'Decoded video dimensions are unavailable');
+  }
+  const decodedFramesDelta = end.framesDecoded - start.framesDecoded;
+  const videoRtpBytesDelta = end.bytesReceived - start.bytesReceived;
+  return {
+    requestedWindowSeconds: 3, elapsedSeconds,
+    peerOrdinal:first.peerOrdinal, streamOrdinal:start.streamOrdinal,
+    firstFrameSize: {width:first.media.width, height:first.media.height},
+    lastFrameSize: {width:second.media.width, height:second.media.height},
+    observedLongEdge:Math.max(first.media.width,first.media.height,second.media.width,second.media.height),
+    frameSizeChanged: first.media.width !== second.media.width || first.media.height !== second.media.height,
+    decodedFramesDelta, decodedFps: decodedFramesDelta / elapsedSeconds,
+    videoRtpBytesDelta, videoRtpBytesPerSecond: videoRtpBytesDelta / elapsedSeconds,
+    videoRtpMbps: videoRtpBytesDelta * 8 / elapsedSeconds / 1e6,
+    scope: 'One inbound video RTP stream over the actual stats timestamp interval, after a 2-second warmup. Received RTP bytes are not total network bandwidth or a constant encoder bitrate; this window does not establish a sustained frame-rate guarantee.'
+  };
+}
+function verifyVideoLimits(measurement, limits) {
+  assert.ok(measurement.decodedFramesDelta > 0 && measurement.videoRtpBytesDelta > 0, 'Video must advance during the measurement window');
+  const detail = {expectedLongEdge:limits.longEdge, expectedMaxFps:limits.maxFps};
+  if (limits.longEdge !== null) {
+    const observedLongEdge = Math.max(...[measurement.firstFrameSize, measurement.lastFrameSize].map(frame => Math.max(frame.width, frame.height)));
+    detail.observedLongEdge = observedLongEdge;
+    assert.ok(observedLongEdge <= limits.longEdge, 'Decoded video exceeds the expected long-edge cap');
+  }
+  if (limits.maxFps !== null) {
+    detail.decodedFpsTolerance = Math.max(2, limits.maxFps * 0.1);
+    detail.allowedDecodedFps = limits.maxFps + detail.decodedFpsTolerance;
+    assert.ok(measurement.decodedFps <= detail.allowedDecodedFps, 'Decoded video exceeds the expected FPS cap plus the fixed timing tolerance');
+  }
+  return detail;
+}
+function selfTest() {
+  const sample = (timestampMs, framesDecoded, bytesReceived) => ({peerOrdinal:1, connectionState:'connected', media:{width:1280,height:854}, inbound:[{kind:'video',streamOrdinal:1,timestampMs,framesDecoded,bytesReceived}]});
+  const first = sample(1000, 10, 100000), last = sample(4200, 106, 900000);
+  const measured = measureVideoWindow(first, last);
+  assert.equal(measured.elapsedSeconds, 3.2);
+  assert.equal(measured.decodedFps, 30);
+  assert.equal(measured.videoRtpBytesPerSecond, 250000);
+  assert.equal(measured.videoRtpMbps, 2);
+  assert.equal(verifyVideoLimits(measured, {longEdge:1280,maxFps:30}).allowedDecodedFps, 33);
+  assert.throws(() => verifyVideoLimits(measured, {longEdge:720,maxFps:30}), /long-edge/);
+  assert.throws(() => verifyVideoLimits(measured, {longEdge:1280,maxFps:24}), /FPS/);
+  const rotated = structuredClone(last); rotated.media = {width:854,height:1280};
+  assert.equal(measureVideoWindow(first, rotated).frameSizeChanged, true);
+  verifyVideoLimits(measureVideoWindow(first, rotated), {longEdge:1280,maxFps:30});
+  for (const change of [
+    item => { item.peerOrdinal = 2; }, item => { item.inbound[0].streamOrdinal = 2; },
+    item => { item.inbound[0].framesDecoded = 1; }, item => { item.inbound[0].bytesReceived = 1; },
+    item => { delete item.inbound[0].timestampMs; }, item => { item.inbound[0].timestampMs = 900; },
+    item => { delete item.inbound[0].framesDecoded; }, item => { item.connectionState = 'disconnected'; },
+    item => { item.inbound.push({...item.inbound[0]}); }, item => { item.media.width = 0; }
+  ]) {
+    const invalid = structuredClone(last); change(invalid);
+    assert.throws(() => measureVideoWindow(first, invalid));
+  }
+  assert.throws(() => verifyVideoLimits(measureVideoWindow(first, sample(4000,10,100000)), {longEdge:null,maxFps:null}), /advance/);
+  assert.equal(optionalPositiveInteger('--cap', []), null);
+  assert.equal(optionalPositiveInteger('--cap', ['--cap','720']), 720);
+  assert.throws(() => optionalPositiveInteger('--cap', ['--cap','241'], 240));
+  for (const input of ['', '-1', '0', '1.5', 'NaN', '--headful', '9007199254740992']) assert.throws(() => optionalPositiveInteger('--cap', ['--cap',input]));
+  assert.deepEqual(sanitizeQuality({longEdge:1280,maxFps:30,maxVideoBitrateBps:8000000,sdp:'private',token:'private'}), {longEdge:1280,maxFps:30,maxVideoBitrateBps:8000000});
+  for (const input of [null, {}, {longEdge:1280,maxFps:'30',maxVideoBitrateBps:8000000}, {longEdge:1280,maxFps:30,maxVideoBitrateBps:-1}]) assert.equal(sanitizeQuality(input), null);
+  console.log('PASS driver metrics, cap checks, stream reset/reconnect rejection, CLI validation, and quality privacy whitelist (no browser or network).');
+}
 if (has('--help')) {
-  console.log('Usage: browser_android_receiver.cjs --url-file FILE | --url URL [--output DIR] [--headful] [--record] [--await-stop] [--control-file FILE] [--sender-build-label LABEL] [--video-only]');
+  console.log('Usage: browser_android_receiver.cjs --url-file FILE | --url URL [--output DIR] [--headful] [--record] [--await-stop] [--control-file FILE] [--sender-build-label LABEL] [--video-only] [--expected-long-edge PIXELS] [--expected-max-fps FPS]\n       browser_android_receiver.cjs --self-test\nFPS cap tolerance: max(2 fps, 10%); measured after 2-second warmup over an approximately 3-second window. Received video RTP Mbps is observational, not a target-rate assertion.');
   process.exit(0);
 }
+if (has('--self-test')) { selfTest(); process.exit(0); }
+const expectedQuality = {longEdge:optionalPositiveInteger('--expected-long-edge',args,16384),maxFps:optionalPositiveInteger('--expected-max-fps',args,240)};
 const urlText = (value('--url-file') ? fs.readFileSync(value('--url-file'), 'utf8') : value('--url') || '').trim();
 if (!urlText) throw new Error('Supply --url-file with the current, private Android MoonCast browser URL.');
 let target;
@@ -51,7 +151,10 @@ const report = {
   securityOverrides: false, userBrowserProfile: false,
   publishable: false, tokenRevoked: false, oldUrlNoLongerServed: false,
   privacyNote: 'Keep evidence private until the Android owner confirms synthetic-only source content and stops/revokes this sharing URL.',
-  checks: [], samples: [], events: [], errors: [], servedAssets: {},
+  checks: [], samples: [], events: [], errors: [], servedAssets: {}, signalingQualityProfiles: [],
+  signalingQualityScope: 'Whitelisted quality declared by successful session answers in observation order; absent/invalid quality is null. CLI expectations do not supply or replace a sender declaration.',
+  expectedQuality, videoMeasurement: null,
+  videoMeasurementPolicy: {warmupSeconds:2,requestedWindowSeconds:3,fpsTolerance:'max(2 fps, 10% of expected max fps)',bitrateAssertion:false},
   recordingStatus: has('--record') ? 'requested-not-started' : 'not-requested',
   expectedAudio: !has('--video-only')
 };
@@ -81,6 +184,14 @@ async function snapshot() {
     const peers = window.__androidTestPeers || [];
     const pc = [...peers].reverse().find(item => item.connectionState === 'connected') || peers.at(-1);
     const stats = pc ? [...(await pc.getStats()).values()] : [];
+    const streamMaps = window.__androidTestInboundIds;
+    if (pc && !streamMaps.has(pc)) streamMaps.set(pc, new Map());
+    const streamIds = pc ? streamMaps.get(pc) : new Map();
+    const streamKey = item => JSON.stringify([item.id,item.ssrc]);
+    stats.filter(item => item.type === 'inbound-rtp').forEach(item => {
+      const key = streamKey(item);
+      if (!streamIds.has(key)) streamIds.set(key, streamIds.size + 1);
+    });
     const codecs = Object.fromEntries(stats.filter(item => item.type === 'codec').map(item => [item.id, {mimeType:item.mimeType,clockRate:item.clockRate,channels:item.channels}]));
     let pixelRange = null;
     if (video?.videoWidth && video.readyState >= 2) {
@@ -97,12 +208,13 @@ async function snapshot() {
         frames:video.getVideoPlaybackQuality().totalVideoFrames,droppedFrames:video.getVideoPlaybackQuality().droppedVideoFrames,pixelRange,
         tracks:video.srcObject?.getTracks().map(track => ({kind:track.kind,readyState:track.readyState,muted:track.muted})) || []} : null,
       sound: {disabled:document.querySelector('#sound')?.disabled,label:document.querySelector('#sound-label')?.textContent},
-      inbound: stats.filter(item => item.type === 'inbound-rtp').map(item => ({kind:item.kind,bytesReceived:item.bytesReceived,packetsReceived:item.packetsReceived,
+      inbound: stats.filter(item => item.type === 'inbound-rtp').map(item => ({kind:item.kind,streamOrdinal:streamIds.get(streamKey(item)),timestampMs:item.timestamp,
+        frameWidth:item.frameWidth,frameHeight:item.frameHeight,framesPerSecond:item.framesPerSecond,bytesReceived:item.bytesReceived,packetsReceived:item.packetsReceived,
         packetsLost:item.packetsLost,jitter:item.jitter,framesDecoded:item.framesDecoded,keyFramesDecoded:item.keyFramesDecoded,
         totalAudioEnergy:item.totalAudioEnergy,totalSamplesReceived:item.totalSamplesReceived,codec:codecs[item.codecId]})),
       candidatePairs:stats.filter(item => item.type === 'candidate-pair').map(item => ({state:item.state,nominated:item.nominated,
         bytesReceived:item.bytesReceived,bytesSent:item.bytesSent,requestsSent:item.requestsSent,responsesReceived:item.responsesReceived,currentRoundTripTime:item.currentRoundTripTime})),
-      peerCount:peers.length
+      peerCount:peers.length, peerOrdinal:pc ? peers.indexOf(pc) + 1 : null
     };
   });
 }
@@ -196,6 +308,13 @@ async function observeSenderStop() {
         const resource = new URL(response.url());
         if (resource.origin !== target.origin) return;
         const base = target.pathname.endsWith('/') ? target.pathname : target.pathname.slice(0,target.pathname.lastIndexOf('/')+1);
+        if (resource.pathname === `${base}session` && response.request().method() === 'POST' && response.status() === 200) {
+          const profile = {responseOrdinal:report.signalingQualityProfiles.length + 1,at:new Date().toISOString(),quality:null};
+          report.signalingQualityProfiles.push(profile);
+          const body = await response.json();
+          profile.quality = sanitizeQuality(body?.quality);
+          return;
+        }
         const name = resource.pathname === base ? 'index.html' : resource.pathname.slice(base.length);
         if (!['index.html','receiver.js','receiver.css'].includes(name) || response.status() !== 200) return;
         const data = await response.buffer();
@@ -205,7 +324,7 @@ async function observeSenderStop() {
     })()); });
     await page.evaluateOnNewDocument(() => {
       const NativePeer = window.RTCPeerConnection;
-      window.__androidTestPeers = []; window.__androidTestCsp = [];
+      window.__androidTestPeers = []; window.__androidTestCsp = []; window.__androidTestInboundIds = new WeakMap();
       addEventListener('securitypolicyviolation', event => window.__androidTestCsp.push({directive:event.effectiveDirective}));
       if (NativePeer) window.RTCPeerConnection = class extends NativePeer { constructor(...args) { super(...args); window.__androidTestPeers.push(this); } };
     });
@@ -214,12 +333,22 @@ async function observeSenderStop() {
     await page.click('#connect');
     await check('Real Android video arrives over unmodified WebRTC signaling', async () => {
       await page.waitForFunction(() => document.body.dataset.state === 'live' && document.querySelector('#screen').videoWidth > 0, {timeout:45000});
-      const first = await sample('first-live'); await sleep(3000); const second = await sample('video-after-3s');
+      await sample('first-live'); await sleep(2000);
+      const first = await sample('video-window-start'); await sleep(3000); const second = await sample('video-after-3s');
+      report.videoMeasurement = measureVideoWindow(first, second);
       assert.ok(second.media.frames > first.media.frames, 'Decoded frame count must advance');
       assert.ok(second.media.currentTime > first.media.currentTime, 'Media time must advance');
       assert.ok(second.media.pixelRange > 80, 'Received test picture must contain visible variation');
       assert.ok(second.inbound.some(item => item.kind === 'video' && item.bytesReceived > 0 && item.framesDecoded > 0));
       assert.ok(second.candidatePairs.some(item => item.nominated && item.state === 'succeeded'));
+      verifyVideoLimits(report.videoMeasurement, {longEdge:null,maxFps:null});
+      return {actualLongEdge:report.videoMeasurement.observedLongEdge,decodedFps:report.videoMeasurement.decodedFps,videoRtpMbps:report.videoMeasurement.videoRtpMbps};
+    });
+    if (expectedQuality.longEdge !== null || expectedQuality.maxFps !== null) await check('Sampled video dimensions and average decoded FPS meet requested caps', async () => {
+      assert.ok(report.videoMeasurement, 'No valid video measurement window is available');
+      const detail = verifyVideoLimits(report.videoMeasurement, expectedQuality);
+      report.videoMeasurement.limits = detail;
+      return detail;
     });
     if (report.expectedAudio) await check('User gesture enables captured Android audio with nonzero energy', async () => {
       await page.waitForFunction(() => !document.querySelector('#sound').disabled, {timeout:12000});

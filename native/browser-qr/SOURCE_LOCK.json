@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "coordinate": "com.google.zxing:core:3.5.3",
+  "version": "3.5.3",
+  "url": "https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.jar",
+  "sha256": "8d8064c1636fdaef7189dd9055c7d59950a8940a12f2293956446ec3c109fd82",
+  "size": 607650,
+  "license": "Apache-2.0 (core); full upstream project LICENSE and NOTICE retained separately",
+  "source": {
+    "repository": "https://github.com/zxing/zxing",
+    "tag": "zxing-3.5.3",
+    "tag_object": "2d608639c944a5b17363706fe5e9055bab0d6c2f",
+    "commit": "f0f1a94439db0300ff0c4618f4e0a41aa630aeac",
+    "archive_path": "native/browser-qr/core-3.5.3-sources.jar",
+    "scope": "All 238 core production Java files; no tests or complete upstream repository; local offline javac rebuild exercised by scripts/run_browser_qr_tests.py"
+  },
+  "runtime_maven_dependencies": [],
+  "bundled": [
+    {
+      "path": "native/browser-qr/core-3.5.3-sources.jar",
+      "url": "https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3-sources.jar",
+      "sha256": "f983454400d73652ad5236413ba7eba48072e042982a84b10e1468506f4b28ae",
+      "size": 507643
+    },
+    {
+      "path": "native/browser-qr/core-3.5.3.pom",
+      "url": "https://repo.maven.apache.org/maven2/com/google/zxing/core/3.5.3/core-3.5.3.pom",
+      "sha256": "d8a12e8bf69054e2add23d7953414eaefddacec930140a8d144d1fac9e62b7df",
+      "size": 2806
+    },
+    {
+      "path": "native/browser-qr/zxing-parent-3.5.3.pom",
+      "url": "https://repo.maven.apache.org/maven2/com/google/zxing/zxing-parent/3.5.3/zxing-parent-3.5.3.pom",
+      "sha256": "5bb8a5a43981c4dc1097a414cbfb4c1d4bcfe42f722d23a003c45d8b1b8d4def",
+      "size": 27751
+    },
+    {
+      "path": "app/src/main/assets/browser-qr-ZXING-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/zxing/zxing/f0f1a94439db0300ff0c4618f4e0a41aa630aeac/LICENSE",
+      "sha256": "3f62881f0566227a24b12e5a754cc79f39aaa94883038e95c94812e1f50af42f",
+      "size": 13320
+    },
+    {
+      "path": "app/src/main/assets/browser-qr-ZXING-NOTICE.txt",
+      "url": "https://raw.githubusercontent.com/zxing/zxing/f0f1a94439db0300ff0c4618f4e0a41aa630aeac/NOTICE",
+      "sha256": "4db4b60aace29ec6c5c4f13ca9cac1930d3c0c54bcc67dceead0c10771120e66",
+      "size": 664
+    }
+  ],
+  "local_modifications": "No changes to upstream JAR, production source files or notices; BrowserQrCode is separate MoonCast integration code."
+}

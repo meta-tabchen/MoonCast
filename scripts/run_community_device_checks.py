@@ -4,8 +4,8 @@
 Requires official Android SDK adb, aapt and apksigner. Uses already-built, already-
 signed APKs only; this script never signs, edits an APK, uninstalls, or clears app
 storage. The emulator must not already contain com.mooncast.community. The release
-53 -> release 54 check runs first, then matching-signed debug 54 replaces release
-54 for actual instrumentation/screenshots. No screen capture permission is granted
+54 -> release 55 check runs first, then matching-signed debug 55 replaces release
+55 for actual instrumentation/screenshots. No screen capture permission is granted
 and no remote cast/decoder interoperability is claimed.
 """
 from __future__ import annotations
@@ -25,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = 'com.mooncast.community'
 TEST_PACKAGE = PACKAGE + '.test'
 RUNNER = TEST_PACKAGE + '/com.mooncast.unified.CommunityLocaleInstrumentation'
-BASELINE_VERSION_CODE = 53
-CANDIDATE_VERSION_CODE = 54
-VERSION_NAME = '0.6.0-browser-preview.3'
+BASELINE_VERSION_CODE = 54
+CANDIDATE_VERSION_CODE = 55
+VERSION_NAME = '0.6.0-browser-preview.4'
 
 
 def digest(path: Path) -> str:

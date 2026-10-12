@@ -17,8 +17,10 @@
   let frame = 0;
   let audioContext;
   let audioTrack;
+  let advertisedQuality = {longEdge: 1280, maxFps: 30, maxVideoBitrateBps: 8000000};
   function paint() {
     frame += 1;
+    ctx.setTransform(canvas.width / 1280, 0, 0, canvas.height / 720, 0, 0);
     const gradient = ctx.createLinearGradient(0, 0, 1280, 720);
     gradient.addColorStop(0, '#173558');
     gradient.addColorStop(1, '#1b756f');
@@ -85,7 +87,19 @@
       for (const track of stream.getTracks()) pc.addTrack(track, stream);
       await pc.setLocalDescription(await pc.createAnswer());
       await iceComplete(pc);
-      return {id, type: 'answer', sdp: pc.localDescription.sdp, audio: true};
+      const answer = {id, type: 'answer', sdp: pc.localDescription.sdp, audio: true};
+      if (advertisedQuality) answer.quality = {...advertisedQuality};
+      return answer;
+    },
+    setQuality(value) {
+      if (value === null) { advertisedQuality = null; return; }
+      const fields = ['longEdge', 'maxFps', 'maxVideoBitrateBps'];
+      if (!fields.every(key => Number.isSafeInteger(value?.[key]) && value[key] > 0)) throw new Error('Invalid synthetic quality profile');
+      advertisedQuality = Object.fromEntries(fields.map(key => [key, value[key]]));
+    },
+    resize(width, height) {
+      if (![width, height].every(value => Number.isInteger(value) && value >= 160 && value <= 1920)) throw new Error('Invalid synthetic canvas size');
+      canvas.width = width; canvas.height = height; paint();
     },
     stop(id) {
       const peer = peers.get(id);
@@ -96,6 +110,7 @@
       }
     },
     state(id) { return peers.get(id)?.pc.connectionState || 'closed'; },
+    audioDiagnostics() { return {contextState: audioContext?.state, contextTime: audioContext?.currentTime, sourceTrack: audioTrack ? {state: audioTrack.readyState, enabled: audioTrack.enabled, muted: audioTrack.muted} : null}; },
     async diagnostics() { return Promise.all([...peers].map(async ([id, {pc}]) => ({id, connection:pc.connectionState, ice:pc.iceConnectionState, signaling:pc.signalingState, stats:[...(await pc.getStats()).values()].filter(r=>['candidate-pair','local-candidate','remote-candidate','outbound-rtp'].includes(r.type)).map(r=>({type:r.type,state:r.state,kind:r.kind,candidateType:r.candidateType,addressClass:!r.address?'absent':r.address.endsWith('.local')?'mDNS':r.address.startsWith('127.')?'loopback':r.address.includes(':')?'IPv6':'IPv4',requestsSent:r.requestsSent,responsesReceived:r.responsesReceived,protocol:r.protocol,bytesReceived:r.bytesReceived,bytesSent:r.bytesSent,packetsSent:r.packetsSent,framesEncoded:r.framesEncoded}))}))); },
     active() { return [...peers.keys()]; }
   };

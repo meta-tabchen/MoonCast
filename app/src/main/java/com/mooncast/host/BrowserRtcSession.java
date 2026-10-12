@@ -55,12 +55,12 @@ final class BrowserRtcSession implements AutoCloseable {
     }
     private static final long LEASE_MS = 20_000;
     private static final long NEGOTIATION_MS = 10_000;
-    private static final int MAX_BITRATE = 8_000_000;
     private static boolean initialized;
     private final Context context;
     private final MediaProjection projection;
     private final boolean audioRequested;
     private final int width, height, fps;
+    private final BrowserQuality quality;
     private final Listener listener;
     private final BrowserPlaybackAudio playback = new BrowserPlaybackAudio();
     private final ScheduledExecutorService leases = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -100,13 +100,14 @@ final class BrowserRtcSession implements AutoCloseable {
     }
 
     BrowserRtcSession(Context context, MediaProjection projection, boolean audio,
-            int width, int height, int fps, Listener listener) {
+            int width, int height, BrowserQuality quality, Listener listener) {
         this.context = context.getApplicationContext();
         this.projection = projection;
         this.audioRequested = audio;
-        this.width = Math.max(2, Math.min(1920, width) / 2 * 2);
-        this.height = Math.max(2, Math.min(1920, height) / 2 * 2);
-        this.fps = Math.max(15, Math.min(60, fps));
+        this.width = Math.max(2, Math.min(quality.longEdge, width) / 2 * 2);
+        this.height = Math.max(2, Math.min(quality.longEdge, height) / 2 * 2);
+        this.quality = quality;
+        this.fps = quality.fps;
         this.listener = listener;
     }
 
@@ -224,7 +225,8 @@ final class BrowserRtcSession implements AutoCloseable {
             RtpSender sender = peer.addTrack(videoTrack, Collections.singletonList("mooncast"));
             if (sender == null) throw new IllegalStateException("WebRTC could not add video");
             if (audioTrack != null && playback.available()) peer.addTrack(audioTrack, Collections.singletonList("mooncast"));
-            peer.setBitrate(300_000, 2_000_000, MAX_BITRATE);
+            if (!peer.setBitrate(300_000, quality.initialBitrateBps(), quality.maxBitrateBps))
+                throw new IllegalStateException("WebRTC rejected browser bitrate limits");
             long deadline = SystemClock.elapsedRealtime() + NEGOTIATION_MS;
             SdpResult remote = pending(session);
             peer.setRemoteDescription(remote, new SessionDescription(SessionDescription.Type.OFFER, offerSdp));
@@ -237,6 +239,11 @@ final class BrowserRtcSession implements AutoCloseable {
                 if (transceiver.getMediaType() == MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO) {
                     List<RtpCapabilities.CodecCapability> codecs = new ArrayList<>(
                         factory.getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO).codecs);
+                    boolean avc = BrowserEncoderCapabilities.supportsMime(context, quality, "video/avc");
+                    boolean vp8 = BrowserEncoderCapabilities.supportsMime(context, quality, "video/x-vnd.on2.vp8");
+                    codecs.removeIf(codec -> ("H264".equalsIgnoreCase(codec.name) && !avc)
+                        || ("VP8".equalsIgnoreCase(codec.name) && !vp8)
+                        || "VP9".equalsIgnoreCase(codec.name) || "AV1".equalsIgnoreCase(codec.name));
                     codecs.sort(Comparator.comparingInt(codec -> "H264".equalsIgnoreCase(codec.name) ? 0 : 1));
                     transceiver.setCodecPreferences(codecs);
                 }
@@ -256,14 +263,18 @@ final class BrowserRtcSession implements AutoCloseable {
                 throw new IllegalStateException("No local ICE network candidates available");
             RtpParameters parameters = sender.getParameters();
             for (RtpParameters.Encoding encoding : parameters.encodings) {
-                encoding.maxBitrateBps = MAX_BITRATE;
+                encoding.maxBitrateBps = quality.maxBitrateBps;
                 encoding.maxFramerate = fps;
             }
-            sender.setParameters(parameters);
+            if (!sender.setParameters(parameters))
+                throw new IllegalStateException("WebRTC rejected browser video parameters");
             session.heartbeat = SystemClock.elapsedRealtime();
             return new JSONObject().put("id", session.id).put("type", "answer")
                 .put("sdp", description.description).put("audio", audioTrack != null && playback.available())
-                .put("audioError", audioError).toString();
+                .put("audioError", audioError)
+                .put("quality", new JSONObject().put("longEdge", quality.longEdge)
+                    .put("maxFps", fps).put("maxVideoBitrateBps", quality.maxBitrateBps))
+                .toString();
         } catch (Exception | LinkageError error) {
             if (current == session) closePeer();
             if (!closed) listener.state("waiting");
@@ -296,7 +307,10 @@ final class BrowserRtcSession implements AutoCloseable {
         if (matches) session.heartbeat = SystemClock.elapsedRealtime();
         return new JSONObject().put("state", closed ? "stopped" : matches ? session.state : "missing")
             .put("active", matches).put("busy", session != null && !matches)
-            .put("audio", audioTrack != null && playback.available()).put("audioError", audioError).toString();
+            .put("audio", audioTrack != null && playback.available()).put("audioError", audioError)
+                .put("quality", new JSONObject().put("longEdge", quality.longEdge)
+                    .put("maxFps", fps).put("maxVideoBitrateBps", quality.maxBitrateBps))
+                .toString();
     }
 
     synchronized void disconnect(String id) {
@@ -352,9 +366,8 @@ final class BrowserRtcSession implements AutoCloseable {
     }
     private synchronized void resizeCapture(int width, int height) {
         if (closed || pipeline == null || textures == null || videoSource == null) return;
-        double scale = Math.min(1d, 1280d / Math.max(width, height));
-        int nextWidth = Math.max(2, ((int) (width * scale)) & ~1);
-        int nextHeight = Math.max(2, ((int) (height * scale)) & ~1);
+        int[] size = quality.dimensions(width, height);
+        int nextWidth = size[0], nextHeight = size[1];
         textures.setTextureSize(nextWidth, nextHeight);
         videoSource.adaptOutputFormat(nextWidth, nextHeight, fps);
         pipeline.resizeOutput(0, nextWidth, nextHeight);

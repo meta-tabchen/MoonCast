@@ -26,6 +26,7 @@ const events = [];
 const errors = [];
 const sessionRequests = [];
 const sessions = new Map();
+const knownQuality = {longEdge: 1280, maxFps: 30, maxVideoBitrateBps: 8000000};
 const localAddresses = Object.values(os.networkInterfaces()).flat().map(item => item.address);
 const bindAddress = process.env.BROWSER_BIND_ADDRESS || '127.0.0.1';
 const nativeCandidateAddress = process.env.BROWSER_NATIVE_CANDIDATE_ADDRESS;
@@ -96,7 +97,7 @@ async function handle(req, res) {
       events.push({event:'native-style numeric answer fixture',id,replacedCandidateAddresses:replaced});
     }
     sessions.set(id, {closed: false, viewerId: body.viewerId});
-    events.push({event: 'answer', id});
+    events.push({event: 'answer', id, quality: answer.quality || null});
     if (dropNextAnswer) {
       dropNextAnswer = false;
       events.push({event:'injected lost answer',id});
@@ -159,6 +160,51 @@ async function setLanguage(code) {
   }
   await receiver.waitForFunction(code => document.documentElement.lang.startsWith(code), {}, code);
 }
+async function statsSnapshot() {
+  return receiver.evaluate(() => {
+    const ids = ['stats-summary', 'stats-target-resolution', 'stats-target-fps', 'stats-target-bitrate', 'stats-resolution', 'stats-codec', 'stats-fps', 'stats-bitrate', 'stats-note'];
+    return {
+      open: document.querySelector('#media-stats').open,
+      fields: Object.fromEntries(ids.map(id => [id, document.getElementById(id)?.textContent.trim() || ''])),
+      video: {width: document.querySelector('video').videoWidth, height: document.querySelector('video').videoHeight},
+      invalidValues: window.__testInvalidStats || []
+    };
+  });
+}
+async function waitMeasuredStats() {
+  await receiver.waitForFunction(() => {
+    const numeric = id => Number(document.getElementById(id)?.textContent.match(/\d+(?:\.\d+)?/)?.[0] ?? NaN);
+    const fps = numeric('stats-fps');
+    const bitrate = numeric('stats-bitrate');
+    return Number.isFinite(fps) && fps > 0 && Number.isFinite(bitrate) && bitrate >= 0;
+  }, {timeout: 15000});
+}
+async function waitStatsDimensions() {
+  await receiver.waitForFunction(() => {
+    const video = document.querySelector('video');
+    const size = document.getElementById('stats-resolution').textContent.match(/(\d+)\s*[×x]\s*(\d+)/);
+    return size && Number(size[1]) === video.videoWidth && Number(size[2]) === video.videoHeight;
+  }, {timeout: 10000});
+}
+function assertUnknownQuality(snapshot, expected) {
+  for (const id of ['stats-target-resolution', 'stats-target-fps', 'stats-target-bitrate']) assert.equal(snapshot.fields[id], expected);
+}
+function assertQualityFields(snapshot, quality) {
+  const compact = id => snapshot.fields[id].replace(/[,\s]/g, '');
+  assert.ok(compact('stats-target-resolution').includes(String(quality.longEdge)), 'Target resolution comes from the answer quality');
+  assert.ok(compact('stats-target-fps').includes(String(quality.maxFps)), 'Target FPS comes from the answer quality');
+  assert.equal(Number(snapshot.fields['stats-target-bitrate'].match(/\d+(?:\.\d+)?/)?.[0]), quality.maxVideoBitrateBps / 1e6, 'Target bitrate is the sender profile in Mbps');
+}
+function assertMeasuredStats(snapshot) {
+  const dimensions = snapshot.fields['stats-resolution'].match(/(\d+)\s*[×x]\s*(\d+)/);
+  assert.ok(dimensions, 'Measured dimensions are visible');
+  assert.equal(Number(dimensions[1]), snapshot.video.width);
+  assert.equal(Number(dimensions[2]), snapshot.video.height);
+  assert.match(snapshot.fields['stats-codec'], /VP8|VP9|H264|H\.264|AV1|H265|HEVC/i);
+  assert.ok(Number(snapshot.fields['stats-fps'].match(/\d+(?:\.\d+)?/)?.[0]) > 0, 'Decoded FPS is positive');
+  assert.ok(Number(snapshot.fields['stats-bitrate'].match(/\d+(?:\.\d+)?/)?.[0]) >= 0, 'Received bitrate is nonnegative');
+  assert.deepEqual(snapshot.invalidValues, [], 'No negative, NaN, or infinite stats appeared');
+}
 async function recordDemo() {
   const frameDir = path.join(output, 'demo-frames');
   await fsp.mkdir(frameDir, {recursive: true});
@@ -199,6 +245,7 @@ async function recordDemo() {
 
 (async () => {
   const report = {startedAt: new Date().toISOString(), scope: 'Browser-only synthetic WebRTC integration. Not Android-to-browser end-to-end evidence.', checks, events, errors};
+  assert.equal(fs.existsSync(path.join(output, 'browser-smoke-report.json')), false, 'Choose a fresh BROWSER_EVIDENCE_DIR to preserve prior evidence');
   await fsp.mkdir(output, {recursive: true});
   try {
     for (const name of ['index.html', 'receiver.js', 'receiver.css']) assert.ok(fs.existsSync(path.join(assets, name)), `Missing receiver asset ${name}`);
@@ -208,9 +255,10 @@ async function recordDemo() {
     report.sourceCommitMeaning = 'Working-tree base HEAD; receiver asset SHA256 hashes identify the tested code, including uncommitted changes.';
     report.nodeVersion = process.version;
     report.puppeteerVersion = require(puppeteerModule + '/package.json').version;
-    report.chromeArguments = ['--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'];
+    report.chromeArguments = ['--no-first-run', '--no-default-browser-check', '--headless=new', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'];
+    report.puppeteerDefaultArgumentsIgnored = true;
     report.nativeStyleAnswer = !!nativeCandidateAddress;
-    browser = await puppeteer.launch({executablePath: chrome, headless: true, args: report.chromeArguments, defaultViewport: {width: 1440, height: 1000}});
+    browser = await puppeteer.launch({executablePath: chrome, headless: true, ignoreDefaultArgs: true, args: report.chromeArguments, defaultViewport: {width: 1440, height: 1000}});
     report.chromeVersion = await browser.version();
     server = http.createServer((req, res) => handle(req, res).catch(error => { errors.push({server: error.message}); if (!res.headersSent) send(res, 500, {error: error.message}); else res.end(); }));
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, bindAddress, resolve); });
@@ -225,20 +273,42 @@ async function recordDemo() {
     receiver.on('pageerror', error => errors.push({page: error.message}));
     await receiver.evaluateOnNewDocument(() => {
       window.__testCspViolations = [];
+      window.__testInvalidStats = [];
+      addEventListener('DOMContentLoaded', () => {
+        new MutationObserver(() => {
+          for (const id of ['stats-fps', 'stats-bitrate']) {
+            const value = document.getElementById(id)?.textContent || '';
+            if (/(?:^|\s)[-−]\s*\d|NaN|Infinity/.test(value)) window.__testInvalidStats.push({id, value});
+          }
+        }).observe(document.body, {subtree: true, childList: true, characterData: true});
+      }, {once: true});
       addEventListener('securitypolicyviolation', event => window.__testCspViolations.push({directive:event.effectiveDirective,blockedUri:event.blockedURI}));
       const NativePeerConnection = window.RTCPeerConnection;
       window.__testPeerConnections = [];
       window.RTCPeerConnection = class extends NativePeerConnection {
-        constructor(...args) { super(...args); window.__testPeerConnections.push(this); }
+        constructor(...args) {
+          super(...args);
+          this.__testStatsCalls = 0;
+          const nativeGetStats = this.getStats.bind(this);
+          this.getStats = (...values) => { this.__testStatsCalls++; return nativeGetStats(...values); };
+          window.__testPeerConnections.push(this);
+        }
       };
     });
     await receiver.goto(`${baseUrl}/browser/test-token/`, {waitUntil: 'networkidle0'});
     report.browserPolicy = await receiver.evaluate(() => ({isSecureContext,rtcPeerConnectionAvailable:typeof RTCPeerConnection==='function',getUserMediaAvailable:!!navigator.mediaDevices?.getUserMedia}));
+    await check('Media statistics are collapsed by default', async () => {
+      assert.equal(await receiver.$eval('#media-stats', element => element.open), false);
+    });
     dropNextAnswer = true;
     await check('Manual connect establishes real ICE/DTLS/SRTP video and audio', async () => {
       await receiver.click('#connect');
       await waitState('live');
       await receiver.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 15, {timeout});
+      await receiver.waitForFunction(async () => {
+        const pc = window.__testPeerConnections.findLast(pc => pc.connectionState === 'connected');
+        return pc && [...(await pc.getStats()).values()].some(r => r.type === 'inbound-rtp' && r.kind === 'audio' && r.bytesReceived > 0);
+      }, {timeout: 10000});
       const first = await mediaSnapshot();
       await sleep(500);
       const second = await mediaSnapshot();
@@ -286,6 +356,77 @@ async function recordDemo() {
       assert.equal(await receiver.$eval('video', video => video.muted), true);
       await receiver.click('#sound');
     });
+    await check('Media statistics show known targets, received values, and translated labels', async () => {
+      await setLanguage('en');
+      await receiver.click('#stats-summary');
+      await waitMeasuredStats();
+      const english = await statsSnapshot();
+      assert.equal(english.open, true);
+      assertQualityFields(english, knownQuality);
+      assertMeasuredStats(english);
+      await setLanguage('zh');
+      const chinese = await statsSnapshot();
+      assertQualityFields(chinese, knownQuality);
+      assertMeasuredStats(chinese);
+      assert.notEqual(chinese.fields['stats-summary'], english.fields['stats-summary']);
+      assert.notEqual(chinese.fields['stats-note'], english.fields['stats-note']);
+      await receiver.screenshot({path: path.join(output, 'receiver-stats-zh.png'), fullPage: true});
+      await setLanguage('en');
+      await receiver.screenshot({path: path.join(output, 'receiver-stats-en.png'), fullPage: true});
+      report.mediaStatisticsKnownQuality = {english, chinese};
+    });
+    await check('Changed inbound stats identity starts a fresh measurement window', async () => {
+      await waitMeasuredStats();
+      await receiver.evaluate(() => {
+        const pc = window.__testPeerConnections.findLast(pc => pc.connectionState === 'connected');
+        const trackedGetStats = pc.getStats;
+        window.__testStatsFaultConsumed = false;
+        window.__testRestoreStats = () => { pc.getStats = trackedGetStats; };
+        pc.getStats = async (...args) => {
+          const reports = await trackedGetStats(...args);
+          if (window.__testStatsFaultConsumed) return reports;
+          const changed = new Map(reports);
+          for (const [key, value] of reports) {
+            if (value.type === 'inbound-rtp' && (value.kind || value.mediaType) === 'video') {
+              changed.set(key, {...value, id: 'synthetic-changed-stats-identity'});
+              window.__testStatsFaultConsumed = true;
+            }
+          }
+          return changed;
+        };
+      });
+      try {
+        await receiver.waitForFunction(() => window.__testStatsFaultConsumed && document.getElementById('stats-fps').textContent === 'Measuring…' && document.getElementById('stats-bitrate').textContent === 'Measuring…', {timeout: 8000});
+        const reset = await statsSnapshot();
+        assertQualityFields(reset, knownQuality);
+        assert.deepEqual(reset.invalidValues, []);
+        await waitMeasuredStats();
+        const recovered = await statsSnapshot();
+        assertMeasuredStats(recovered);
+        report.mediaStatisticsIdentityReset = {reset, recovered, scope: 'One test-only getStats sample changes inbound stream identity; native stats resume for the next measurement window.'};
+      } finally { await receiver.evaluate(() => { window.__testRestoreStats(); delete window.__testRestoreStats; }); }
+    });
+    await check('Same stream resize updates dimensions without negative or stale-rate resets', async () => {
+      const peerCount = await receiver.evaluate(() => window.__testPeerConnections.length);
+      await sender.evaluate(() => window.fixture.resize(960, 960));
+      await receiver.waitForFunction(() => {
+        const video = document.querySelector('video');
+        return video.videoWidth > 0 && Math.abs(video.videoWidth / video.videoHeight - 1) < 0.01;
+      }, {timeout});
+      await waitStatsDimensions();
+      await waitMeasuredStats();
+      const resized = await statsSnapshot();
+      assertMeasuredStats(resized);
+      assertQualityFields(resized, knownQuality);
+      assert.equal(await receiver.evaluate(() => window.__testPeerConnections.length), peerCount, 'Resizing keeps the same peer');
+      await receiver.screenshot({path: path.join(output, 'receiver-stats-resized.png'), fullPage: true});
+      report.mediaStatisticsAfterResize = resized;
+      await sender.evaluate(() => window.fixture.resize(1280, 720));
+      await receiver.waitForFunction(() => Math.abs(document.querySelector('video').videoWidth / document.querySelector('video').videoHeight - 16 / 9) < 0.01, {timeout});
+      await waitStatsDimensions();
+      await waitMeasuredStats();
+      await receiver.click('#stats-summary');
+    });
     await check('Fit/Fill, zoom, drag pan and reset controls work', async () => {
       await receiver.click('[data-fit="fill"]');
       assert.equal(await receiver.$eval('[data-fit="fill"]', el => el.getAttribute('aria-pressed')), 'true');
@@ -317,17 +458,40 @@ async function recordDemo() {
         await sleep(250);
         assert.ok(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `No horizontal overflow at ${width}`);
         await receiver.screenshot({path: path.join(output, `receiver-${width}.png`), fullPage: true});
+        if (width === 375) {
+          await receiver.click('#stats-summary');
+          assert.ok(await receiver.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Expanded stats have no horizontal overflow at 375');
+          await receiver.screenshot({path: path.join(output, 'receiver-stats-375.png'), fullPage: true});
+          await receiver.click('#stats-summary');
+        }
       }
     });
     await check('Record actual receiver webpage with synthetic source label', async () => { report.demo = await recordDemo(); });
-    await check('Reload reconnects using previous session takeover', async () => {
+    await check('Reload takeover supports an older sender without quality metadata', async () => {
       const oldId = [...sessions.entries()].find(([, s]) => !s.closed)[0];
       const count = sessionRequests.length;
+      await sender.evaluate(() => window.fixture.setQuality(null));
       await receiver.reload({waitUntil: 'networkidle0'});
+      assert.equal(await receiver.$eval('#media-stats', element => element.open), false);
       await receiver.click('#connect');
       await waitState('live');
       assert.equal(sessionRequests[count].previousSessionId, oldId);
       assert.ok(sessions.get(oldId).closed);
+      await waitMeasuredStats();
+      await setLanguage('en');
+      const english = await statsSnapshot();
+      assertUnknownQuality(english, 'Not provided');
+      assertMeasuredStats(english);
+      await setLanguage('zh');
+      const chinese = await statsSnapshot();
+      assertUnknownQuality(chinese, '未提供');
+      assertMeasuredStats(chinese);
+      await receiver.click('#stats-summary');
+      await receiver.screenshot({path: path.join(output, 'receiver-stats-unknown-zh.png'), fullPage: true});
+      await setLanguage('en');
+      await receiver.click('#stats-summary');
+      report.mediaStatisticsUnknownQuality = {english, chinese};
+      await sender.evaluate(quality => window.fixture.setQuality(quality), knownQuality);
     });
     await check('Heartbeat/sender loss recovers through bounded reconnect', async () => {
       const oldId = [...sessions.entries()].find(([, s]) => !s.closed)[0];
@@ -337,6 +501,11 @@ async function recordDemo() {
       failHeartbeats = false;
       await waitState('live', 40000);
       assert.ok(sessionRequests.at(-1).previousSessionId === oldId || events.some(e => e.reason === 'delete' && e.id === oldId));
+      await waitMeasuredStats();
+      const reconnected = await statsSnapshot();
+      assertQualityFields(reconnected, knownQuality);
+      assertMeasuredStats(reconnected);
+      report.mediaStatisticsReconnected = reconnected;
     });
     await check('Persistent signaling failure stops retrying and explicit stop releases session', async () => {
       failHeartbeats = true;
@@ -349,11 +518,23 @@ async function recordDemo() {
       assert.equal(sessionRequests.length, attempts, 'Retries stop at finite limit');
       failHeartbeats = false; failSessions = false;
       await receiver.click('#connect'); await waitState('live');
+      assertQualityFields(await statsSnapshot(), knownQuality);
       await receiver.click('#disconnect'); await waitState('idle');
       await receiver.waitForFunction(() => !document.querySelector('video').srcObject);
       await sleep(300);
       assert.ok([...sessions.values()].every(session => session.closed));
       assert.equal(await sender.evaluate(() => window.fixture.active().length), 0);
+    });
+    await check('Explicit disconnect clears targets and actual stats and stops polling', async () => {
+      const stopped = await statsSnapshot();
+      assertUnknownQuality(stopped, 'Not provided');
+      for (const id of ['stats-resolution', 'stats-codec', 'stats-fps', 'stats-bitrate']) assert.equal(stopped.fields[id], '—');
+      const before = await receiver.evaluate(() => window.__testPeerConnections.reduce((sum, pc) => sum + pc.__testStatsCalls, 0));
+      await sleep(3500);
+      const after = await receiver.evaluate(() => window.__testPeerConnections.reduce((sum, pc) => sum + pc.__testStatsCalls, 0));
+      assert.equal(after, before, 'No getStats calls occur after explicit disconnect');
+      assert.deepEqual(stopped.invalidValues, []);
+      report.mediaStatisticsStopped = {snapshot: stopped, getStatsCallsBefore: before, getStatsCallsAfter: after, observationMs: 3500};
     });
     assert.deepEqual(errors, [], 'No unhandled page/server errors');
     report.cspViolations = await receiver.evaluate(() => window.__testCspViolations);
@@ -367,6 +548,7 @@ async function recordDemo() {
       report.failure.state = await receiver.evaluate(() => ({state: (document.querySelector('#app')?.dataset.state || document.body.dataset.state), text: document.body.innerText})).catch(() => null);
       report.failure.peers = await receiver.evaluate(async () => Promise.all(window.__testPeerConnections.map(async pc => ({connection: pc.connectionState, ice: pc.iceConnectionState, signaling: pc.signalingState, tracks: pc.getReceivers().map(r => ({kind:r.track.kind, state:r.track.readyState, muted:r.track.muted})), stats:[...(await pc.getStats()).values()].filter(r=>['candidate-pair','local-candidate','remote-candidate','inbound-rtp'].includes(r.type)).map(r=>({type:r.type,state:r.state,kind:r.kind,candidateType:r.candidateType,addressClass:!r.address?'absent':r.address.endsWith('.local')?'mDNS':r.address.startsWith('127.')?'loopback':r.address.includes(':')?'IPv6':'IPv4',requestsSent:r.requestsSent,responsesReceived:r.responsesReceived,protocol:r.protocol,bytesReceived:r.bytesReceived,bytesSent:r.bytesSent,packetsReceived:r.packetsReceived,framesDecoded:r.framesDecoded}))})))).catch(() => null);
       report.failure.sender = await sender.evaluate(() => window.fixture.diagnostics()).catch(() => null);
+      report.failure.syntheticAudio = await sender.evaluate(() => window.fixture.audioDiagnostics()).catch(() => null);
     }
     process.stderr.write(`${error.stack}\n`);
     process.exitCode = 1;

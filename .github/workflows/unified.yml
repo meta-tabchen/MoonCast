@@ -67,14 +67,14 @@ jobs:
       - name: Build and verify community ARMv7
         run: |
           mkdir -p "$RUNNER_TEMP/community-release"
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.3-arm64-v8a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.4-arm64-v8a.apk"
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=armeabi-v7a
           python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi armeabi-v7a
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.3-armeabi-v7a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.4-armeabi-v7a.apk"
       - name: Application source and pinned dependency source map (no app signing key)
-        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.3-source.zip"
+        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.6.0-browser-preview.4-source.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: community-release-candidates
@@ -122,18 +122,18 @@ jobs:
           python3 scripts/prepare_unified_native.py
           mkdir -p "$RUNNER_TEMP/mooncast-device"
           gradle --no-daemon :unified:assembleRelease :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate54.apk"
-          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug54.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate55.apk"
+          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug55.apk"
           cp unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk "$RUNNER_TEMP/mooncast-device/test.apk"
           # Synthetic lower-version fixture only; never publish this as a past release.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('unified/build.gradle');s=p.read_text()
-          if s.count('versionCode 54')!=1 or s.count("versionName '0.6.0-browser-preview.3'")!=1:raise SystemExit('Unexpected version fixture baseline')
-          p.write_text(s.replace('versionCode 54','versionCode 53'))
+          if s.count('versionCode 55')!=1 or s.count("versionName '0.6.0-browser-preview.4'")!=1:raise SystemExit('Unexpected version fixture baseline')
+          p.write_text(s.replace('versionCode 55','versionCode 54'))
           PY
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline53.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline54.apk"
           git restore -- unified/build.gradle
       - name: Start disposable emulator without changing host permissions
         timeout-minutes: 17
@@ -175,9 +175,9 @@ jobs:
         run: |
           python3 scripts/run_community_device_checks.py \
             --serial emulator-5554 \
-            --baseline "$RUNNER_TEMP/mooncast-device/baseline53.apk" \
-            --candidate "$RUNNER_TEMP/mooncast-device/candidate54.apk" \
-            --debug "$RUNNER_TEMP/mooncast-device/debug54.apk" \
+            --baseline "$RUNNER_TEMP/mooncast-device/baseline54.apk" \
+            --candidate "$RUNNER_TEMP/mooncast-device/candidate55.apk" \
+            --debug "$RUNNER_TEMP/mooncast-device/debug55.apk" \
             --test "$RUNNER_TEMP/mooncast-device/test.apk" \
             --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \

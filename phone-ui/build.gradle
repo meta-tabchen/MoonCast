@@ -29,5 +29,6 @@ dependencies {
  implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
 apply from: rootProject.file('gradle/browser-webrtc.gradle')
+apply from: rootProject.file('gradle/browser-qr.gradle')
 
 dependencies { implementation project(':locale-core') }
