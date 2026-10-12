@@ -1,0 +1,13 @@
+{
+  "source": "MoonCast shared APK transfer core, authored for this project",
+  "protocolVersion": 2,
+  "capturedUtc": "2026-10-11",
+  "license": "GPL-3.0, same as MoonCast",
+  "sha256": {
+    "README.md": "80c92313ce4a898e7036b3d1ec1016ef7c23b20a0f878ac56ce1c74fa1d34d2e",
+    "src/com/mooncast/transfer/ApkTransfer.java": "0417e7fa349407e21cf2ae7fbd7757dc844508100b7be8f8d7cb1704d0c6ba43",
+    "src/com/mooncast/transfer/ApkTransferClient.java": "8a1c0a082a3c274c855a728b52f788034340b31c0fb2fcd746e95c2a32bb7128",
+    "src/com/mooncast/transfer/ApkTransferServer.java": "c99269b054fcdfcd2a876f344e056b55aa230f57ba6cbd2a1c5c6505774874ee",
+    "test/com/mooncast/transfer/TransferTest.java": "eadae10d5af9f2fce8ced90503746d860d939ad55e4c58f41a8edd7c498b9bee"
+  }
+}

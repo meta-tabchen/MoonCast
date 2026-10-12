@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_app_name">MoonCast</string>
+    <string name="title">MoonCast TV · 共存预览</string>
+    <string name="home_instructions">共存预览：请先停止旧版电视接收器，只开启一个接收 APP，避免抢占端口。</string>
+</resources>

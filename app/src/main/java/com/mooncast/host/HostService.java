@@ -20,7 +20,7 @@ public class HostService extends Service implements SunshineServer.Listener {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final HandlerThread commands = new HandlerThread("MoonCastCommands");
     private Messenger binder;
-    private boolean cleanupStarted;
+    private boolean cleanupStarted, ownsCapture;
     private boolean handleCommand(Message msg) {
         // Stop must be delivered even if capture, Binder or a driver stalls the main looper.
         if (msg.what == STOP) { stopHost(); return true; }
@@ -112,12 +112,13 @@ public class HostService extends Service implements SunshineServer.Listener {
     @Override public IBinder onBind(Intent intent) { return binder.getBinder(); }
     @Override public void onCreate(){
         super.onCreate();commands.start();binder=new Messenger(new Handler(commands.getLooper(),this::handleCommand));state=getString(R.string.ui_starting);rootControlStatus=getString(R.string.ui_waiting_for_root_connection);localAudioMute=new LocalAudioMute(this);
-        restoreLocalAudio();
     }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
         if ("stop".equals(intent.getAction())) { stopHost(); return START_NOT_STICKY; }
         if (started) return START_NOT_STICKY;
+        if (!SenderOwnership.acquire(this)) { stopSelf(); return START_NOT_STICKY; }
+        ownsCapture=true;restoreLocalAudio();
         started=true;
         captureSource=intent.getIntExtra("source",0);
         boolean isRoot=captureSource==0 && intent.getBooleanExtra("root", false);rootCapture=isRoot;
@@ -359,6 +360,7 @@ public class HostService extends Service implements SunshineServer.Listener {
     }
     private synchronized void stopHost() {
         if (stopping) return;
+        if (!ownsCapture) { stopSelf(); return; }
         stopping=true;
         // Armed before any resource cleanup and independent of every Android looper.
         new Thread(() -> { SystemClock.sleep(4000); android.os.Process.killProcess(android.os.Process.myPid()); },"HostStopDeadline").start();
@@ -377,7 +379,7 @@ public class HostService extends Service implements SunshineServer.Listener {
             new Thread(()->{SystemClock.sleep(250);android.os.Process.killProcess(android.os.Process.myPid());},"HostExit").start();
         }
     }
-    @Override public void onDestroy() { stopHost(); super.onDestroy(); }
+    @Override public void onDestroy() { if(ownsCapture)stopHost(); else commands.quitSafely(); super.onDestroy(); }
     private void log(String text) {
         if (Looper.myLooper()!=Looper.getMainLooper()) { main.post(() -> log(text)); return; }
         android.util.Log.i("MoonCast",text);

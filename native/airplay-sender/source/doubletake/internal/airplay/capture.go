@@ -1,0 +1,904 @@
+package airplay
+
+import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/godbus/dbus/v5"
+)
+
+// CaptureConfig holds screen capture settings.
+type CaptureConfig struct {
+	FPS     int
+	Bitrate int    // Video bitrate in kbps (0 = auto)
+	HWAccel string // "auto", "vaapi", "none"
+
+	X11WindowID   uint64
+	X11WindowName string
+
+	ShowCursor bool // show the mouse cursor in the captured video (Wayland and X11)
+
+	RestoreToken     string
+	SaveRestoreToken func(string) error
+}
+
+const (
+	defaultVideoBitrateKbps = 4500
+	minVideoBitrateKbps     = 1800
+	maxVideoBitrateKbps     = 12000
+
+	// Synthetic test capture has no real display to size itself from, so it
+	// uses a fixed resolution.
+	testCaptureWidth  = 1920
+	testCaptureHeight = 1080
+)
+
+// ScreenCapture manages screen capture via GStreamer.
+type ScreenCapture struct {
+	cmd      *exec.Cmd // gst-launch-1.0 process
+	stdout   io.ReadCloser
+	cancel   context.CancelFunc
+	pwNodeID uint32
+	dbusConn *dbus.Conn    // portal session D-Bus connection (must stay open for Wayland)
+	waitCh   chan struct{} // closed when process exits
+	waitErr  error         // set before waitCh is closed
+	stopped  bool
+}
+
+// StartCapture detects the display server (Wayland or X11) and initiates screen
+// capture accordingly. On Wayland it uses xdg-desktop-portal + PipeWire for
+// capture; on X11 it uses ximagesrc. Both use GStreamer for H.264 encoding.
+func StartCapture(ctx context.Context, cfg CaptureConfig) (*ScreenCapture, error) {
+	if (cfg.X11WindowID != 0 || cfg.X11WindowName != "") && os.Getenv("DISPLAY") != "" {
+		return startX11Capture(ctx, cfg)
+	}
+	if os.Getenv("WAYLAND_DISPLAY") != "" {
+		return startWaylandCapture(ctx, cfg)
+	}
+	if os.Getenv("DISPLAY") != "" {
+		return startX11Capture(ctx, cfg)
+	}
+	return nil, fmt.Errorf("no display server detected (neither WAYLAND_DISPLAY nor DISPLAY is set)")
+}
+
+func hasGstElement(name string) bool {
+	return exec.Command("gst-inspect-1.0", name).Run() == nil
+}
+
+func startWaylandCapture(ctx context.Context, cfg CaptureConfig) (*ScreenCapture, error) {
+	// Check dependencies
+	if err := exec.Command("gst-inspect-1.0", "pipewiresrc").Run(); err != nil {
+		return nil, fmt.Errorf("GStreamer 'pipewiresrc' plugin not found; install gst-pipewire")
+	}
+
+	nodeID, pwFd, dbusConn, restoreToken, err := requestScreencast(ctx, cfg.RestoreToken, cfg.ShowCursor)
+	if err != nil {
+		return nil, fmt.Errorf("screencast portal: %w", err)
+	}
+	if restoreToken != "" && cfg.SaveRestoreToken != nil {
+		if err := cfg.SaveRestoreToken(restoreToken); err != nil {
+			log.Printf("[CAPTURE] warning: failed to save screencast restore token: %v", err)
+		}
+	}
+	dbg("pipewire node ID: %d", nodeID)
+
+	captureCtx, cancel := context.WithCancel(ctx)
+
+	fps := cfg.FPS
+	if fps <= 0 {
+		fps = 30
+	}
+
+	encoderParts := detectGstEncoder(cfg)
+
+	// Single GStreamer pipeline: capture from the PipeWire portal and encode to
+	// H.264.
+	//   - vapostproc imports the portal's DMA-BUF via VA-API when available
+	//     Systems without VA-API (such as Asahi Linux) fall back to videoconvert.
+	//   - The raw format is pinned to the encoder's required 4:2:0 format. The
+	//     hardware encoders require NV12, while the software encoders use I420.
+	//     Pinning the format also prevents x264enc from emitting High 4:4:4
+	//     Predictive, which most receiver decoders reject (black).
+	//   - videorate re-stamps buffers onto a regular fps timeline: the portal can
+	//     deliver pts=0, which confuses encoder/muxer timing. drop-only=true never
+	//     duplicates frames during idle periods (no wasted bandwidth on a static
+	//     screen); skip-to-first avoids buffering before the first frame.
+	// The stream is encoded at the portal's native resolution; we do not rescale
+	// because the captured surface size is whatever the compositor hands us. The
+	// actual encoded dimensions are read back from the H.264 SPS downstream.
+	const pwFdNum = 3
+	gstArgs := []string{
+		"--quiet",
+		"pipewiresrc", fmt.Sprintf("fd=%d", pwFdNum), fmt.Sprintf("path=%d", nodeID), "do-timestamp=true",
+	}
+
+	if hasGstElement("vapostproc") {
+		gstArgs = append(gstArgs,
+			"!", "vapostproc",
+		)
+	} else {
+		log.Printf("[CAPTURE] vapostproc unavailable, using software conversion")
+	}
+
+	gstArgs = append(gstArgs,
+		"!", "videoconvert",
+		"!", fmt.Sprintf("video/x-raw,format=%s", encoderParts.rawFormat),
+		"!", "videorate", "drop-only=true", "skip-to-first=true",
+		"!", fmt.Sprintf("video/x-raw,framerate=%d/1", fps),
+		"!", "queue", "max-size-buffers=1", "max-size-bytes=0", "max-size-time=0", "leaky=downstream",
+	)
+	if encoderParts.needsVulkan {
+		gstArgs = append(gstArgs, "!", "vulkanupload")
+	}
+	gstArgs = append(gstArgs, "!")
+	gstArgs = append(gstArgs, encoderParts.parts...)
+	gstArgs = append(gstArgs,
+		"!", "h264parse", "config-interval=-1",
+		"!", "video/x-h264,stream-format=byte-stream,alignment=au",
+		"!", "fdsink", "fd=1", "sync=false", "async=false",
+	)
+
+	dbg("[CAPTURE] gst-launch-1.0 (wayland) %s", strings.Join(gstArgs, " "))
+	cmd := exec.CommandContext(captureCtx, "gst-launch-1.0", gstArgs...)
+	cmd.ExtraFiles = []*os.File{pwFd}
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		pwFd.Close()
+		dbusConn.Close()
+		return nil, fmt.Errorf("gst stdout pipe: %w", err)
+	}
+	stderr, _ := cmd.StderrPipe()
+
+	if err := cmd.Start(); err != nil {
+		cancel()
+		pwFd.Close()
+		dbusConn.Close()
+		return nil, fmt.Errorf("start gst-launch: %w", err)
+	}
+	pwFd.Close() // child inherited it
+
+	go logStderr("GST", stderr)
+
+	capture := &ScreenCapture{
+		cmd:      cmd,
+		stdout:   stdout,
+		cancel:   cancel,
+		pwNodeID: nodeID,
+		dbusConn: dbusConn,
+		waitCh:   make(chan struct{}),
+	}
+	go func() {
+		capture.waitErr = cmd.Wait()
+		close(capture.waitCh)
+	}()
+
+	return capture, nil
+}
+
+func startX11Capture(ctx context.Context, cfg CaptureConfig) (*ScreenCapture, error) {
+	if err := exec.Command("gst-inspect-1.0", "ximagesrc").Run(); err != nil {
+		return nil, fmt.Errorf("GStreamer 'ximagesrc' plugin not found; install gst-plugins-good")
+	}
+
+	captureCtx, cancel := context.WithCancel(ctx)
+
+	fps := cfg.FPS
+	if fps <= 0 {
+		fps = 30
+	}
+
+	display := os.Getenv("DISPLAY")
+
+	encoder := detectGstEncoder(cfg)
+
+	ximageSrcArgs := []string{
+		"ximagesrc",
+		fmt.Sprintf("display-name=%s", display),
+		"use-damage=false",
+		fmt.Sprintf("show-pointer=%t", cfg.ShowCursor),
+	}
+
+	if cfg.X11WindowID != 0 {
+		ximageSrcArgs = append(ximageSrcArgs, fmt.Sprintf("xid=%d", cfg.X11WindowID))
+		dbg("[CAPTURE] capturing X11 window xid=0x%x", cfg.X11WindowID)
+	} else if cfg.X11WindowName != "" {
+		ximageSrcArgs = append(ximageSrcArgs, fmt.Sprintf("xname=%s", cfg.X11WindowName))
+		dbg("[CAPTURE] capturing X11 window name=%q", cfg.X11WindowName)
+	} else {
+		// Detect primary monitor geometry — ximagesrc captures the full X screen
+		// (all monitors combined). On multi-monitor setups this wastes CPU on pixels
+		// we don't need, so crop to the primary monitor. The encoded resolution is
+		// then the primary monitor's native resolution (no rescaling).
+		startX, startY, endX, endY := detectPrimaryMonitor(display)
+		if endX > startX && endY > startY {
+			ximageSrcArgs = append(ximageSrcArgs,
+				fmt.Sprintf("startx=%d", startX),
+				fmt.Sprintf("starty=%d", startY),
+				fmt.Sprintf("endx=%d", endX-1),
+				fmt.Sprintf("endy=%d", endY-1),
+			)
+			dbg("[CAPTURE] cropping ximagesrc to x=%d..%d y=%d..%d", startX, endX-1, startY, endY-1)
+		}
+	}
+
+	gstArgs := []string{"--quiet"}
+	gstArgs = append(gstArgs, ximageSrcArgs...)
+	gstArgs = append(gstArgs,
+		"!", fmt.Sprintf("video/x-raw,framerate=%d/1", fps),
+		"!", "queue", "max-size-buffers=1", "max-size-bytes=0", "max-size-time=0", "leaky=downstream",
+		"!", "videoconvert",
+		"!", fmt.Sprintf("video/x-raw,format=%s", encoder.rawFormat),
+	)
+	if encoder.needsVulkan {
+		gstArgs = append(gstArgs, "!", "vulkanupload")
+	}
+	gstArgs = append(gstArgs, "!")
+	gstArgs = append(gstArgs, encoder.parts...)
+	gstArgs = append(gstArgs,
+		"!", "h264parse", "config-interval=-1",
+		"!", "video/x-h264,stream-format=byte-stream,alignment=au",
+		"!", "fdsink", "fd=1", "sync=false", "async=false",
+	)
+
+	dbg("[CAPTURE] gst-launch-1.0 (x11) %s", strings.Join(gstArgs, " "))
+	cmd := exec.CommandContext(captureCtx, "gst-launch-1.0", gstArgs...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("gst stdout pipe: %w", err)
+	}
+	stderr, _ := cmd.StderrPipe()
+
+	if err := cmd.Start(); err != nil {
+		// If Vulkan encoder failed, retry with software fallback
+		if encoder.needsVulkan {
+			log.Printf("[CAPTURE] vulkanh264enc pipeline failed, falling back to x264enc")
+			cancel()
+			cfg.HWAccel = "none"
+			return startX11Capture(ctx, cfg)
+		}
+		cancel()
+		return nil, fmt.Errorf("start gst-launch: %w", err)
+	}
+
+	go logStderr("GST", stderr)
+
+	capture := &ScreenCapture{
+		cmd:    cmd,
+		stdout: stdout,
+		cancel: cancel,
+		waitCh: make(chan struct{}),
+	}
+	go func() {
+		capture.waitErr = cmd.Wait()
+		close(capture.waitCh)
+	}()
+
+	return capture, nil
+}
+
+func (sc *ScreenCapture) Read(buf []byte) (int, error) {
+	select {
+	case <-sc.waitCh:
+		if sc.waitErr != nil {
+			return 0, fmt.Errorf("capture exited: %w", sc.waitErr)
+		}
+		return 0, io.EOF
+	default:
+	}
+	return sc.stdout.Read(buf)
+}
+
+func (sc *ScreenCapture) Stop() {
+	if sc.stopped {
+		return
+	}
+	sc.stopped = true
+	if sc.cancel != nil {
+		sc.cancel()
+	}
+
+	// Close stdout to unblock any pending Read() call.
+	if sc.stdout != nil {
+		sc.stdout.Close()
+	}
+
+	if sc.dbusConn != nil {
+		sc.dbusConn.Close()
+	}
+
+	if sc.cmd != nil && sc.cmd.Process != nil {
+		_ = sc.cmd.Process.Signal(os.Interrupt)
+	}
+
+	select {
+	case <-sc.waitCh:
+	case <-time.After(2 * time.Second):
+		if sc.cmd != nil && sc.cmd.Process != nil {
+			_ = sc.cmd.Process.Kill()
+		}
+		<-sc.waitCh
+	}
+}
+
+// detectPrimaryMonitor queries xrandr to find the primary monitor's geometry.
+// Returns (startX, startY, endX, endY) bounding the primary monitor, where
+// endX = startX + monitor_width and endY = startY + monitor_height. If
+// detection fails it returns all zeros, meaning no cropping should be applied.
+func detectPrimaryMonitor(display string) (startX, startY, endX, endY int) {
+	// Run xrandr to get connected outputs with geometry
+	out, err := exec.Command("xrandr", "--display", display, "--query").Output()
+	if err != nil {
+		dbg("[CAPTURE] xrandr failed: %v, skipping monitor crop", err)
+		return 0, 0, 0, 0
+	}
+
+	// Parse lines like: "DP-3 connected primary 1920x1080+0+0"
+	// or "DP-1 connected 1920x1080+1920+0"
+	// Format: <name> connected [primary] <W>x<H>+<X>+<Y>
+	var px, py, pw, ph int
+	var found bool
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.Contains(line, " connected") {
+			continue
+		}
+		// Try primary first
+		if strings.Contains(line, " primary ") {
+			if x, y, w, h, ok := parseXrandrGeometry(line); ok {
+				px, py, pw, ph = x, y, w, h
+				found = true
+				break
+			}
+		}
+	}
+	// If no primary found, use the first connected output
+	if !found {
+		for _, line := range strings.Split(string(out), "\n") {
+			if !strings.Contains(line, " connected") {
+				continue
+			}
+			if x, y, w, h, ok := parseXrandrGeometry(line); ok {
+				px, py, pw, ph = x, y, w, h
+				found = true
+				break
+			}
+		}
+	}
+
+	if !found || pw <= 0 || ph <= 0 {
+		dbg("[CAPTURE] couldn't parse xrandr output, skipping monitor crop")
+		return 0, 0, 0, 0
+	}
+
+	dbg("[CAPTURE] primary monitor: %dx%d at +%d+%d", pw, ph, px, py)
+	return px, py, px + pw, py + ph
+}
+
+// parseXrandrGeometry extracts the X/Y offset and width/height from an xrandr
+// output line.
+func parseXrandrGeometry(line string) (xOffset, yOffset, width, height int, ok bool) {
+	// Match WxH+X+Y pattern
+	for _, field := range strings.Fields(line) {
+		// e.g. "1920x1080+0+0" or "3840x2160+1920+0"
+		parts := strings.SplitN(field, "x", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		w, err := strconv.Atoi(parts[0])
+		if err != nil || w < 640 {
+			continue
+		}
+		rest := parts[1] // e.g. "1080+0+0"
+		plusParts := strings.SplitN(rest, "+", 3)
+		if len(plusParts) != 3 {
+			continue
+		}
+		h, err := strconv.Atoi(plusParts[0])
+		if err != nil {
+			continue
+		}
+		x, err := strconv.Atoi(plusParts[1])
+		if err != nil {
+			continue
+		}
+		y, err := strconv.Atoi(plusParts[2])
+		if err != nil {
+			continue
+		}
+		return x, y, w, h, true
+	}
+	return 0, 0, 0, 0, false
+}
+
+// encoderResult holds the detected encoder pipeline parts and whether it needs
+// a vulkanupload step before the encoder.
+type encoderResult struct {
+	parts       []string
+	needsVulkan bool   // encoder needs vulkanupload ! before it
+	rawFormat   string // system-memory format produced by videoconvert
+}
+
+// detectGstEncoder probes for available GStreamer H.264 encoders and returns
+// the encoder element + properties as gst-launch-1.0 arguments.
+// Priority: vulkanh264enc (NVENC via Vulkan) > nvh264enc > vah264enc > x264enc.
+func detectGstEncoder(cfg CaptureConfig) encoderResult {
+	fps := cfg.FPS
+	if fps <= 0 {
+		fps = 30
+	}
+	bitrate := captureBitrateKbps(cfg)
+	keyframeInterval := keyframeIntervalFrames(fps)
+	hwaccel := cfg.HWAccel
+
+	// Try Vulkan H.264 (NVENC via Vulkan API) — lowest latency, no CPU usage
+	if hwaccel == "auto" || hwaccel == "nvenc" {
+		if exec.Command("gst-inspect-1.0", "vulkanh264enc").Run() == nil {
+			log.Printf("[CAPTURE] using NVENC hardware encoding (vulkanh264enc)")
+			return encoderResult{
+				parts: []string{
+					"vulkanh264enc",
+					"b-frames=0",
+					fmt.Sprintf("idr-period=%d", keyframeInterval),
+					"rate-control=cbr",
+					fmt.Sprintf("bitrate=%d", bitrate),
+				},
+				needsVulkan: true,
+				rawFormat:   "NV12",
+			}
+		}
+	}
+
+	// Try legacy NVENC
+	if hwaccel == "auto" || hwaccel == "nvenc" {
+		if exec.Command("gst-inspect-1.0", "nvh264enc").Run() == nil {
+			log.Printf("[CAPTURE] using NVENC hardware encoding (nvh264enc)")
+			return encoderResult{rawFormat: "NV12", parts: []string{
+				"nvh264enc",
+				fmt.Sprintf("bitrate=%d", bitrate),
+				fmt.Sprintf("gop-size=%d", keyframeInterval),
+				"bframes=0",
+				"rc-mode=cbr",
+				"preset=low-latency-hq",
+				"zerolatency=true",
+			}}
+		}
+		if hwaccel == "nvenc" {
+			dbg("[CAPTURE] nvh264enc not available, falling back to software")
+		}
+	}
+
+	// Try VAAPI
+	if hwaccel == "auto" || hwaccel == "vaapi" {
+		if exec.Command("gst-inspect-1.0", "vah264enc").Run() == nil {
+			log.Printf("[CAPTURE] using VAAPI hardware encoding (vah264enc)")
+			return encoderResult{rawFormat: "NV12", parts: []string{
+				"vah264enc",
+				fmt.Sprintf("bitrate=%d", bitrate),
+				fmt.Sprintf("key-int-max=%d", keyframeInterval),
+				"b-frames=0",
+				"rate-control=cbr",
+			}}
+		}
+		if hwaccel == "vaapi" {
+			dbg("[CAPTURE] vah264enc not available, falling back to software")
+		}
+	}
+
+	// Software fallback: x264enc
+	log.Printf("[CAPTURE] using software encoding (x264enc)")
+	vbvBuf := vbvBufferKbit(bitrate, fps)
+	// Use VBR (pass=0) so the encoder can undershoot on simple scenes, saving
+	// headroom for complex frames. vbv-buf-capacity + vbv-maxrate cap bursts.
+	maxrate := bitrate + bitrate/4 // allow 25% overshoot on peaks
+	return encoderResult{rawFormat: "I420", parts: []string{
+		"x264enc",
+		"tune=zerolatency",
+		"speed-preset=superfast",
+		fmt.Sprintf("bitrate=%d", bitrate),
+		fmt.Sprintf("vbv-buf-capacity=%d", vbvBuf),
+		fmt.Sprintf("key-int-max=%d", keyframeInterval),
+		"pass=0",
+		"option-string=" + fmt.Sprintf("vbv-maxrate=%d", maxrate),
+		"bframes=0",
+		"sliced-threads=true",
+		"byte-stream=true",
+		"aud=true",
+	}}
+}
+
+// StartTestCapture creates a synthetic H.264 video stream using GStreamer's
+// videotestsrc + x264enc, producing High profile Annex-B byte stream output.
+// This replicates the same GStreamer pipeline ecosystem that UxPlay uses on the
+// receiver side.
+func StartTestCapture(ctx context.Context, cfg CaptureConfig) (*ScreenCapture, error) {
+	captureCtx, cancel := context.WithCancel(ctx)
+
+	fps := cfg.FPS
+	if fps <= 0 {
+		fps = 30
+	}
+
+	bitrate := captureBitrateKbps(cfg)
+	keyframeInterval := keyframeIntervalFrames(fps)
+
+	// GStreamer pipeline: videotestsrc → timeoverlay → x264enc High profile → Annex-B byte stream → stdout
+	// pattern=18 = ball (bouncing ball with motion); timeoverlay adds a frame counter.
+	// Keep test source live/infinite so long-running audio tests do not stop with EOF.
+	gstArgs := []string{
+		"--quiet",
+		"videotestsrc", "pattern=18", "is-live=true", "do-timestamp=true",
+		"!", fmt.Sprintf("video/x-raw,width=%d,height=%d,framerate=%d/1", testCaptureWidth, testCaptureHeight, fps),
+		"!", "timeoverlay",
+		"!", "videoconvert",
+		"!", "x264enc",
+		"tune=zerolatency",
+		"speed-preset=superfast",
+		fmt.Sprintf("bitrate=%d", bitrate),
+		fmt.Sprintf("key-int-max=%d", keyframeInterval),
+		"threads=1",
+		"sliced-threads=true",
+		"byte-stream=true",
+		"!", "video/x-h264,profile=high,stream-format=byte-stream",
+		"!", "fdsink", "fd=1",
+	}
+
+	dbg("[CAPTURE] launching gst-launch-1.0 (test mode) %s", strings.Join(gstArgs, " "))
+	cmd := exec.CommandContext(captureCtx, "gst-launch-1.0", gstArgs...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("gst stdout pipe: %w", err)
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("gst stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		cancel()
+		return nil, fmt.Errorf("start gst-launch-1.0: %w", err)
+	}
+
+	go logStderr("GST", stderr)
+
+	capture := &ScreenCapture{
+		cmd:    cmd,
+		stdout: stdout,
+		cancel: cancel,
+		waitCh: make(chan struct{}),
+	}
+	go func() {
+		capture.waitErr = cmd.Wait()
+		close(capture.waitCh)
+	}()
+
+	return capture, nil
+}
+
+func logStderr(prefix string, r io.Reader) {
+	if r == nil {
+		return
+	}
+	scanner := bufio.NewScanner(r)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	for scanner.Scan() {
+		dbg("[%s] %s", prefix, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		dbg("[%s] stderr read error: %v", prefix, err)
+	}
+}
+
+func captureBitrateKbps(cfg CaptureConfig) int {
+	if cfg.Bitrate > 0 {
+		return cfg.Bitrate
+	}
+
+	fps := cfg.FPS
+	if fps <= 0 {
+		fps = 30
+	}
+	// The encoded resolution is not known until frames flow (it comes from the
+	// captured display), so size the auto bitrate for a 1080p budget. Pass
+	// -bitrate to override for higher-resolution displays.
+	width, height := 1920, 1080
+
+	bitrate := recommendedBitrateKbps(width, height, fps)
+	log.Printf("[CAPTURE] auto bitrate selected: %d kbps for %dx%d@%dfps", bitrate, width, height, fps)
+	return bitrate
+}
+
+func recommendedBitrateKbps(width, height, fps int) int {
+	if width <= 0 || height <= 0 || fps <= 0 {
+		return defaultVideoBitrateKbps
+	}
+
+	bitrate := (width*height*fps + 7500) / 15000
+	if bitrate < minVideoBitrateKbps {
+		return minVideoBitrateKbps
+	}
+	if bitrate > maxVideoBitrateKbps {
+		return maxVideoBitrateKbps
+	}
+	return bitrate
+}
+
+func keyframeIntervalFrames(fps int) int {
+	if fps <= 0 {
+		fps = 30
+	}
+	return fps * 4
+}
+
+// vbvBufferKbit returns the x264 VBV buffer size in kbit for the given bitrate
+// and FPS. Sized at ~2 frames of data — enough headroom for the encoder to
+// handle scene changes without severe quality oscillation, but tight enough to
+// prevent large burst spikes that choke Wi-Fi links.
+func vbvBufferKbit(bitrateKbps, fps int) int {
+	if bitrateKbps <= 0 || fps <= 0 {
+		return 300
+	}
+	vbv := bitrateKbps * 2 / fps
+	if vbv < 200 {
+		return 200
+	}
+	return vbv
+}
+
+// requestScreencast uses the xdg-desktop-portal D-Bus API to request screen capture
+// permission and returns a PipeWire node ID, an fd for the portal's PipeWire remote,
+// the D-Bus connection (which must stay open to keep the screencast session alive),
+// and a fresh restore token when the portal grants persistence.
+func requestScreencast(ctx context.Context, restoreToken string, showCursor bool) (uint32, *os.File, *dbus.Conn, string, error) {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		return 0, nil, nil, "", fmt.Errorf("connect session bus: %w", err)
+	}
+
+	portal := conn.Object("org.freedesktop.portal.Desktop",
+		"/org/freedesktop/portal/desktop")
+	portalVersion := screenCastPortalVersion(portal)
+	baseToken := newPortalHandleToken()
+
+	// Create session
+	sessionOpts := map[string]dbus.Variant{
+		"handle_token":         dbus.MakeVariant(baseToken),
+		"session_handle_token": dbus.MakeVariant(baseToken + "_session"),
+	}
+
+	var requestHandle dbus.ObjectPath
+	call := portal.Call("org.freedesktop.portal.ScreenCast.CreateSession", 0, sessionOpts)
+	if call.Err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("CreateSession: %w", call.Err)
+	}
+	if err := call.Store(&requestHandle); err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("store create-session request handle: %w", err)
+	}
+
+	createResult, err := waitForResponseWithResult(ctx, conn, requestHandle)
+	if err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("session response: %w", err)
+	}
+
+	sessionPath, err := sessionHandleFromResult(createResult)
+	if err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("session handle: %w", err)
+	}
+
+	// cursor_mode: HIDDEN=1, EMBEDDED=2 (cursor baked into the stream)
+	cursorMode := uint32(1)
+	if showCursor {
+		cursorMode = 2
+	}
+
+	// Select sources (screen)
+	selectOpts := map[string]dbus.Variant{
+		"handle_token": dbus.MakeVariant(baseToken + "_select"),
+		"types":        dbus.MakeVariant(uint32(1)), // MONITOR=1, WINDOW=2
+		"multiple":     dbus.MakeVariant(false),
+		"cursor_mode":  dbus.MakeVariant(cursorMode),
+	}
+	if portalVersion >= 4 {
+		selectOpts["persist_mode"] = dbus.MakeVariant(uint32(2))
+		if restoreToken != "" {
+			selectOpts["restore_token"] = dbus.MakeVariant(restoreToken)
+			dbg("[CAPTURE] requesting screencast restore with saved token")
+		}
+	}
+
+	requestHandle = ""
+	call = portal.Call("org.freedesktop.portal.ScreenCast.SelectSources", 0,
+		sessionPath, selectOpts)
+	if call.Err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("SelectSources: %w", call.Err)
+	}
+	if err := call.Store(&requestHandle); err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("store select-sources request handle: %w", err)
+	}
+
+	if _, err = waitForResponseWithResult(ctx, conn, requestHandle); err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("select response: %w", err)
+	}
+
+	// Start the screencast
+	startOpts := map[string]dbus.Variant{
+		"handle_token": dbus.MakeVariant(baseToken + "_start"),
+	}
+
+	requestHandle = ""
+	call = portal.Call("org.freedesktop.portal.ScreenCast.Start", 0,
+		sessionPath, "", startOpts)
+	if call.Err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("Start: %w", call.Err)
+	}
+	if err := call.Store(&requestHandle); err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("store start request handle: %w", err)
+	}
+
+	startResult, err := waitForResponseWithResult(ctx, conn, requestHandle)
+	if err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("start response: %w", err)
+	}
+
+	newRestoreToken := ""
+	if variant, ok := startResult["restore_token"]; ok {
+		value, ok := variant.Value().(string)
+		if !ok {
+			conn.Close()
+			return 0, nil, nil, "", fmt.Errorf("unexpected restore token type: %T", variant.Value())
+		}
+		newRestoreToken = value
+	}
+
+	// Extract PipeWire node ID from the result
+	streams, ok := startResult["streams"]
+	if !ok {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("no streams in start response")
+	}
+
+	var nodeID uint32
+	streamList, ok := streams.Value().([][]interface{})
+	if !ok {
+		// Try alternate format
+		if v, ok2 := streams.Value().([]interface{}); ok2 && len(v) > 0 {
+			if tuple, ok3 := v[0].([]interface{}); ok3 && len(tuple) > 0 {
+				if nid, ok4 := tuple[0].(uint32); ok4 {
+					nodeID = nid
+				} else {
+					conn.Close()
+					return 0, nil, nil, "", fmt.Errorf("unexpected node ID type: %T", tuple[0])
+				}
+			} else {
+				conn.Close()
+				return 0, nil, nil, "", fmt.Errorf("unexpected streams format: %T", streams.Value())
+			}
+		} else {
+			conn.Close()
+			return 0, nil, nil, "", fmt.Errorf("unexpected streams format: %T", streams.Value())
+		}
+	} else {
+		if len(streamList) == 0 || len(streamList[0]) == 0 {
+			conn.Close()
+			return 0, nil, nil, "", fmt.Errorf("empty streams list")
+		}
+		nid, ok2 := streamList[0][0].(uint32)
+		if !ok2 {
+			conn.Close()
+			return 0, nil, nil, "", fmt.Errorf("unexpected node ID type: %T", streamList[0][0])
+		}
+		nodeID = nid
+	}
+
+	// OpenPipeWireRemote returns a Unix fd for the portal's PipeWire remote.
+	// pipewiresrc MUST use this fd to connect; without it, it connects to the
+	// global PipeWire instance which does not have the portal node and returns EINVAL.
+	call = portal.Call("org.freedesktop.portal.ScreenCast.OpenPipeWireRemote", 0,
+		sessionPath, map[string]dbus.Variant{})
+	if call.Err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("OpenPipeWireRemote: %w", call.Err)
+	}
+	var pwFD dbus.UnixFD
+	if err := call.Store(&pwFD); err != nil {
+		conn.Close()
+		return 0, nil, nil, "", fmt.Errorf("store pipewire fd: %w", err)
+	}
+
+	return nodeID, os.NewFile(uintptr(pwFD), "pipewire-remote"), conn, newRestoreToken, nil
+}
+
+func waitForResponseWithResult(ctx context.Context, conn *dbus.Conn, requestHandle dbus.ObjectPath) (map[string]dbus.Variant, error) {
+	ch := make(chan *dbus.Signal, 1)
+	conn.Signal(ch)
+	defer conn.RemoveSignal(ch)
+
+	matchRule := "type='signal',interface='org.freedesktop.portal.Request',member='Response'"
+	if call := conn.BusObject().Call("org.freedesktop.DBus.AddMatch", 0, matchRule); call.Err != nil {
+		return nil, fmt.Errorf("add portal response match: %w", call.Err)
+	}
+	defer conn.BusObject().Call("org.freedesktop.DBus.RemoveMatch", 0, matchRule)
+
+	for {
+		select {
+		case sig := <-ch:
+			if sig == nil || sig.Path != requestHandle {
+				continue
+			}
+			if len(sig.Body) < 2 {
+				return nil, fmt.Errorf("signal body too short")
+			}
+			status, ok := sig.Body[0].(uint32)
+			if !ok {
+				return nil, fmt.Errorf("unexpected status type")
+			}
+			if status != 0 {
+				return nil, fmt.Errorf("portal request failed with status %d", status)
+			}
+			result, ok := sig.Body[1].(map[string]dbus.Variant)
+			if !ok {
+				return nil, fmt.Errorf("unexpected result type: %T", sig.Body[1])
+			}
+			return result, nil
+
+		case <-ctx.Done():
+			return nil, fmt.Errorf("timeout waiting for portal response: %w", ctx.Err())
+		}
+	}
+}
+
+func newPortalHandleToken() string {
+	return fmt.Sprintf("airplay_cast_%d", time.Now().UnixNano())
+}
+
+func screenCastPortalVersion(portal dbus.BusObject) uint32 {
+	variant, err := portal.GetProperty("org.freedesktop.portal.ScreenCast.version")
+	if err != nil {
+		dbg("[CAPTURE] unable to read ScreenCast portal version: %v", err)
+		return 0
+	}
+	version, ok := variant.Value().(uint32)
+	if !ok {
+		dbg("[CAPTURE] unexpected ScreenCast portal version type: %T", variant.Value())
+		return 0
+	}
+	return version
+}
+
+func sessionHandleFromResult(result map[string]dbus.Variant) (dbus.ObjectPath, error) {
+	variant, ok := result["session_handle"]
+	if !ok {
+		return "", fmt.Errorf("missing session_handle in portal response")
+	}
+	if sessionHandle, ok := variant.Value().(string); ok {
+		return dbus.ObjectPath(sessionHandle), nil
+	}
+	if sessionHandle, ok := variant.Value().(dbus.ObjectPath); ok {
+		return sessionHandle, nil
+	}
+	return "", fmt.Errorf("unexpected session_handle type: %T", variant.Value())
+}

@@ -1,0 +1,109 @@
+MoonCast AirPlay native runtime notices
+
+Android adapter source is from jqssun/android-display-mirror v0.0.33, commit
+6836ad7efe3e27b8db76422fdbc9b81b4973c16a. The upstream project is GPL-3.0;
+the full license is source/android-display-mirror/LICENSE.
+
+Doubletake source is from omarroth/doubletake, commit
+568a06ed32afa9fafdf229a798db0786f4d020f2. Its LGPL-3.0 license and incorporated
+GPL text are source/doubletake/LICENSE and source/doubletake/COPYING.GPL.
+
+The combined MoonCast application is supplied with corresponding source and
+rebuild instructions. Local modifications are documented in README.md and patches/.
+The full frozen dependency source archives and notices are supplied under
+module-proxy/; exact versions and checksums are in modules-lock.json.
+
+Go compiler/runtime notices: licenses/Go-LICENSE and licenses/Go-PATENTS.
+Android system libraries and external build toolchains are not vendored binaries.
+
+Go modules included in the source bundle (some are tools/test-only):
+
+github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da
+  Notice: licenses/github.com/aead/chacha20@v0.0.0-20180709150244-8b13a72661da/LICENSE
+github.com/aead/chacha20poly1305 v0.0.0-20201124145622-1a5aba2a8b29
+  Notice: licenses/github.com/aead/chacha20poly1305@v0.0.0-20201124145622-1a5aba2a8b29/LICENSE
+github.com/aead/poly1305 v0.0.0-20180717145839-3fee0db0b635
+  Notice: licenses/github.com/aead/poly1305@v0.0.0-20180717145839-3fee0db0b635/LICENSE
+github.com/cenkalti/backoff v2.2.1+incompatible
+  Notice: licenses/github.com/cenkalti/backoff@v2.2.1+incompatible/LICENSE
+github.com/danieljoos/wincred v1.2.3
+  Notice: licenses/github.com/danieljoos/wincred@v1.2.3/LICENSE
+github.com/davecgh/go-spew v1.1.1
+  Notice: licenses/github.com/davecgh/go-spew@v1.1.1/LICENSE
+github.com/godbus/dbus/v5 v5.2.2
+  Notice: licenses/github.com/godbus/dbus/v5@v5.2.2/LICENSE
+github.com/google/go-cmp v0.6.0
+  Notice: licenses/github.com/google/go-cmp@v0.6.0/LICENSE
+github.com/grandcat/zeroconf v1.0.0
+  Notice: licenses/github.com/grandcat/zeroconf@v1.0.0/LICENSE
+github.com/jessevdk/go-flags v1.4.0
+  Notice: licenses/github.com/jessevdk/go-flags@v1.4.0/LICENSE
+github.com/miekg/dns v1.1.62
+  Notice: licenses/github.com/miekg/dns@v1.1.62/AUTHORS
+  Notice: licenses/github.com/miekg/dns@v1.1.62/LICENSE
+github.com/pkg/errors v0.9.1
+  Notice: licenses/github.com/pkg/errors@v0.9.1/LICENSE
+github.com/pmezard/go-difflib v1.0.0
+  Notice: licenses/github.com/pmezard/go-difflib@v1.0.0/LICENSE
+github.com/stretchr/objx v0.5.2
+  Notice: licenses/github.com/stretchr/objx@v0.5.2/LICENSE
+github.com/stretchr/testify v1.11.1
+  Notice: licenses/github.com/stretchr/testify@v1.11.1/LICENSE
+github.com/yuin/goldmark v1.4.13
+  Notice: licenses/github.com/yuin/goldmark@v1.4.13/LICENSE
+github.com/zalando/go-keyring v0.2.8
+  Notice: licenses/github.com/zalando/go-keyring@v0.2.8/LICENSE
+  Notice: licenses/github.com/zalando/go-keyring@v0.2.8/internal/shellescape/LICENSE
+golang.org/x/crypto v0.53.0
+  Notice: licenses/golang.org/x/crypto@v0.53.0/LICENSE
+  Notice: licenses/golang.org/x/crypto@v0.53.0/PATENTS
+golang.org/x/exp/shiny v0.0.0-20260603202125-055de637280b
+  Notice: licenses/golang.org/x/exp/shiny@v0.0.0-20260603202125-055de637280b/materialdesign/icons/LICENSE
+  Notice: licenses/golang.org/x/exp/shiny@v0.0.0-20260603202125-055de637280b/LICENSE
+golang.org/x/image v0.42.0
+  Notice: licenses/golang.org/x/image@v0.42.0/LICENSE
+  Notice: licenses/golang.org/x/image@v0.42.0/PATENTS
+golang.org/x/mobile v0.0.0-20260611195102-4dd8f1dbf5d2
+  Notice: licenses/golang.org/x/mobile@v0.0.0-20260611195102-4dd8f1dbf5d2/LICENSE
+  Notice: licenses/golang.org/x/mobile@v0.0.0-20260611195102-4dd8f1dbf5d2/PATENTS
+golang.org/x/mod v0.37.0
+  Notice: licenses/golang.org/x/mod@v0.37.0/LICENSE
+  Notice: licenses/golang.org/x/mod@v0.37.0/PATENTS
+golang.org/x/net v0.56.0
+  Notice: licenses/golang.org/x/net@v0.56.0/LICENSE
+  Notice: licenses/golang.org/x/net@v0.56.0/PATENTS
+golang.org/x/sync v0.21.0
+  Notice: licenses/golang.org/x/sync@v0.21.0/LICENSE
+  Notice: licenses/golang.org/x/sync@v0.21.0/PATENTS
+golang.org/x/sys v0.46.0
+  Notice: licenses/golang.org/x/sys@v0.46.0/LICENSE
+  Notice: licenses/golang.org/x/sys@v0.46.0/PATENTS
+golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9
+  Notice: licenses/golang.org/x/telemetry@v0.0.0-20260610154732-fb80ec83bdd9/LICENSE
+  Notice: licenses/golang.org/x/telemetry@v0.0.0-20260610154732-fb80ec83bdd9/PATENTS
+golang.org/x/term v0.44.0
+  Notice: licenses/golang.org/x/term@v0.44.0/LICENSE
+  Notice: licenses/golang.org/x/term@v0.44.0/PATENTS
+golang.org/x/text v0.38.0
+  Notice: licenses/golang.org/x/text@v0.38.0/LICENSE
+  Notice: licenses/golang.org/x/text@v0.38.0/PATENTS
+golang.org/x/tools v0.46.0
+  Notice: licenses/golang.org/x/tools@v0.46.0/LICENSE
+  Notice: licenses/golang.org/x/tools@v0.46.0/PATENTS
+golang.org/x/tools/go/expect v0.1.1-deprecated
+  Notice: licenses/golang.org/x/tools/go/expect@v0.1.1-deprecated/LICENSE
+golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated
+  Notice: licenses/golang.org/x/tools/go/packages/packagestest@v0.1.1-deprecated/LICENSE
+golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898
+  Notice: licenses/golang.org/x/xerrors@v0.0.0-20191011141410-1b5146add898/LICENSE
+  Notice: licenses/golang.org/x/xerrors@v0.0.0-20191011141410-1b5146add898/PATENTS
+gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405
+  Notice: licenses/gopkg.in/check.v1@v0.0.0-20161208181325-20d25e280405/LICENSE
+gopkg.in/yaml.v1 v1.0.0-20140924161607-9f9df34309c0
+  Notice: licenses/gopkg.in/yaml.v1@v1.0.0-20140924161607-9f9df34309c0/LICENSE
+  Notice: licenses/gopkg.in/yaml.v1@v1.0.0-20140924161607-9f9df34309c0/LICENSE.libyaml
+gopkg.in/yaml.v3 v3.0.1
+  Notice: licenses/gopkg.in/yaml.v3@v3.0.1/LICENSE
+  Notice: licenses/gopkg.in/yaml.v3@v3.0.1/NOTICE
+howett.net/plist v1.0.1
+  Notice: licenses/howett.net/plist@v1.0.1/LICENSE

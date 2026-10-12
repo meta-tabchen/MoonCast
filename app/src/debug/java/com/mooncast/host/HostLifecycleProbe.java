@@ -6,6 +6,9 @@ import android.os.*;
 /** Debug-only fault injection in the real HostService process; no encoder or user capture. */
 public final class HostLifecycleProbe extends HostService {
     @Override public IBinder onBind(Intent intent){
+        if (!SenderOwnership.acquire(this)) throw new IllegalStateException("Another sender owns capture");
+        try { var ownership=HostService.class.getDeclaredField("ownsCapture"); ownership.setAccessible(true); ownership.setBoolean(this,true); }
+        catch (ReflectiveOperationException e) { throw new IllegalStateException(e); }
         IBinder binder=super.onBind(intent);
         String fault=intent.getStringExtra("fault");
         Handler main=new Handler(Looper.getMainLooper());

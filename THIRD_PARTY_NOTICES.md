@@ -9,7 +9,7 @@ MoonCast is distributed under GPLv3. The native core is reused, not represented 
 - Bouncy Castle 1.77, MIT, obtained via Maven. Used only to generate the local host certificate. GameStream TLS and client certificate validation run in the Sunshine/OpenSSL core.
 - Android Gradle Plugin and Gradle are build tooling; the Gradle wrapper is reused from the upstream project.
 
-Native release bootstrap provenance and per-library hashes are recorded in `native/prebuilt-manifest.json`. The accompanying source corresponds to that pinned Mirror release. The official upstream APK's Go/AirPlay library, DisplayLink library, Java code and resources are excluded.
+Native release bootstrap provenance and per-library hashes are recorded in `native/prebuilt-manifest.json`. The accompanying source corresponds to that pinned Mirror release. That historical native bootstrap excludes the upstream application UI and DisplayLink library. The current unified phone sender separately includes the pinned Go/AirPlay source and AAR described in the AirPlay sender section below.
 
 Sources: https://github.com/jqssun/android-display-mirror, https://github.com/LizardByte/Sunshine, https://github.com/moonlight-stream/moonlight-common-c, https://www.bouncycastle.org/licence.html.
 
@@ -52,3 +52,26 @@ physical-display power APIs. Compatibility research references scrcpy's
 [SurfaceControl](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/wrappers/SurfaceControl.java)
 and [DisplayControl](https://github.com/Genymobile/scrcpy/blob/master/server/src/main/java/com/genymobile/scrcpy/wrappers/DisplayControl.java)
 wrappers, maintained by Genymobile under Apache-2.0. No scrcpy binary is bundled.
+
+## AndroidX FileProvider (TV APK receive feature)
+
+The TV module explicitly uses AndroidX Core 1.8.0 (already present in its dependency graph), including FileProvider, under Apache License 2.0. No upstream source has been copied into the feature. See https://developer.android.com/jetpack/androidx/releases/core and https://android.googlesource.com/platform/frameworks/support/+/androidx-main/LICENSE.txt. Apache-2.0 components may be included in GPLv3 works; preserve their bundled license notices.
+
+## AirPlay sender
+
+
+The phone sender incorporates Mirror v0.0.33 (commit `6836ad7efe3e27b8db76422fdbc9b81b4973c16a`)
+Go bindings and Android compatibility patches for doubletake commit
+`568a06ed32afa9fafdf229a798db0786f4d020f2`. Mirror is GPL-3.0-only; doubletake
+retains its GPL/LGPL notices and individual dependency licenses. Original source,
+Go dependency sources, license texts, explicit MoonCast safety patches, build
+recipe, toolchain pins and AAR hashes are under `native/airplay-sender/`.
+The MediaProjection/GLES/MediaCodec/audio ownership adapter is MoonCast code.
+No claim of Apple certification, DRM support, lossless screen encoding or
+physical receiver interoperability follows from a source build.
+
+## Unified packaging
+
+Receiver OpenSSL is packaged as libtvcryp.so with a matching DT_NEEDED/SONAME change; its license and source remain the pinned OpenSSL input. See scripts/prepare_unified_native.py and native/unified-receiver-manifest.json. No third-party code license is changed by combining application roles.
+
+The publication Git checkout restores pinned binary inputs and complete generated native-source trees from the matching complete-source Release asset. Original license texts and public upstream test fixtures are preserved in that asset; see `scripts/release-inputs.json` and `docs/unified-build.md`.

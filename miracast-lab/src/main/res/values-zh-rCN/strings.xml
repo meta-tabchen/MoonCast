@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">MoonCast Miracast 实验室</string>
+    <string name="title">Miracast · 电视能力检测</string>
+    <string name="intro">独立诊断实验版：读取电视的实际 Android 能力，并尝试打开系统投屏页面。本版尚未实现 Miracast 视频接收，也不会广播虚假的接收设备。</string>
+    <string name="run_probe">1. 检测 Wi-Fi Direct</string>
+    <string name="refresh">刷新设备报告</string>
+    <string name="open_cast">2. 打开系统投屏</string>
+    <string name="open_wifi">打开 Wi-Fi 设置</string>
+    <string name="copy">复制报告</string>
+    <string name="save">保存报告</string>
+    <string name="details">设备检测结果 · 可向下滚动</string>
+    <string name="not_receiver">本应用接收端：尚未实现 · 电视自带接收端：待验证</string>
+    <string name="summary_no_p2p">系统未声明支持 Wi-Fi Direct 硬件功能。电视自带投屏应用仍可能采用厂商自己的实现。</string>
+    <string name="summary_old_api">Android %1$s 没有公开的 WFD 配置接口（Android 14 起公开）。电视自带接收端需单独尝试。</string>
+    <string name="summary_permission">此 Android 版本有公开的 WFD 配置接口，但本应用未获 CONFIGURE_WIFI_DISPLAY 权限。下方报告会显示本机权限保护级别。</string>
+    <string name="summary_available">WFD 接口和权限均可用。这只是前置条件，Miracast 协商、传输和播放仍待实现。</string>
+    <string name="summary_service">系统声明支持 Wi-Fi Direct，但本应用未能取得对应系统服务。</string>
+    <string name="permission_title">允许只读检测 Wi-Fi Direct？</string>
+    <string name="permission_nearby">Android 需要“附近的设备”权限，才能读取当前 Wi-Fi Direct 连接和本机信息。本次检测不连接、不广播，也不开始扫描。</string>
+    <string name="permission_location">此 Android 版本读取 Wi-Fi Direct 信息需要位置权限。Android 12 还可能要求精确位置。本应用不读取地理坐标、不扫描周边设备，也不上传数据。</string>
+    <string name="continue_label">继续</string>
+    <string name="cancel">取消</string>
+    <string name="permission_denied">未获得权限，因此没有请求读取连接或本机信息。仍可查看基本报告并打开系统设置。</string>
+    <string name="cast_note">系统“投屏”页面可能用于向其他显示器发送画面；能打开不等于电视能接收 Miracast。如果电视有“无线显示”“无线投屏”“屏幕镜像”或“多屏互动”等自带应用，请用遥控器进入其接收模式。</string>
+    <string name="cast_confirm_title">打开电视的系统投屏页面？</string>
+    <string name="open_label">打开</string>
+    <string name="settings_unavailable">未找到本应用可打开的对应系统页面。请用遥控器寻找电视自带的屏幕镜像应用。</string>
+    <string name="copied">报告已复制；不包含设备序列号、地址、Wi-Fi 名称或周边设备名称。</string>
+    <string name="save_unavailable">这台电视没有文件保存页面。可以拍摄检测报告，或使用“复制报告”。</string>
+    <string name="saved">报告已保存到你选择的位置。</string>
+    <string name="save_failed">未能保存报告，错误原因已显示在报告中。</string>
+    <string name="not_requested">尚未请求：请点击“检测 Wi-Fi Direct”</string>
+    <string name="waiting">等待系统回调</string>
+    <string name="timed_out">6 秒内没有系统回调：结果未定</string>
+    <string name="cancelled">检测取消：应用已离开前台</string>
+</resources>

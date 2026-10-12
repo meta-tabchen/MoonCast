@@ -1,0 +1,24 @@
+{
+  "verified_at_utc": "2026-10-11T15:53:42.862149+00:00",
+  "archives": [
+    {
+      "file": "openssl-3.5.5.tar.gz",
+      "bytes": 53104821,
+      "sha256": "b28c91532a8b65a1f983b4c28b7488174e4a01008e29ce8e69bd789f28bc2a89",
+      "md5": "9c86d929c3d1067e2c88239d7d1ce81b",
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.5/openssl-3.5.5.tar.gz",
+      "official_checksum_url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.5/openssl-3.5.5.tar.gz.sha256",
+      "official_sha256_matches": true
+    },
+    {
+      "file": "boost-1.86.0-cmake.tar.xz",
+      "bytes": 95207672,
+      "sha256": "2c5ec5edcdff47ff55e27ed9560b0a0b94b07bd07ed9928b476150e16b0efc57",
+      "md5": "d02759931cedc02aded80402906c5eb6",
+      "url": "https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz",
+      "official_checksum_url": "https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz.txt",
+      "official_sha256_matches": true
+    }
+  ],
+  "scope": "Official public source downloads only; no extraction, compilation, installation or repository modifications. SHA256 matched official release sidecars; Boost MD5 additionally matches Sunshine CMake pin. PGP signatures not verified."
+}

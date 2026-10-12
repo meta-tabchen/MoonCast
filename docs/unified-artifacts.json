@@ -1,0 +1,31 @@
+{
+  "applicationId": "com.mooncast.unified.preview",
+  "versionName": "0.5.0-unified-preview",
+  "versionCode": 50,
+  "minimumAndroid": 26,
+  "targetSdk": 35,
+  "label": "MoonCast",
+  "signingCertificateSha256": "e0c940ecc06708805ed0f719c822cddc5b78a93c757fc43fd3fc9a3aafe6e079",
+  "signingPolicy": "Disposable one-task test signing identity. Separate package; does not update either historical phone or TV package. No private key distributed or future signature continuity promised.",
+  "inputs": {
+    "phoneSourceSha256": "902bf050099e138d379d7b25d17fa99029e2ce5754af2725d56455472dda683e",
+    "tvSourceCommit": "c559a07830727880cc7f0c683b39637fdcf40221",
+    "tvSourceArchiveSha256": "34e4dbff005491ab5d49ea9dbd9a286d974aede603129ea2d46e1e0ce6eeddea"
+  },
+  "apks": [
+    {
+      "apk": "MoonCast-0.5.0-unified-arm64-v8a.apk",
+      "abi": "arm64-v8a",
+      "sha256": "05e4e444e237aa9084e2a5918b8718bdad427d45cccb767aa95fea04df7aab3a",
+      "nativeLibraries": 10,
+      "bytes": 20911731
+    },
+    {
+      "apk": "MoonCast-0.5.0-unified-armeabi-v7a.apk",
+      "abi": "armeabi-v7a",
+      "sha256": "47991a181d53c1e378df60cac0d2528245273ab963566d63cd5d5f5575c0bc9c",
+      "nativeLibraries": 10,
+      "bytes": 18241159
+    }
+  ]
+}

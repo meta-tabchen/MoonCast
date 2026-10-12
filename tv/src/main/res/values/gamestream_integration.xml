@@ -1,0 +1,17 @@
+<resources>
+    <string name="gs_connect_title">Connect Android phone</string>
+    <string name="gs_network_required">Connect both devices to the same private Wi-Fi or Ethernet subnet. Only literal private IPv4 hosts are accepted.</string>
+    <string name="gs_discovery_unavailable">Discovery unavailable. You can enter the phone’s LAN IPv4 address.</string>
+    <string name="gs_scanning">Looking for MoonCast / GameStream hosts…</string>
+    <string name="gs_scan_finished">Scan finished. Rescan or enter an IPv4 address.</string>
+    <string name="gs_store_failed">Saved host trust data could not be read or updated. No certificate was replaced.</string>
+    <string name="gs_pair_failed">Pairing failed or was cancelled. Check the PIN prompt on the phone. A changed host certificate requires an explicit local Forget before pairing again.</string>
+    <string name="gs_session">MoonCast / GameStream · H.264 SDR</string>
+    <string name="gs_connecting">Connecting to the selected phone…</string>
+    <string name="gs_connection_failed">GameStream could not continue. Check the phone’s MoonCast sender, capture permission and saved pairing.</string>
+    <string name="gs_release_pending">Previous output is still releasing. New playback is blocked to keep audio and video ownership safe.</string>
+    <string name="gs_timing_limit">GameStream: low-latency stereo, audio offset 0 ms. Signed audio calibration is not available for this protocol.</string>
+    <string name="gs_start_receiver">Start the receiver before connecting a phone.</string>
+    <string name="gs_surface_failed">Video surface is unavailable. Connection was cancelled safely.</string>
+    <string name="gs_phone_detail">Use the MoonCast phone sender</string>
+</resources>

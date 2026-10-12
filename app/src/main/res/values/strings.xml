@@ -101,7 +101,7 @@
     <string name="ui_casting_root" formatted="false">"Casting (Root)"</string>
     <string name="ui_waiting_for_receiver_root" formatted="false">"Waiting for receiver (Root)"</string>
     <string name="ui_root_session_ended_waiting_for_reconnection" formatted="false">"Root session ended; waiting for reconnection"</string>
-    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"Volume restoration failed; retrying on next launch: "</string>
+    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"Volume restoration failed; retrying when casting next starts: "</string>
     <string name="ui_no_lan_connection" formatted="false">"No LAN connection"</string>
     <string name="ui_aa_text_clarity_0123456789" formatted="false">"Aa Text clarity 0123456789"</string>
     <string name="ui_compare_timers_to_estimate_latency_back_to_exit" formatted="false">"Compare timers to estimate latency · Back to exit"</string>
@@ -175,4 +175,60 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_waiting_for_reconnection">Receiver disconnected · waiting for reconnection</string>
     <string name="ui_preparing_reconnection">Receiver disconnected · preparing reconnection…</string>
     <string name="ui_replacing_receiver">Replacing the previous receiver session with the new connection</string>
+    <string name="ui_phone_dual_lan" formatted="false">"Phone → AirPlay / Moonlight · LAN"</string>
+    <string name="ui_tab_airplay" formatted="false">"AirPlay Cast"</string>
+    <string name="ui_tab_moonlight" formatted="false">"Moonlight·Sunshine"</string>
+    <string name="ui_airplay_intro" formatted="false">"Send to an AirPlay receiver on your trusted local network."</string>
+    <string name="ui_airplay_start_hint" formatted="false">"Connect your phone and TV to the same Wi-Fi."</string>
+    <string name="ui_airplay_no_selection" formatted="false">"No receiver selected"</string>
+    <string name="ui_airplay_selected" formatted="false">"Receiver:"</string>
+    <string name="ui_airplay_start" formatted="false">"Cast screen"</string>
+    <string name="ui_airplay_receivers" formatted="false">"AirPlay receivers"</string>
+    <string name="ui_airplay_receivers_hint" formatted="false">"Keep your receiver open and connect both devices to the same Wi-Fi."</string>
+    <string name="ui_airplay_searching" formatted="false">"Searching nearby…"</string>
+    <string name="ui_airplay_choose_receiver" formatted="false">"Available devices"</string>
+    <string name="ui_airplay_rescan" formatted="false">"Refresh"</string>
+    <string name="ui_airplay_manual_address" formatted="false">"Receiver LAN IP:port (default port 7000)"</string>
+    <string name="ui_airplay_address_invalid" formatted="false">"Enter a private LAN IPv4 address and a port from 1–65535."</string>
+    <string name="ui_airplay_discovery_failed" formatted="false">"Check Wi-Fi and try again, or enter the receiver’s IP address below."</string>
+    <string name="ui_airplay_pin_hint" formatted="false">"Enter the PIN displayed by this AirPlay receiver. It is used only for this connection."</string>
+    <string name="ui_airplay_pin_invalid" formatted="false">"Enter the receiver’s 4–8 digit PIN."</string>
+    <string name="ui_airplay_capture_hint" formatted="false">"Screen or Android 14+ app capture. AirPlay uses H.264 and does not use Root, remote input, independent displays or panel-off mode. Picture and audio preferences below are shared."</string>
+    <string name="ui_airplay_quality" formatted="false">"AirPlay quality · H.264"</string>
+    <string name="ui_airplay_legacy" formatted="false">"AirPlay 1 compatibility · 720p video only"</string>
+    <string name="ui_airplay_legacy_hint" formatted="false">"Enable only for older receivers. Audio and higher quality are disabled for this session; your shared preferences are kept."</string>
+    <string name="ui_airplay_diagnostics_hint" formatted="false">"Connection and stream statistics for the AirPlay receiver."</string>
+    <string name="ui_airplay_protocol_hint" formatted="false">"AirPlay receiver and PIN are separate from Moonlight pairing. Switching tabs stops the current stream first."</string>
+    <string name="ui_moonlight_protocol_hint" formatted="false">"Use an existing Moonlight client to connect to this phone. Switching tabs stops the current stream first."</string>
+    <string name="ui_protocol_switch_wait" formatted="false">"Stopping the current stream before switching… Tap Start in the other tab when ready."</string>
+    <string name="ui_cancel_start" formatted="false">"Cancel start"</string>
+    <string name="ui_cast_failed" formatted="false">"Connection ended"</string>
+    <string name="ui_cast_start_failed" formatted="false">"Could not start the casting service. Tap Start to request a new screen-sharing permission."</string>
+    <string name="ui_airplay_password_invalid" formatted="false">"Enter the receiver password (up to 128 characters)."</string>
+    <string name="ui_airplay_password_hint" formatted="false">"Enter the password required by this older AirPlay receiver. Letters and numbers are supported; it is used only for this connection."</string>
+    <string name="ui_airplay_ready" formatted="false">"Your screen, bigger"</string>
+    <string name="ui_airplay_picker_title" formatted="false">"Choose a device"</string>
+    <string name="ui_airplay_picker_hint" formatted="false">"Select an AirPlay receiver on your Wi-Fi."</string>
+    <string name="ui_airplay_picker_no_selection" formatted="false">"Choose a device to continue"</string>
+    <string name="ui_airplay_searching_title" formatted="false">"Looking for your receiver"</string>
+    <string name="ui_airplay_empty_title" formatted="false">"No devices found yet"</string>
+    <string name="ui_airplay_empty_status" formatted="false">"No nearby devices"</string>
+    <string name="ui_airplay_discovery_error" formatted="false">"Couldn’t search for devices"</string>
+    <string name="ui_airplay_retry" formatted="false">"Retry"</string>
+    <string name="ui_airplay_manual_action" formatted="false">"Enter IP address manually"</string>
+    <string name="ui_airplay_manual_hide" formatted="false">"Hide manual entry"</string>
+    <string name="ui_airplay_manual_receiver" formatted="false">"AirPlay receiver"</string>
+    <string name="ui_airplay_recent" formatted="false">"Previously selected"</string>
+    <string name="ui_airplay_device_selected" formatted="false">"Selected"</string>
+    <string name="ui_airplay_cast_screen" formatted="false">"Cast to this device"</string>
+    <string name="ui_airplay_consent_hint" formatted="false">"Android will ask before sharing your screen."</string>
+    <string name="ui_airplay_connected" formatted="false">"Connected to"</string>
+    <string name="ui_airplay_change_device" formatted="false">"Change device"</string>
+    <string name="ui_airplay_change_hint" formatted="false">"The current cast will stop before you choose another device. Your new cast will ask for screen-sharing permission again."</string>
+    <string name="ui_airplay_stop_choose" formatted="false">"Stop and choose"</string>
+    <string name="ui_airplay_retry_cast" formatted="false">"Try casting again"</string>
+    <string name="ui_airplay_permission_title" formatted="false">"Allow screen sharing"</string>
+    <string name="ui_airplay_permission_hint" formatted="false">"Follow the Android prompt to continue. You can cancel this request at any time."</string>
+    <string name="ui_airplay_permission_denied" formatted="false">"Screen sharing cancelled"</string>
+    <string name="ui_airplay_permission_retry" formatted="false">"Nothing is being shared. Try again when you’re ready."</string>
 </resources>

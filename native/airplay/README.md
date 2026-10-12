@@ -1,0 +1,140 @@
+# AirPlay receiver runtime and corresponding source
+
+This is the **receiver**, distinct from the existing MoonCast phone sender. No existing phone module license or native runtime is changed.
+
+The runtime comes from [android-airplay-server v0.0.31](https://github.com/jqssun/android-airplay-server/releases/tag/v0.0.31), commit `c8defdd70d7e6a04f4f1b71d353653682d594106`, which adapts [UxPlay](https://github.com/FDH2/UxPlay) to Android through JNI. MoonCast's package-compatible Java bridge preserves the native ABI, while the television facade and MediaCodec renderer are new GPLv3 code. The 0.4.5 audio candidate applies the two reviewed queue-transition patches in patches/ and rebuilds all three ABIs. See ../../docs/tv-airplay-audio-transitions.md.
+
+## Build inputs
+
+- Before 0.4.5, `python scripts/prepare_airplay_native.py` downloaded the pinned upstream APK, verifies its SHA-256, and extracts only four native libraries per ABI into `tv/src/main/jniLibs`. This is a developer/CI build step, never an on-device download. A local APK argument is supported.
+- `python scripts/prepare_airplay_source.py` materializes pinned upstream source and all four submodules plus OpenSSL and Oboe source into the three archives listed in `prebuilt-manifest.json`. Each source revision and archive hash is checked. These generated archives and binaries are excluded from Git to keep the branch manageable.
+- Run both steps before packaging a release. The downloadable corresponding-source package must include all three source archives, this manifest, all licenses, and MoonCast Java code/build scripts. A repository URL alone is not a replacement for the matching release source.
+
+`prebuilt-manifest.json` records source commits, APK identity, all 12 runtime library hashes and generated archive hashes. The current candidate uses freshly rebuilt libraries. The localBuild section pins the overlay patches, portable build recipe and actual build record; upstreamLibraries retains original published-binary hashes. prepare_airplay_native.py now verifies these patched binaries and refuses to overwrite them from the old APK. Rebuild with scripts/build_airplay_patched.py, which applies archived upstream patches and MoonCast patches once, with locally pinned dependencies.
+
+## Historical upstream build (unpatched)
+
+For the current patched build, use scripts/build_airplay_patched.py and the audio-transition document instead of the historical Gradle instructions below.
+
+### Original build
+
+The `upstream-source.tar.gz` archive includes upstream Gradle/CMake, Java/Kotlin application and full UxPlay, FFmpeg, libplist, and openssl-cmake source, including native patches. Extract it into a separate directory. Because Git metadata is intentionally excluded, initialize a local Git snapshot inside `app/src/main/cpp/third_party/UxPlay` (git init, git add, git commit) before running upstream Gradle: its `applyUxplayPatches` task calls `git checkout` then `git apply`. This lets it apply the included patches exactly once on each build.
+
+Use JDK 17 or 21, SDK platform 36, NDK `27.0.12077973`, and CMake 3.22.1; then run upstream `./gradlew assembleDebug`. The upstream build downloads pinned Maven/Google artifacts including Oboe 1.9.3, and openssl-cmake downloads OpenSSL 3.4.4. Full source copies for Oboe and OpenSSL are additionally supplied here. Restore the upstream top-level `.gitmodules` repository layout or initialize the UxPlay snapshot as above; archives have no private Git metadata. Fresh native rebuilds can differ in build IDs/toolchain metadata from the pinned published binary; verify interoperability again if replacing it.
+
+## Licenses and provenance
+
+- android-airplay-server and UxPlay: GPL version 3, full text in `licenses/`. MoonCast is already GPLv3.
+- libplist: LGPL-2.1-or-later (including its embedded libcnary notices in source).
+- FFmpeg: the minimal ALAC-only build uses LGPL-2.1-or-later parts. Original full source and notices are included.
+- Oboe 1.9.3: Apache-2.0; full source included.
+- OpenSSL 3.4.4: Apache-2.0; full official source archive included. The compatible OpenSSL 3 series is used, not OpenSSL 1.x.
+- openssl-cmake: MIT; build helper source and notice included.
+- UxPlay's bundled llhttp/playfair and other embedded notices remain in the full source archive.
+- `libc++_shared.so`: Android NDK C++ runtime; the NDK's LLVM/Apache-2.0-with-exceptions notices apply. The upstream build pins NDK `27.0.12077973` (r27), with clang-r522817. Its [official source inventory](https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+/refs/heads/main/clang-r522817/clang_source_info.md) is copied in `clang-r522817-source-info.md`: LLVM base `3c92011b600bdf70424e2547594dd461fe411a41` plus Android toolchain patches `7e283fb56eaa4f0bce9d1185660e193effab4ad0`. Compiler runtime license texts for libc++, libc++abi, and libunwind from that base are in `licenses/`; this is the standard compiler runtime, not a MoonCast modification.
+
+## Actual capabilities and boundaries
+
+- `_airplay._tcp` and `_raop._tcp` DNS-SD discovery uses TXT records generated by the actual native protocol implementation.
+- AirPlay mirror pairing/control and encrypted transport are handled by UxPlay; H.264/HEVC are decoded by Android MediaCodec. Native AAC-ELD/AAC-LC/ALAC audio uses Oboe (ALAC software fallback included).
+- Native `/play`, scrub, rate, stop, and playback-info callbacks route HLS/direct media playback to the app's Media3 player. Local HLS proxy URLs are generated on the bound native port; remote URLs still require the app's URL policy.
+- A receiver-requested resolution or frame rate is a preference/upper bound. The sender and hardware choose the actual stream. It cannot increase source detail or make mirroring lossless.
+- Default PIN pairing is enabled; this is not a claim of audited network security or complete certified AirPlay 2 compatibility. Use a trusted LAN. The native server listens on LAN/all interfaces while the receiver is running. Device isolation/firewalls can block discovery.
+- DRM and protected video are unsupported. Hongguo and any other app must permit external playback or screen mirroring; black video imposed by the source app cannot be fixed by receiver crop/sharpening.
+- This does not implement certified Google Cast, Miracast/Wi-Fi Display, Apple's DRM, or a Moonlight/GameStream receiver. Discovery labels are not protocol implementations.
+- Sender volume commands do not change the TV's global physical volume; use the TV remote. Sender metadata/DACP reverse controls are not exposed in this initial receiver UI.
+
+## Threading and ownership
+
+Call `AirPlayEngine.start` and `stop` from one background executor. Native callbacks are on native threads; public listener callbacks are marshaled to main. `setSurface` is thread-safe and does not transfer Surface ownership. Media3 and mirror decoding should use distinct output Surfaces. Native audio requests Android audio focus, pauses on loss/duck and resumes on transient regain; stopping abandons focus. Starting DLNA/media while AirPlay owns audio requires stopping the AirPlay engine first; merely hiding the mirror Surface does not stop native audio. Restart discovery when the other session ends. `stop` releases native server/audio, multicast registration/lock and mirror decoding; the UI owns foreground service/wake-lock lifetime.
+
+## Validation status
+
+Verified: all adapter Java compiles against API 35/JDK 17; upstream APK hash; ELF architecture/dependencies and exported JNI method names for arm64, armv7 and x86_64; source commit identities. See release validation for current APK/build checks.
+
+Not established by those checks: actual iPhone/TV interoperability, DRM-app compatibility, decoder performance, latency, audio/video synchronization, Wi-Fi behavior, or security audit. A physical-device acceptance pass remains necessary: discover/pair by PIN, mirror with audio, rotate, reconnect, stop/restart, test Safari/HLS seeking, try DLNA takeover, and verify background/exit closes listeners. Never relabel static checks as real-device evidence.
+
+## v0.2 session recovery, timing, and pairing contract
+
+These Java changes use the **unchanged pinned v0.0.31 runtime**. Semantics were inspected
+at android-airplay-server `c8defdd70d7e6a04f4f1b71d353653682d594106` in
+`native_bridge.cpp`, `android_raop_callbacks.c`, `audio_engine.cpp`, `timeline_buffer.h`,
+`audio_output.h`, and UxPlay `462153392f2e30937424922039ff9f0cda5e7b1a` with the supplied
+patches. Desktop UxPlay CLI flags are not an Android JNI API.
+
+### Recovery
+
+- `onMirrorRunning(false)` ends mirror decoding, releases associated audio focus/output,
+  and asks the UI to hide/clear the last image. Discovery and receiver identity stay alive.
+- A native connection reset, decoder failure, or watchdog finding delivers
+  `Listener.onRecoveryRequired(reason)` on main. The Activity queues `stop()`/`start()` on
+  **its existing serial lifecycle executor**, conditioned on its current foreground/requested
+  generation. Never join native threads from a native callback or the main thread.
+- `Listener.onSessionCleared(reason)` explicitly asks the UI to hide/clear the old TextureView.
+  Stopping MediaCodec does not erase its last image. This callback also runs for `stop()`,
+  even though normal running-only callbacks are suppressed.
+- The watchdog defaults to 15 seconds, accepts 5–120 seconds, and supports 0/off. A mirror
+  expires only after a witnessed final control-connection close and no more video for the
+  full grace period, or a submitted non-configuration frame with no decoder output for the
+  grace period. There is one recovery request per run. A rendered static/paused screen
+  with an open connection is allowed indefinitely. URL playback and audio-only sessions
+  are not subject to this mirror inactivity timeout.
+- **Limit:** pinned JNI stubs mirror pause/resume and feedback callbacks. It exports no
+  sender socket health or audio-packet timestamps. A peer whose TCP connection has not
+  failed cannot safely be distinguished from a static screen in 15 seconds. UxPlay's mirror
+  keepalive uses 60-second idle, 10-second interval and six probes. Java does not change
+  these settings or promise 15-second recovery from every Wi-Fi failure. Receiver-network
+  changes are handled separately by the Activity; manual disconnect remains available.
+
+### Audio and video timing
+
+- Movie mode defaults to a genuine **150 ms native fixed audio jitter prebuffer**, requests
+  Oboe's media/power-saving output, and schedules video by source PTS differences with an
+  initial 150 ms holdback. Low-latency mode defaults to native adaptive audio buffering,
+  low-latency Oboe/decoder settings and immediate video output. Hardware can decline the
+  low-latency request. MediaCodec configuration applies on next decoder creation; pacing
+  changes immediately.
+- `setAudioBufferMs(0)` uses native adaptive buffering. 50–500 in 50 ms steps requests a real
+  fixed prebuffer. Native applies queued configuration on the next audio packet and rebuilds
+  the pipeline; a short interruption is possible. Label this **audio jitter buffer**, not
+  audio sync offset. It affects native mirrored/audio-only AirPlay, not Media3 URL/DLNA.
+- Native audio uses PTS differences to fill/drop timeline gaps; video preserves source PTS
+  progression. UxPlay PTS is Unix realtime nanoseconds, not Java monotonic nanoseconds;
+  video rebases the epoch. Timestamp jumps reanchor a bounded schedule.
+- **Limit:** JNI exposes no signed audio PTS offset, audio playback-head timestamp or shared
+  presentation clock. Matching cushions is an approximate A/V pacing strategy, not calibrated
+  lip sync or DAC drift correction. Exact +/- offset needs native source/binary rebuilding
+  and device measurement; no placebo signed-offset slider should be offered.
+- `RuntimeStats` separates requested width/height/FPS from decoder output dimensions,
+  selected decoder name/hardware classification and observed decoder-output FPS/counters.
+  These are not measured screen presentation or network-loss metrics. `NativeAudioStats`
+  reads verified little-endian **packed 38-byte** `AudioDebugData`: PCM queue depth and tuned
+  cushion, trims/drops/gaps/underruns, decode time/held buffers, Oboe xruns and decode errors.
+  There is no audio clock. Debug snapshots may be stale during audio rebuild; counters can
+  reset with the rebuild.
+
+### Pairing and identity
+
+- `requestPinMode(boolean)` takes effect at the next native initialization and reports
+  whether a running engine needs a serial restart. PIN stays enabled by default. The native
+  display callback shows the generated PIN; this facade does not log or save it.
+- Native `_register_client` discards device ID/name and keeps at most 16 public keys in an
+  **in-memory array for that native server instance only**. `_check_register` checks that
+  array. No JNI method lists/revokes peers. The UI may show "AirPlay sender (identity
+  unavailable)", not fabricated device names or a remembered-device list. HTTP connection
+  counts include HLS proxy requests, not just devices. Restart can require pairing again.
+- Automatic recovery and ordinary stop/start **never delete/rotate** the private receiver
+  `airplay-identity.pem` or stored local receiver address. This runtime has no persistent
+  client pairing database to preserve or selectively revoke.
+- An explicit identity-reset action must warn that the receiver identity changes and clients
+  may need to pair again. After app-user confirmation, the Activity serially stops AirPlay,
+  calls `resetIdentityAfterConfirmation(true)` and restarts only if still requested. The API
+  rejects an unconfirmed request or a running engine. This resets receiver identity globally,
+  not per-device revocation. Repository development/tests do not change actual user keys.
+
+Portable tests cover static/paused screens, disconnect grace, decoder stall, disabled
+watchdog, reconnection cancellation, PTS discontinuities, both modes and native debug layout.
+Compilation/policy tests do not establish device casting, disconnect recovery, measured
+lip sync or audio output. Physical acceptance must cover static screens longer than the
+watchdog, interrupted Wi-Fi, modes and buffer changes, HLS pause/seek, DLNA takeover, PIN
+restart and identity-reset cancel/confirm.

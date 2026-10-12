@@ -1,0 +1,68 @@
+{
+  "transformationRecipe": "scripts/prepare_unified_native.py",
+  "transformationRecipeSha256": "a837cf9e06eca8b8403499cc202c0f3f65ddb7211c68d93ac9afe9ab4e5f70c0",
+  "strategy": "receiver process + distinct OpenSSL filename/DT_NEEDED/SONAME",
+  "libraries": {
+    "armeabi-v7a/libairplay_native.so": {
+      "sha256": "41e3b145a9f2aa3c322a48e2dc6fce1afc9dc7dc8d260aa1d3bb1df4e8c138a9",
+      "source": "armeabi-v7a/libairplay_native.so",
+      "sourceSha256": "2a0937ccf9f99617e4dd5103b94f28f70dcce94a2e89bf9994274a5c83346adf"
+    },
+    "armeabi-v7a/liboboe.so": {
+      "sha256": "6c8d5ff46d0e83812ffa514898ac0bcd2b3537694cc0679e474c6686af8c9544",
+      "source": "armeabi-v7a/liboboe.so",
+      "sourceSha256": "6c8d5ff46d0e83812ffa514898ac0bcd2b3537694cc0679e474c6686af8c9544"
+    },
+    "armeabi-v7a/libtvcryp.so": {
+      "sha256": "841e9120e08ee75e7b80975da135f20672e675f8069f2e60fc84c4f6ff35ffa2",
+      "source": "armeabi-v7a/libcrypto.so",
+      "sourceSha256": "ba3cb8794f659e32f6b48a6eb9bb045ebf2ee6c5ce9dd16fbd9bb9c20b7ec3de"
+    },
+    "armeabi-v7a/libc++_shared.so": {
+      "sha256": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7",
+      "source": "armeabi-v7a/libc++_shared.so",
+      "sourceSha256": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7"
+    },
+    "arm64-v8a/libairplay_native.so": {
+      "sha256": "b556ed68c7aec9e6718d6748bf2f6e5ebed375291c0af728664c2497aaebd884",
+      "source": "arm64-v8a/libairplay_native.so",
+      "sourceSha256": "f120b8ce290102add9806c34affb8ad472cb2a26a2881805544caf87aabb1fad"
+    },
+    "arm64-v8a/liboboe.so": {
+      "sha256": "626cf39154bb4f09d6ecd4cd7e029b3c61265464318be7252e5fb697a61c4810",
+      "source": "arm64-v8a/liboboe.so",
+      "sourceSha256": "626cf39154bb4f09d6ecd4cd7e029b3c61265464318be7252e5fb697a61c4810"
+    },
+    "arm64-v8a/libtvcryp.so": {
+      "sha256": "b878af17b5bf1b12aa978adeea66b9be2c97b0aabb27707dce03a8ee8bda7175",
+      "source": "arm64-v8a/libcrypto.so",
+      "sourceSha256": "464347a1ddc808d077802ce490270f25a8f0a4cb962bf2f4b48dc8f2590c53c6"
+    },
+    "arm64-v8a/libc++_shared.so": {
+      "sha256": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839",
+      "source": "arm64-v8a/libc++_shared.so",
+      "sourceSha256": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839"
+    },
+    "x86_64/libairplay_native.so": {
+      "sha256": "6843f5a4c515d97a0a26dcfb6642c63d9b3477173979ab0413c7df9742925b61",
+      "source": "x86_64/libairplay_native.so",
+      "sourceSha256": "2dd0ccf86a6cea8316ec99a8a9dac938d1e3165ccc9e7fc8a1b9c4b7117858f0"
+    },
+    "x86_64/liboboe.so": {
+      "sha256": "7f3f4dbb58f1d9a5e1b14d8233207fc55e257e8fd4c63d78e0bd870e1aead73d",
+      "source": "x86_64/liboboe.so",
+      "sourceSha256": "7f3f4dbb58f1d9a5e1b14d8233207fc55e257e8fd4c63d78e0bd870e1aead73d"
+    },
+    "x86_64/libtvcryp.so": {
+      "sha256": "00c09325823d6e84536c0da391a2bcdee8de7135b69ef47873a7943b006807a8",
+      "source": "x86_64/libcrypto.so",
+      "sourceSha256": "b087080d265ab54ca67c5cc06a5fe99b2a8d6068a9d01ea2569fe062cf427cec"
+    },
+    "x86_64/libc++_shared.so": {
+      "sha256": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2",
+      "source": "x86_64/libc++_shared.so",
+      "sourceSha256": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2"
+    }
+  },
+  "sourceManifest": "native/airplay/prebuilt-manifest.json"
+}

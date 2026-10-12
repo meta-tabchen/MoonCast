@@ -1,0 +1,8 @@
+<resources>
+    <style name="LabTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#A5E9D1</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#0B151B</item>
+    </style>
+</resources>

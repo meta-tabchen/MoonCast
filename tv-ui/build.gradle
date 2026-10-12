@@ -1,0 +1,31 @@
+plugins { id 'com.android.library' }
+android {
+ namespace 'com.mooncast.tv'
+ compileSdk 35
+ buildToolsVersion '35.0.0'
+ defaultConfig {
+  minSdk 26; targetSdk 35
+  buildConfigField 'int', 'VERSION_CODE', '50'
+  buildConfigField 'String', 'VERSION_NAME', '"0.5.0-unified-preview"'
+  buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.unified.preview"'
+ }
+ buildFeatures { buildConfig true; aidl true }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ sourceSets.main {
+  java.exclude 'com/mooncast/transfer/**'
+  java.srcDirs = ['../tv/src/main/java']
+  aidl.srcDirs = ['../tv/src/main/aidl']
+  res.srcDirs = ['../tv/src/main/res']
+  assets.srcDirs = ['../tv/src/main/assets']
+  jniLibs.srcDirs = []
+ }
+ packaging { jniLibs { keepDebugSymbols += ['**/*.so'] } }
+}
+dependencies {
+ implementation project(':transfer-core')
+ implementation project(':moonlight-core')
+ implementation 'androidx.core:core:1.8.0'
+ implementation 'androidx.media3:media3-exoplayer:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
+ implementation 'androidx.media3:media3-exoplayer-dash:1.5.1'
+}

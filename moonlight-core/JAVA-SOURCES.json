@@ -1,0 +1,82 @@
+[
+  {
+    "file": "okhttp-4.12.0-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/com/squareup/okhttp3/okhttp/4.12.0/okhttp-4.12.0-sources.jar",
+    "sha256": "d91a769a4140e542cddbac4e67fcf279299614e8bfd53bd23b85e60c2861341c"
+  },
+  {
+    "file": "okhttp-4.12.0.pom",
+    "url": "https://repo.maven.apache.org/maven2/com/squareup/okhttp3/okhttp/4.12.0/okhttp-4.12.0.pom",
+    "sha256": "7c737040a9419522e7c50cc027416a70fe7c7629e52b219935ade6b4119c7d38"
+  },
+  {
+    "file": "okio-jvm-3.6.0-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0-sources.jar",
+    "sha256": "870a42a7b468af8fd24d67b7b62e5861aab398c56f15a80b10642e7001564e2f"
+  },
+  {
+    "file": "okio-jvm-3.6.0.pom",
+    "url": "https://repo.maven.apache.org/maven2/com/squareup/okio/okio-jvm/3.6.0/okio-jvm-3.6.0.pom",
+    "sha256": "61b4d7c515a0894ffad925fd7052620c1425a86433fd35113b5fab0de890a57f"
+  },
+  {
+    "file": "bcprov-jdk18on-1.85.2-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.85.2/bcprov-jdk18on-1.85.2-sources.jar",
+    "sha256": "b37ac84b1d5435ab7b8d166c16ab9f75e09f68f8ec50479bae433939b241b03f"
+  },
+  {
+    "file": "bcprov-jdk18on-1.85.2.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/bouncycastle/bcprov-jdk18on/1.85.2/bcprov-jdk18on-1.85.2.pom",
+    "sha256": "774ffb514ef342d7e7543805944fec32e4da2c4292ba5d7d8560f05a65a7c2dd"
+  },
+  {
+    "file": "kotlin-stdlib-1.9.10-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.10/kotlin-stdlib-1.9.10-sources.jar",
+    "sha256": "4dad0d6fe62c142313e09e3b693c9dccc6bf9dc7a56a37c91be9edb7de0cf45b"
+  },
+  {
+    "file": "kotlin-stdlib-1.9.10.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib/1.9.10/kotlin-stdlib-1.9.10.pom",
+    "sha256": "7e29fbf73fdf71e0679d3dee7e680fd573464fa01644a4f58ab819d2c088d3d2"
+  },
+  {
+    "file": "kotlin-stdlib-common-1.9.10-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.10/kotlin-stdlib-common-1.9.10-sources.jar",
+    "sha256": "63f2b6dfd58e3e1c82a4b37a2e1743996ca182bf44dc2aadd264b8fb95fddcd3"
+  },
+  {
+    "file": "kotlin-stdlib-common-1.9.10.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-common/1.9.10/kotlin-stdlib-common-1.9.10.pom",
+    "sha256": "7d4b70547910676b3bdfc8925a88f3b6bfb24582c9784542805544ceef490a92"
+  },
+  {
+    "file": "kotlin-stdlib-jdk7-1.9.10-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.10/kotlin-stdlib-jdk7-1.9.10-sources.jar",
+    "sha256": "ea10d3e5e6e695d8a5283cbf116321acae6ba42d0bdd3eda50f7c34a26fa25cb"
+  },
+  {
+    "file": "kotlin-stdlib-jdk7-1.9.10.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.10/kotlin-stdlib-jdk7-1.9.10.pom",
+    "sha256": "c7fa67c7961320b89d85a3ca59a2e18c2c65850845595dcae4b46af6945edcd5"
+  },
+  {
+    "file": "kotlin-stdlib-jdk8-1.9.10-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.10/kotlin-stdlib-jdk8-1.9.10-sources.jar",
+    "sha256": "40e9a80f6b953d12389623760d438e69914098d0c4d7053f70f90533ec041259"
+  },
+  {
+    "file": "kotlin-stdlib-jdk8-1.9.10.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.10/kotlin-stdlib-jdk8-1.9.10.pom",
+    "sha256": "5f4b94dd3065a7764c37fa15de2ad6d81f40d59f8cb33f17d181c6384fb7a72e"
+  },
+  {
+    "file": "annotations-13.0-sources.jar",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0-sources.jar",
+    "sha256": "42a5e144b8e81d50d6913d1007b695e62e614705268d8cf9f13dbdc478c2c68e"
+  },
+  {
+    "file": "annotations-13.0.pom",
+    "url": "https://repo.maven.apache.org/maven2/org/jetbrains/annotations/13.0/annotations-13.0.pom",
+    "sha256": "965aeb2bedff369819bdde1bf7a0b3b89b8247dd69c88b86375d76163bb8c397"
+  }
+]

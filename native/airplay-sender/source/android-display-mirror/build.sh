@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -e
+mkdir -p app/libs
+
+ANDROID_NDK_VERSION=$(awk -F '"' '/ndkVersion/ {print $2}' app/build.gradle)
+if [ -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
+    "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${ANDROID_NDK_VERSION}"
+fi
+ANDROID_NDK_HOME=$ANDROID_HOME/ndk/${ANDROID_NDK_VERSION}
+GOMOBILE_VERSION="v0.0.0-20260611195102-4dd8f1dbf5d2"
+OUT_DIR=$(realpath app/libs)
+WORK_DIR=/tmp/airplaylib
+
+# use canonical path for fdroid
+rm -rf $WORK_DIR && mkdir -p $WORK_DIR
+cp -a doubletake $WORK_DIR
+cd $WORK_DIR/doubletake/doubletake
+go install "golang.org/x/mobile/cmd/gomobile@${GOMOBILE_VERSION}"
+go install "golang.org/x/mobile/cmd/gobind@${GOMOBILE_VERSION}"
+export PATH="$(go env GOPATH)/bin:$PATH"
+grep -q "^toolchain " go.mod || sed -i '/^go /a toolchain go1.25.10' go.mod
+
+# android support
+sed -i 's|\*ScreenCapture|io.Reader|' internal/airplay/mirror.go
+ln -sfn ../airplaylib airplaylib
+ln -sf ../../../patches.go internal/airplay/patches.go
+ln -sf ../../../airplay1.go internal/airplay/airplay1.go
+
+# airplay1 digest auth reads WWW-Authenticate off the 401 which rtspRequest otherwise drops
+sed -Ezi 's|if err != nil \{[[:space:]]+return nil, nil, err|if err != nil {\n\t\treturn nil, respHeaders, err|' internal/airplay/client.go
+
+# receiver hashes the ECDH secret into the stream key when pairing produced one
+
+sed -i 's|deriveStreamMasterKey(c.fpAesKey, sharedSecret(c.PairKeys), c.encrypted)|deriveStreamMasterKey(c.fpAesKey, sharedSecret(c.PairKeys), true)|' internal/airplay/fairplay.go
+sed -i 's|if c.encrypted \&\& len(sharedSecret(c.PairKeys)) > 0 {|if len(sharedSecret(c.PairKeys)) > 0 {|' internal/airplay/fairplay.go
+
+# session gets its own SETUP before any stream is added
+sed -i 's|audioSetupBody, err2 := plist.Marshal(audioSetupPlist, plist.BinaryFormat)|if ep, err0 := c.SetupSession(audioURI, clientDeviceID, sessionUUID, timingPort); err0 != nil {audioCtrlConn.Close(); audioDataConn.Close(); return nil, fmt.Errorf("SETUP phase 0 (session): %w", err0)} else if ep > 0 {receiverEventPort = ep}\naudioSetupBody, err2 := plist.Marshal(audioSetupPlist, plist.BinaryFormat)|' internal/airplay/mirror.go
+
+# type
+sed -i 's|\[\]byte        `plist|pkBytes       `plist|' internal/airplay/client.go
+sed -i 's|int `plist|plistNum `plist|' internal/airplay/client.go
+sed -i 's|bool          `plist|plistBool     `plist|' internal/airplay/client.go
+sed -i 's|return w, h|return int(w), int(h)|' internal/airplay/client.go
+
+# might rewrite entire thing
+go get golang.org/x/mobile/bind 2>/dev/null || true;
+gomobile bind -v -trimpath -ldflags="-buildid= -extldflags=-Wl,-z,max-page-size=16384" -target android -androidapi 26 -o $OUT_DIR/airplaylib.aar ./airplaylib/ # -overlay $(realpath ../overlay.json)

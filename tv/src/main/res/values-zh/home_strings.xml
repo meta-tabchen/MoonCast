@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_status_line">●  %1$s</string>
+    <string name="home_brand">MoonCast TV</string>
+    <string name="home_hero">好画面，\n放大看。</string>
+    <string name="home_hero_compact">好画面，放大看。</string>
+    <string name="home_instructions">iPhone 屏幕镜像，或视频 App 的 DLNA 投屏\n选择这台电视。</string>
+    <string name="home_instructions_compact">iPhone 屏幕镜像，或视频 App 的 DLNA 投屏\n选择这台电视。</string>
+    <string name="home_waiting">等待开启</string>
+    <string name="home_framing">画面调整</string>
+    <string name="home_framing_detail">自动去黑边 · 保持比例</string>
+    <string name="home_advanced">设置</string>
+    <string name="home_advanced_detail">画质、声音与连接</string>
+    <string name="home_return_playback">返回播放</string>
+    <string name="home_hide">投屏指南</string>
+    <string name="home_hide_detail">AirPlay 与 DLNA</string>
+    <string name="home_hide_active">回到正在播放的画面</string>
+    <string name="home_trusted">同一可信网络 · 无需 PIN 码</string>
+    <string name="home_stop">停止接收</string>
+    <string name="home_start">启动接收</string>
+    <string name="home_receiver_accessibility">在手机上选择 %1$s 开始投屏</string>
+    <string name="cinema_ready">好画面，值得大屏。</string>
+    <string name="cinema_casting">正在投屏</string>
+    <string name="cinema_playback_continues">画面与声音继续播放</string>
+    <string name="cinema_end_cast">结束投屏</string>
+</resources>

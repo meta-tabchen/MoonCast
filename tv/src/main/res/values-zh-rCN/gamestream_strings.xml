@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gamestream_title">连接 Android 手机</string>
+    <string name="gamestream_introduction">在手机上打开 MoonCast，点击“启动投屏”，然后在下方选择手机。两个设备须连接同一个可信家庭网络。</string>
+    <string name="gamestream_protocol_note">需要手机端 MoonCast 发送器，不能通过 Android 系统的“投屏”菜单连接。\nH.264 SDR · Opus 立体声 · 低延迟队列。不支持音画正负偏移。画质设置在下次连接时生效；实际输出取决于手机和电视。</string>
+    <string name="gamestream_discovery_searching">正在局域网中查找手机…</string>
+    <string name="gamestream_discovery_finished">搜索已结束。可重新搜索或输入手机的 IPv4 地址。</string>
+    <string name="gamestream_saved">已保存的手机</string>
+    <string name="gamestream_nearby">附近的手机</string>
+    <string name="gamestream_no_saved">配对后的手机会显示在这里。</string>
+    <string name="gamestream_no_nearby">未发现新手机。请在手机上启动投屏后重新搜索，或手动添加地址。</string>
+    <string name="gamestream_paired">已在本电视配对</string>
+    <string name="gamestream_unpaired">需要配对</string>
+    <string name="gamestream_discovered">局域网发现 · 身份尚未验证</string>
+    <string name="gamestream_host_label">%1$s\n%2$s · %3$s</string>
+    <string name="gamestream_manual">按 IP 地址添加</string>
+    <string name="gamestream_rescan">重新搜索</string>
+    <string name="gamestream_close">关闭</string>
+    <string name="gamestream_cancel">取消</string>
+    <string name="gamestream_connect">连接</string>
+    <string name="gamestream_connecting">正在准备连接… 关闭或按返回键可取消。</string>
+    <string name="gamestream_error_generic">无法连接。请检查手机上的 MoonCast 后重试。</string>
+    <string name="gamestream_manual_title">输入手机的 IPv4 地址</string>
+    <string name="gamestream_manual_note">请输入手机 MoonCast 中显示的内网 IPv4 地址，可在冒号后填写 HTTP 端口。只能连接所选局域网子网中的地址。</string>
+    <string name="gamestream_manual_hint">192.168.1.20:47989</string>
+    <string name="gamestream_manual_label">手机 IPv4 地址及可选的 HTTP 端口</string>
+    <string name="gamestream_invalid_address">请输入内网 IPv4 地址，例如 192.168.1.20；可选端口范围为 1 至 65535。不要输入网址或主机名。</string>
+    <string name="gamestream_pair_title">与手机配对</string>
+    <string name="gamestream_pair_confirmation">与 %1$s（%2$s）配对？\n\n请确认这是您在可信局域网中的手机。本电视将在需要时创建并保存配对密钥，然后显示 PIN 码，请在手机 MoonCast 中输入。仅在配对成功后记住手机证书。</string>
+    <string name="gamestream_pair">配对</string>
+    <string name="gamestream_pin_instruction">请在 %1$s 的 MoonCast 中输入此 PIN 码。</string>
+    <string name="gamestream_pin_accessibility">配对 PIN 码：%1$s，%2$s，%3$s，%4$s</string>
+    <string name="gamestream_pin_waiting">正在等待手机确认。请保持两个设备上的 MoonCast 打开。取消或按返回键会停止本次尝试。</string>
+    <string name="gamestream_phone">您的手机</string>
+    <string name="gamestream_forget">忘记</string>
+    <string name="gamestream_forget_title">在电视上忘记此手机？</string>
+    <string name="gamestream_forget_confirmation">从本电视删除 %1$s 及其已保存证书？\n\n这仅删除电视本地记录，不会撤销手机上授予本电视的访问权限。本电视无法远程撤销该权限。</string>
+    <string name="gamestream_forget_accessibility">在本电视上忘记 %1$s</string>
+    <string name="gamestream_quality_title">GameStream 画质 · 下次连接生效</string>
+    <string name="gamestream_quality_button">串流画质 · %1$s</string>
+    <string name="gamestream_quality_720_60">720p · 60 帧/秒 · 15 Mbps</string>
+    <string name="gamestream_quality_1080_60">1080p · 60 帧/秒 · 30 Mbps</string>
+    <string name="gamestream_quality_1080_30">1080p · 30 帧/秒 · 20 Mbps</string>
+</resources>

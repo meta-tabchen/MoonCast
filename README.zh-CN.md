@@ -1,72 +1,49 @@
-<p align="center"><img src="docs/assets/banner.svg" alt="MoonCast — 安卓手机作为 Moonlight 发射端" width="920"></p>
-<p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
+# MoonCast · 一个 APP，两种模式
 
-# MoonCast
+[English](README.md) · [使用与排障](docs/unified-guide.md) · [构建与原生库隔离](docs/unified-build.md) · [验证范围](docs/unified-architecture-validation.md)
 
-**让安卓手机成为 Moonlight 的发射端。** 在局域网内将手机画面投到 iPad、Android TV 或其他 Moonlight 客户端，无需电脑中转。
+0.5 是手机发送端与电视接收端合并的实验版。手机和电视安装同一个应用：Android TV / Leanback 设备默认进入接收模式，普通手机默认进入发送模式。设置里可手动切换并记住选择。切换时先停止旧模式，不支持同时发送和接收。
 
-专注手机投屏：保留完整画面、内置视频区域裁切、同步播放声音，可选关闭手机本地声音，以及默认关闭的 Root／非 Root 反控。普通录屏无需 Root 或 ADB。
+## 下载 0.5.0 合并预览版
 
-当前为 **0.3.1 预览版**，APK 使用本地 debug 密钥签名。安卓 → iPad 基础投屏已有一次真机使用记录；用户试用 0.2.0 后反馈「貌似没啥问题」，但这不等于裁切、静音、反控已逐项验证。0.3.1 新功能已进行 MuMu 生成内容测试；多路完整串流、真机屏幕电源行为及实际播放器兼容性仍需真机验证。[逐项开发与测试记录](docs/feature-development.md)。主要界面跟随系统语言，底层诊断尚未完全翻译。
+[版本说明与全部附件](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview) · [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk) · [完整对应源码](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
 
-## 下载与开始
+64 位 ARM 安卓系统选 ARM64，32 位 ARM 安卓系统选 ARMv7；以系统实际支持的 ABI 为准，不只看处理器宣传名称。两个安装包功能相同，均包含手机和电视模式，每台设备只选一个安装。下载附件是已签名的实验预览包；CI 生成的 unsigned 验证包不能直接作为安装版使用。本次不发布 x86 安装包。
 
-1. 在 Android 8.0+ 手机安装 [0.3.1 Preview APK](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)。
-2. 接收端安装 [官方 Moonlight](https://moonlight-stream.org/)，两端连接同一可信局域网。
-3. 手机点击「启动投屏」，授权共享**整个屏幕**。
-4. Moonlight 添加手机 IP，将接收端显示的四位 PIN 输入手机配对框。
-5. Moonlight 打开 `Desktop`，手机切换到要播放的视频或应用。
+统一版源码在 `unified/android-0.5.0` 分支。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](docs/unified-build.md)操作；完整源 ZIP 已含这些依赖，不包含私有签名密钥。
 
-建议先使用 1080p60、H.264/HEVC、30–50 Mbps 验证，设备编码器、解码器和网络决定上限。这不是性能承诺。
+## 两台设备怎么配合
 
-[详细中文使用说明](docs/usage.zh-CN.md) · [英文快速入门](docs/getting-started.md) · [Release 下载](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.3.1)
+- 安卓手机 → AirPlay：手机选 AirPlay，在统一「My TV」设备列表选择电视，再开始分享并确认系统录屏授权。接收端可以是 MoonCast 电视模式或兼容的第三方 AirPlay 接收器。
+- 安卓手机 → Moonlight：手机选 Moonlight 并启动主机，电视模式或官方 Moonlight 客户端连接手机，按提示完成 GameStream PIN 配对。
+- iPhone / iPad → 电视：在苹果系统的屏幕镜像或媒体输出列表选 MoonCast。
+- DLNA：兼容控制端把支持的媒体地址推给 MoonCast 电视模式。
 
-## 有什么特点？
+My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。取消配对码指的是 APK 传输；GameStream 自身的 PIN 安全配对仍保留。
 
-- 接收端直接使用 Moonlight，复用其配对、硬件解码和客户端生态。
-- 保留原有四种显示模式，新增「智能影院」稳定检测后锁定区域，浮层和暗场不再改变已锁定裁切，内容变化时可重新检测。
-- 独立 iPad／电视／电脑配置、观影／游戏／省电预设，以及捕获帧率、应用上行流量和温控面板。
-- Android 14+ 单应用授权、Shizuku 独立应用显示，以及可选 Shizuku 持续触摸与键盘。
-- 原文件影院：选择一个照片／视频／音频，在接收端浏览器打开局域网链接；字节不转码，播放器兼容性另行判断。
-- 实验性最多三设备共用捕获、单独断开，以及 Root／Shizuku 本地熄屏与恢复。
-- Android 10+ 可同步允许被捕获的播放声音，可选仅投音频时静音手机并在结束后恢复。
-- 非 Root 反控使用无障碍点击与单指滑动；Root 可尝试持续触摸和基础键盘。两者均需明确授权。
-- 运行时无需 MoonCast 账号、广告或云端服务。
+## 安装与首次使用
 
-## 与其他方案比较
+1. 选适合 CPU 的独立 APK，最低 Android 8.0。不同 ABI 的 APK 是同一应用的不同构建，每个都能独立安装使用，不需要再安装第二个组件。
+2. 两台设备连接同一个可信局域网，网络须允许设备互相访问。电视先开接收模式；运行新版前停止旧版接收服务，避免占端口。
+3. 手机按上面的协议流程操作。录屏、声音、远程输入权限分别选择，不会自动开启高级权限。
+4. 电视设置可选月湖、极光、远山、午夜四种待机背景，记住上次选择。播放时设置面板半透明，待机背景不会盖住视频。
 
-| 方案 | 主要用途 | MoonCast 的定位 |
-| --- | --- | --- |
-| [Mirror](https://github.com/jqssun/android-display-mirror) | 安卓多协议显示分享，支持 Moonlight/AirPlay/DisplayLink，可选 Shizuku 反控 | 本项目复用其原生核心，应用层专注视频比例、手机声音和两种反控后端 |
-| [scrcpy](https://github.com/Genymobile/scrcpy) | 安卓 → 电脑的成熟镜像、录制和控制，普通镜像通过 ADB | MoonCast 直接连接现有 Moonlight 接收端，无需电脑中转 |
-| [Sunshine](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html) | 桌面作为 Moonlight 发射端 | MoonCast 面向安卓手机，兼容相同客户端生态 |
+## 手机发送 APK 到电视
 
-这是使用方式的对比，没有进行延迟或画质性能排名。[详细对比与来源](docs/comparison.md)。
+电视开启「安装手机 APK」，手机选择 `.apk` → My TV 选择支持 APK 的电视 → 上传。固定端口为 TCP 48152，不需要额外传输配对码。电视核对包信息并明确确认后，才打开 Android 系统安装器。
 
-## 需要了解的限制
+首次允许「安装未知应用」必须由你在系统设置操作。授权回来无需重新上传，在保留的审核页面再次确认即可。不会静默安装，也不能绕过 Android 的签名、降级、设备兼容或分包要求；扩展名为 APK 不代表任意文件都能成功安装。
 
-默认一个接收端；开启「多人观看」可尝试最多三个，但依赖手机多路编码能力、共用画面模式及相同音频包时长，且关闭反控。MuMu 没有兼容的硬件 H.264 编码器，两路完整串流仍待真机验收。H.264/HEVC SDR 屏幕镜像仍为有损编码，没有实现数学无损、HDR、AV1 或 DRM 捕获；原文件影院是单独的浏览器播放方式。固定 16:9 假定横屏视频居中；自动去黑边属于启发式，需要更多真实播放器验证。较方的 iPad 要保留完整 16:9 视频时，必要的上下黑边仍会存在。
+## 重要边界
 
-Root 屏幕捕获、Root／Shizuku 反控、独立显示和本地熄屏为实验功能；非 Root 滑动在抬手后执行，不支持任意文字键盘、多指和持续按住。Root 捕获目前仅视频。新版静音的实际扬声器／捕获行为仍需 ROM 实测。
+- APK 使用未加密 HTTP，仅限可信局域网，不能暴露公网。仍保留文件大小、并发、速率、超时、私有路径、哈希、解析及 FileProvider 限制。
+- 本项目未实现 Miracast、Google Cast/Chromecast、厂商系统投屏协议或 AirPlay 2 多房间；GameStream 不进入 Android 系统投屏列表。
+- DRM 视频、禁止录屏或禁止音频捕获的应用可能黑屏或无声音。屏幕镜像有损，不宣称原画无损或假 4K。
+- Root / Shizuku / 无障碍控制仍为可选功能，不会自动授权，不改路由器或系统安全设置。
+- 编译、主机测试和模拟器测试不等于所有手机电视实机兼容。发布时须列出实际通过及未验证项目。
 
-[兼容性范围](docs/compatibility.md) · [英文验证记录](docs/validation.md) · [详细历史验证](VALIDATION.md)
+## 从旧版迁移
 
-## 构建
+新独立包名是 `com.mooncast.unified.preview`，桌面只显示 MoonCast，设置「关于」显示版本与包名。它与旧手机版/电视版共存，不覆盖旧签名，也不自动搬运旧配对密钥、设置及权限。实验签名不构成正式版本后续覆盖升级保证。验证好之前可以保留旧版，但同一时间只运行一个接收器。
 
-需要 JDK 17、Android SDK 35、Build Tools 35.0.0。
-
-```sh
-./gradlew :app:assembleDebug :app:lintDebug
-python scripts/run_unit_tests.py
-python scripts/verify_apk.py app/build/outputs/apk/debug/app-debug.apk
-```
-
-Windows 使用 `gradlew.bat`。默认构建使用已固定、已校验的原生库，仓库保留完整对应源码及依赖许可证。从源码重编译原生核心需要额外 NDK/CMake 工具链，本预览版尚未验证该路径。[完整构建说明](docs/building.md)。
-
-## 参与
-
-欢迎提交设备兼容性报告、修复、翻译和真实测试结果。请附手机型号／系统、Moonlight 版本、码率／帧率／分辨率和复现步骤，删除日志中的私密信息。[贡献指南](CONTRIBUTING.md) · [路线图](docs/roadmap.md) · [问题反馈](https://github.com/meta-tabchen/MoonCast/issues)。如果有用，欢迎 Star 帮更多 Moonlight 用户找到它。
-
-## 许可证与致谢
-
-[GPLv3](LICENSE)。原生核心复用 [Mirror](https://github.com/jqssun/android-display-mirror) 对 [Sunshine](https://github.com/LizardByte/Sunshine) 的安卓移植，并非本项目从零实现。感谢 Mirror、Sunshine、Moonlight 和依赖维护者。[完整署名](THIRD_PARTY_NOTICES.md) · [固定源码版本](native/SOURCE_LOCK.json)。本项目独立维护，不代表上游官方。
+项目按 GPLv3 提供对应源码。完整源包包含发送/接收依赖源、补丁、原生库校验和与构建方法。第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，背景来源见 [主题说明](docs/tv-themes.md)。GitHub 发布需同步 APK、完整对应源码和 SHA256SUMS，不能只放截图或源码地址。

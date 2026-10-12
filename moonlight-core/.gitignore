@@ -1,0 +1,16 @@
+.gradle/
+.cxx/
+build/
+local.properties
+native/dependency-rebuild/build/
+native/dependency-rebuild/artifacts/
+native/dependency-rebuild/logs/
+native/dependency-rebuild/tools/
+native/full-source-native/stage/
+native/full-source-native/obj/
+native/full-source-native/jniLibs/
+native-build-manifest.json
+src/main/jniLibs/*/*.so
+native/upstream/
+native/native-sources/
+native/java-sources/

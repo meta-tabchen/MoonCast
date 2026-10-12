@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <instrumentation android:name="com.mooncast.unified.UnifiedInstrumentation" android:targetPackage="com.mooncast.unified.preview" android:targetProcesses="com.mooncast.unified.preview:receiver" android:functionalTest="true"/>
+</manifest>

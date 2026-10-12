@@ -1,0 +1,247 @@
+name: TV receiver verification and opt-in preview
+
+on:
+  push:
+    branches: [receiver/android-tv, receiver/gamestream-integration]
+  pull_request:
+    paths:
+      - 'tv/**'
+      - 'native/airplay/**'
+      - 'moonlight-core/**'
+      - 'miracast-lab/**'
+      - 'tests/**'
+      - 'scripts/*gamestream*'
+      - 'scripts/tv_release_inputs.py'
+      - 'scripts/*tv*'
+      - 'scripts/prepare_airplay*'
+      - 'docs/tv-signing.md'
+      - '.github/workflows/tv-receiver.yml'
+      - '*gradle*'
+      - 'gradle/**'
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish a new preview using an externally provisioned, pinned signing identity'
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-receiver-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;29.0.14206865'
+      - name: Restore hash-pinned receiver runtime and corresponding source
+        run: |
+          python3 scripts/prepare_airplay_native.py
+          python3 scripts/prepare_airplay_source.py
+      - name: Build GameStream runtime from fixed complete source
+        env:
+          JOBS: '3'
+        run: |
+          python3 -m pip install --disable-pip-version-check 'cmake==3.31.10'
+          python3 moonlight-core/scripts/prepare_moonlight_core.py --build --ndk "$ANDROID_HOME/ndk/29.0.14206865" --cmake "$(command -v cmake)"
+          python3 moonlight-core/scripts/verify_moonlight_core.py
+      - name: Portable host, receiver and credential-free signing guard tests
+        run: |
+          python3 scripts/run_unit_tests.py
+          python3 scripts/run_tv_unit_tests.py
+          tests/apk-transfer/run-tests.sh
+          python3 scripts/run_tv_audio_tests.py
+          python3 scripts/run_airplay_unit_tests.py
+          python3 scripts/run_airplay_decoder_tests.py
+          python3 scripts/run_tv_signing_tests.py --gradle ./gradlew
+          python3 scripts/run_tv_input_packaging_tests.py
+          python3 scripts/run_tv_provenance_tests.py
+          python3 miracast-lab/verify_boundaries.py
+          python3 scripts/run_gamestream_host_tests.py
+          python3 scripts/run_gamestream_discovery_tests.py
+          python3 scripts/run_gamestream_render_tests.py
+          python3 scripts/run_gamestream_controller_tests.py
+      - name: Build receiver and run Android static checks without release credentials
+        run: ./gradlew :tv:compileDebugJavaWithJavac :tv:compileDebugAndroidTestJavaWithJavac :tv:assembleRelease :tv:lintDebug :tv:lintRelease :tv:testDebugUnitTest :moonlight-core:testDebugUnitTest :moonlight-core:lintDebug :miracast-lab:assembleRelease :miracast-lab:lintRelease --no-daemon --console=plain
+      - name: Verify PCM calibration through actual Media3 pipeline
+        run: python3 scripts/run_tv_media3_audio_tests.py
+      - name: Verify unsigned release payload and alignment without creating any signing identity
+        run: |
+          python3 scripts/verify_tv_apk.py tv/build/outputs/apk/release/tv-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 tv/build/outputs/apk/release/tv-release-unsigned.apk
+          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify tv/build/outputs/apk/release/tv-release-unsigned.apk; then
+            echo 'Credential-free verification must produce an unsigned release APK.' >&2
+            exit 1
+          fi
+      - name: Confirm no signing identity was generated
+        run: |
+          test ! -f "$HOME/.android/debug.keystore"
+          test ! -f "${ANDROID_USER_HOME:-$HOME/.android}/debug.keystore"
+      - name: Preserve the exact verified runtime and complete corresponding source
+        run: |
+          mkdir -p tv/build/verified-input
+          cp tv/build/outputs/apk/release/tv-release-unsigned.apk tv/build/verified-input/
+          python3 scripts/tv_release_inputs.py --pack tv/build/verified-input/receiver-inputs.zip
+          (cd tv/build/verified-input && sha256sum tv-release-unsigned.apk receiver-inputs.zip > SHA256SUMS)
+      - name: Retain unsigned build input, not an installable release
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-tv-unsigned-${{ github.sha }}
+          path: tv/build/verified-input/*
+          if-no-files-found: error
+          retention-days: 7
+      - name: Retain unsigned Miracast diagnostic (not a receiver or installable release)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-miracast-diagnostic-unsigned-${{ github.sha }}
+          path: miracast-lab/build/outputs/apk/release/miracast-lab-release-unsigned.apk
+          if-no-files-found: error
+          retention-days: 7
+      - name: Preserve check reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-tv-checks-${{ github.sha }}
+          path: |
+            tv/build/reports/
+            tv/build/test-results/
+            moonlight-core/build/reports/
+            moonlight-core/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  package:
+    needs: verify
+    if: github.repository == 'meta-tabchen/MoonCast' && github.ref == 'refs/heads/receiver/android-tv' && github.event_name == 'workflow_dispatch' && inputs.publish_release == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # No environment or secret is provisioned by this workflow. Missing external
+    # repository inputs fail closed. See docs/tv-signing.md before enabling it.
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Download the verified unsigned APK from this exact run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh run download "$GITHUB_RUN_ID" --name "mooncast-tv-unsigned-$GITHUB_SHA" --dir tv/build/unsigned-input
+      - name: Validate and restore this run’s exact build inputs before signing
+        run: |
+          (cd tv/build/unsigned-input && sha256sum -c SHA256SUMS)
+          python3 scripts/tv_release_inputs.py --restore tv/build/unsigned-input/receiver-inputs.zip
+          python3 scripts/verify_tv_apk.py tv/build/unsigned-input/tv-release-unsigned.apk
+      - name: Sign only with the externally provisioned identity
+        env:
+          MOONCAST_TV_KEYSTORE_BASE64: ${{ secrets.MOONCAST_TV_KEYSTORE_BASE64 }}
+          MOONCAST_TV_STORE_PASSWORD: ${{ secrets.MOONCAST_TV_STORE_PASSWORD }}
+          MOONCAST_TV_KEY_ALIAS: ${{ secrets.MOONCAST_TV_KEY_ALIAS }}
+          MOONCAST_TV_KEY_PASSWORD: ${{ secrets.MOONCAST_TV_KEY_PASSWORD }}
+          MOONCAST_TV_SIGNING_CERT_SHA256: ${{ vars.MOONCAST_TV_SIGNING_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          for name in MOONCAST_TV_KEYSTORE_BASE64 MOONCAST_TV_STORE_PASSWORD MOONCAST_TV_KEY_ALIAS MOONCAST_TV_KEY_PASSWORD MOONCAST_TV_SIGNING_CERT_SHA256; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing external signing input: $name. See docs/tv-signing.md." >&2
+              exit 1
+            fi
+          done
+          python3 -c 'import os, sys; sys.path.insert(0, "scripts"); from package_tv_release import normalized_fingerprint; normalized_fingerprint(os.environ["MOONCAST_TV_SIGNING_CERT_SHA256"])'
+          umask 077
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/mooncast-tv-signing.XXXXXX")"
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          export MOONCAST_TV_KEYSTORE_PATH="$signing_dir/release.keystore"
+          python3 - <<'PY'
+          import base64
+          import binascii
+          import os
+          from pathlib import Path
+          try:
+              data = base64.b64decode(os.environ['MOONCAST_TV_KEYSTORE_BASE64'], validate=True)
+              if not data:
+                  raise ValueError('empty input')
+          except (binascii.Error, ValueError):
+              raise SystemExit('External keystore is empty or not valid single-line base64') from None
+          Path(os.environ['MOONCAST_TV_KEYSTORE_PATH']).write_bytes(data)
+          PY
+          unset MOONCAST_TV_KEYSTORE_BASE64
+          mkdir -p tv/build/signed-input
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$MOONCAST_TV_KEYSTORE_PATH" \
+            --ks-key-alias "$MOONCAST_TV_KEY_ALIAS" \
+            --ks-pass env:MOONCAST_TV_STORE_PASSWORD --key-pass env:MOONCAST_TV_KEY_PASSWORD \
+            --out tv/build/signed-input/tv-release.apk tv/build/unsigned-input/tv-release-unsigned.apk
+      - name: Verify signed payload and alignment, then package with certificate-pin enforcement
+        id: package
+        env:
+          MOONCAST_TV_SIGNING_CERT_SHA256: ${{ vars.MOONCAST_TV_SIGNING_CERT_SHA256 }}
+        run: |
+          python3 scripts/verify_tv_apk.py tv/build/signed-input/tv-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 tv/build/signed-input/tv-release.apk
+          python3 scripts/package_tv_release.py --release-package \
+            --expected-signing-cert-sha256 "$MOONCAST_TV_SIGNING_CERT_SHA256" \
+            --apk tv/build/signed-input/tv-release.apk --output tv/build/release-assets
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mooncast-tv-release-${{ github.sha }}
+          path: tv/build/release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: package
+    if: github.repository == 'meta-tabchen/MoonCast' && github.ref == 'refs/heads/receiver/android-tv' && github.event_name == 'workflow_dispatch' && inputs.publish_release == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ needs.package.outputs.tag }}
+    steps:
+      - name: Download verified assets from this exact run
+        run: gh run download "$GITHUB_RUN_ID" --name "mooncast-tv-release-$GITHUB_SHA" --dir release-assets
+      - name: Check assets and create new prerelease
+        run: |
+          cd release-assets
+          sha256sum --check SHA256SUMS
+          test -n "$RELEASE_TAG"
+          gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "MoonCast TV $RELEASE_TAG (externally signed preview)" --notes-file RELEASE_NOTES.md \
+            ./*.apk ./*-source.zip ./SHA256SUMS ./BUILD_INFO.json
+      - name: Re-download published assets and verify their hashes
+        run: |
+          gh release download "$RELEASE_TAG" --dir published-assets
+          cd published-assets
+          sha256sum --check SHA256SUMS
+          printf 'Published and re-downloaded: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"

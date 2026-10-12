@@ -1,0 +1,67 @@
+{
+  "moonlight_android": {
+    "url": "https://github.com/moonlight-stream/moonlight-android",
+    "tag": "v12.2",
+    "commit": "b48494cb96bff23d8886c4775cc4f39a1075495d"
+  },
+  "moonlight_common_c": "874ac9548f1bd6f095ef2b435c42cdde460e7821",
+  "enet": "aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1",
+  "nanors": "b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a",
+  "native_build": "Full-source NDK29.0.14206865: local fixed Opus1.6.1/OpenSSL4.0.2 archives; JNI/common-C/ENet/nanors; API26; NDK_DEBUG=0; APP_OPTIM=release",
+  "binaries": [
+    {
+      "path": "src/main/jniLibs/arm64-v8a/libmoonlight-core.so",
+      "sha256": "fd9e0fa5ccc992c7d1a8414d2ed0c211735c52a68b5f3454608a16a75152db75",
+      "size": 5073168,
+      "needed": [
+        "0x0000000000000001 (NEEDED)             Shared library: [liblog.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libdl.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libc.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libm.so]"
+      ]
+    },
+    {
+      "path": "src/main/jniLibs/armeabi-v7a/libmoonlight-core.so",
+      "sha256": "f3d2e03a9069ff4755c4232229151d57106d6cf61ce75b2cc57f6c212c2e40ee",
+      "size": 3318848,
+      "needed": [
+        "0x00000001 (NEEDED)                     Shared library: [liblog.so]",
+        "0x00000001 (NEEDED)                     Shared library: [libdl.so]",
+        "0x00000001 (NEEDED)                     Shared library: [libc.so]",
+        "0x00000001 (NEEDED)                     Shared library: [libm.so]"
+      ]
+    },
+    {
+      "path": "src/main/jniLibs/x86_64/libmoonlight-core.so",
+      "sha256": "3a355d9781c9c5a97155113241a272e5dbe8fbee5a60e4e9ea75ae3ca553f150",
+      "size": 5379064,
+      "needed": [
+        "0x0000000000000001 (NEEDED)             Shared library: [liblog.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libdl.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libc.so]",
+        "0x0000000000000001 (NEEDED)             Shared library: [libm.so]"
+      ]
+    }
+  ],
+  "opus_commit": "22244de5a79bd1d6d623c32e72bf1954b56235be",
+  "openssl_commit": "f089acdf4bc7ba94a79f4bf6eb7362c3e7d14aa9",
+  "dependency_archive_sha256s": [
+    "c17f6fd147ea40457df92d35effbc787724cc22956ab7eef3bfd0a8fda299b8b  artifacts/arm64-v8a/libcrypto.a",
+    "990e0a974683f54015636a929f92b289f08403bee3a19c4c7fce2b7097493eb1  artifacts/arm64-v8a/libopus.a",
+    "a9a81ba1c2986261fa3618e90ac95a629972decf612cd239727f84a78bb980b2  artifacts/armeabi-v7a/libcrypto.a",
+    "8140250b70f3f91c4f74158c53b87754194de3663846ba97bb988204abfee6d4  artifacts/armeabi-v7a/libopus.a",
+    "b80df4374aef09f921c5f09c295cf81a289827ff3295f0d0088c420de68cdf59  artifacts/x86_64/libcrypto.a",
+    "e27167880807e02454fafeecaa3b52d57eb8977df97a4241327c5ba7b7f04e24  artifacts/x86_64/libopus.a"
+  ],
+  "source_input_manifest_sha256": "9f83cb5cadae680775e7415b4d06a81094c8ecb1afe5bd141ecc301546cba8e3",
+  "java_sources_manifest_sha256": "aa2e2fc15fcded919d0d5dcd42717f02d463eddd1a626f59efb83d8402e31ede",
+  "native_visibility": "Version script exposes only MoonBridge JNI; --exclude-libs,ALL keeps static OpenSSL/Opus local",
+  "binary_hash_policy": "Local reference only. CI source-builds and writes native-build-manifest.json; final APK verification compares that run\u2019s actual native bytes.",
+  "android_cpufeatures": {
+    "ndk_version": "29.0.14206865",
+    "source_path": "native-sources/android-cpufeatures-ndk29",
+    "source": "https://dl.google.com/android/repository/android-ndk-r29-linux.zip",
+    "ndk_archive_sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+    "inventory": "SOURCE-INPUTS-SHA256SUMS (five exact NDK source/notice files)"
+  }
+}

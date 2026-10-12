@@ -1,0 +1,150 @@
+{
+  "sourceArchives": {
+    "upstream-source.tar.gz": "108c33e8cd096167e85ffeb1fddf1a6122944ff13b7c4509a3768da7d66698ef",
+    "oboe-source.tar.gz": "8e5385c82d8f2b5bf87024a02b769d5a413025816879c202fce2f6a31ad974ce",
+    "openssl-3.4.4.tar.gz": "7bdf55ac20f2779e99e5eca306f824fad2b37dee5a06cc35ed5a8b85a6060010"
+  },
+  "patches": {
+    "upstream/0001-fix-hls-playlist-crash.patch": "d25acfc70abfce7c1638673201d4fc7e218e3e5736595633a179f56fcf20a592",
+    "upstream/0002-fix-uaf-on-playlist-refresh.patch": "0292c5b03e583894a1019ec95cd481db54726a73108b95eacbac1d779d472943",
+    "upstream/0003-refresh-live-media-playlists-on-demand.patch": "4865352dbcb16158e0bbac59a31a5c2a4c3252ddc71b9ad87b2d630ba4d6d242",
+    "upstream/0004-video-sender-compat.patch": "6ac8cd4e7eb5a78e2bf7b15397e1cc394ef9b160fcf3e6928fccba3b854272cc",
+    "upstream/0005-signal-video-reset-on-abandoned-play-connection.patch": "e42f78cd832a876709d6062f6468d7ba94b73026a6e9135e67862f6f4d6658b2",
+    "upstream/0006-deliver-volume-while-audio-stream-paused.patch": "ff1c02f25228ee0592a103937fbd99ce6306d444f04e936c2c1dabfd10549d22",
+    "mooncast/0001-preserve-no-audio-rtp-sequence-slots.patch": "cf773cb62dc06ae6799293f8dde4ec51952ef92de88bb1b0312c9dd64a22d21f",
+    "mooncast/0002-apply-explicit-rtp-flush-boundary.patch": "8bc2fe54a3b6cb8eac2b209b96216bfec403eddd3e5535847c57036261cef255"
+  },
+  "sourceFiles": {
+    "raop_buffer.c": {
+      "archive": "2b41e46fd435512648fae8ce0404c762eae636c17fed39c56d547fcf49cec62f",
+      "afterUpstreamPatches": "2b41e46fd435512648fae8ce0404c762eae636c17fed39c56d547fcf49cec62f",
+      "afterMoonCastPatches": "97f9f7c0c95e4a56adb8937147361c4662474e07b23ec2995d27c34241304c83"
+    },
+    "raop_rtp.c": {
+      "archive": "4d1c4c58cc500df6c1ad79c30fadc8cdc320ef7ee0a37cff49bb6afa7f39d3d9",
+      "afterUpstreamPatches": "4d1c4c58cc500df6c1ad79c30fadc8cdc320ef7ee0a37cff49bb6afa7f39d3d9",
+      "afterMoonCastPatches": "f5994e7dc7f346b51d018e3a2b02aa1c373054dfdf4cb45a2e67fbefea828ddb"
+    }
+  },
+  "libraries": {
+    "armeabi-v7a/libairplay_native.so": "2a0937ccf9f99617e4dd5103b94f28f70dcce94a2e89bf9994274a5c83346adf",
+    "armeabi-v7a/liboboe.so": "6c8d5ff46d0e83812ffa514898ac0bcd2b3537694cc0679e474c6686af8c9544",
+    "armeabi-v7a/libcrypto.so": "ba3cb8794f659e32f6b48a6eb9bb045ebf2ee6c5ce9dd16fbd9bb9c20b7ec3de",
+    "armeabi-v7a/libc++_shared.so": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7",
+    "arm64-v8a/libairplay_native.so": "f120b8ce290102add9806c34affb8ad472cb2a26a2881805544caf87aabb1fad",
+    "arm64-v8a/liboboe.so": "626cf39154bb4f09d6ecd4cd7e029b3c61265464318be7252e5fb697a61c4810",
+    "arm64-v8a/libcrypto.so": "464347a1ddc808d077802ce490270f25a8f0a4cb962bf2f4b48dc8f2590c53c6",
+    "arm64-v8a/libc++_shared.so": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839",
+    "x86_64/libairplay_native.so": "2dd0ccf86a6cea8316ec99a8a9dac938d1e3165ccc9e7fc8a1b9c4b7117858f0",
+    "x86_64/liboboe.so": "7f3f4dbb58f1d9a5e1b14d8233207fc55e257e8fd4c63d78e0bd870e1aead73d",
+    "x86_64/libcrypto.so": "b087080d265ab54ca67c5cc06a5fe99b2a8d6068a9d01ea2569fe062cf427cec",
+    "x86_64/libc++_shared.so": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2"
+  },
+  "elfVerification": {
+    "armeabi-v7a": {
+      "jniExportsMatchOriginal": true,
+      "jniExports": [
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopServiceName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetServerName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioConfigure",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioDebug",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioFormat",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetAudioEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetCodecs",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDefaultStreamValues",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDisplaySize",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetH265Enabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetHlsEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetLang",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetPlist",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeUpdatePlaybackInfo"
+      ],
+      "headers": "ELF Header:\n  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00\n  Class:                             ELF32\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Shared object file)\n  Machine:                           ARM\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          52 (bytes into file)\n  Start of section headers:          844536 (bytes into file)\n  Flags:                             0x5000200\n  Size of this header:               52 (bytes)\n  Size of program headers:           32 (bytes)\n  Number of program headers:         9\n  Size of section headers:           40 (bytes)\n  Number of section headers:         26\n  Section header string table index: 25\n",
+      "dynamic": "Dynamic section at offset 0xb3eec contains 33 entries:\n  Tag        Type           Name/Value\n  0x00000001 (NEEDED)       Shared library: [liboboe.so]\n  0x00000001 (NEEDED)       Shared library: [libmediandk.so]\n  0x00000001 (NEEDED)       Shared library: [libm.so]\n  0x00000001 (NEEDED)       Shared library: [liblog.so]\n  0x00000001 (NEEDED)       Shared library: [libandroid.so]\n  0x00000001 (NEEDED)       Shared library: [libcrypto.so]\n  0x00000001 (NEEDED)       Shared library: [libc++_shared.so]\n  0x00000001 (NEEDED)       Shared library: [libdl.so]\n  0x00000001 (NEEDED)       Shared library: [libc.so]\n  0x0000000e (SONAME)       Library soname: [libairplay_native.so]\n  0x0000001e (FLAGS)        BIND_NOW \n  0x6ffffffb (FLAGS_1)      NOW \n  0x00000011 (REL)          0x136ac\n  0x00000012 (RELSZ)        27424 (bytes)\n  0x00000013 (RELENT)       8 (bytes)\n  0x6ffffffa (RELCOUNT)     3231\n  0x00000017 (JMPREL)       0x1b73c\n  0x00000002 (PLTRELSZ)     8144 (bytes)\n  0x00000003 (PLTGOT)       0xb5154\n  0x00000014 (PLTREL)       REL\n  0x00000006 (SYMTAB)       0x1ec\n  0x0000000b (SYMENT)       16 (bytes)\n  0x00000005 (STRTAB)       0xa4b4\n  0x0000000a (STRSZ)        37365 (bytes)\n  0x6ffffef5 (GNU_HASH)     0x7944\n  0x00000019 (INIT_ARRAY)   0xb4ee8\n  0x0000001b (INIT_ARRAYSZ) 4 (bytes)\n  0x0000001a (FINI_ARRAY)   0xb4ee0\n  0x0000001c (FINI_ARRAYSZ) 8 (bytes)\n  0x6ffffff0 (VERSYM)       0x6b9c\n  0x6ffffffe (VERNEED)      0x78d4\n  0x6fffffff (VERNEEDNUM)   3\n  0x00000000 (NULL)         0x0\n",
+      "programHeaders": "\nElf file type is DYN (Shared object file)\nEntry point 0x0\nThere are 9 program headers, starting at offset 52\n\nProgram Headers:\n  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align\n  PHDR           0x000034 0x00000034 0x00000034 0x00120 0x00120 R   0x4\n  LOAD           0x000000 0x00000000 0x00000000 0xa3310 0xa3310 R E 0x1000\n  LOAD           0x0a3310 0x000a4310 0x000a4310 0x11e38 0x12cf0 RW  0x1000\n  LOAD           0x0b5148 0x000b7148 0x000b7148 0x18fac 0x19428 RW  0x1000\n  DYNAMIC        0x0b3eec 0x000b4eec 0x000b4eec 0x00108 0x00108 RW  0x4\n  GNU_RELRO      0x0a3310 0x000a4310 0x000a4310 0x11e38 0x12cf0 R   0x1\n  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RW  0x0\n  NOTE           0x000154 0x00000154 0x00000154 0x00098 0x00098 R   0x4\n  EXIDX          0x01a1cc 0x0001a1cc 0x0001a1cc 0x01570 0x01570 R   0x4\n\n Section to Segment mapping:\n  Segment Sections...\n   00     \n   01     .note.android.ident .dynsym .gnu.version .gnu.version_r .gnu.hash .dynstr .rel.dyn .ARM.exidx .rel.plt .ARM.extab .rodata .text .plt \n   02     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   03     .data .bss \n   04     .dynamic \n   05     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   06     \n   07     .note.android.ident \n   08     .ARM.exidx \n   None   .comment .ARM.attributes .shstrtab \n"
+    },
+    "arm64-v8a": {
+      "jniExportsMatchOriginal": true,
+      "jniExports": [
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopServiceName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetServerName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioConfigure",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioDebug",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioFormat",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetAudioEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetCodecs",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDefaultStreamValues",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDisplaySize",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetH265Enabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetHlsEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetLang",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetPlist",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeUpdatePlaybackInfo"
+      ],
+      "headers": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00\n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Shared object file)\n  Machine:                           AArch64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          64 (bytes into file)\n  Start of section headers:          1120208 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           56 (bytes)\n  Number of program headers:         9\n  Size of section headers:           64 (bytes)\n  Number of section headers:         26\n  Section header string table index: 25\n",
+      "dynamic": "Dynamic section at offset 0xf5160 contains 33 entries:\n  Tag                Type           Name/Value\n  0x0000000000000001 (NEEDED)       Shared library: [liboboe.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libmediandk.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libm.so]\n  0x0000000000000001 (NEEDED)       Shared library: [liblog.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libandroid.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libcrypto.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libc++_shared.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libdl.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libc.so]\n  0x000000000000000e (SONAME)       Library soname: [libairplay_native.so]\n  0x000000000000001e (FLAGS)        BIND_NOW \n  0x000000006ffffffb (FLAGS_1)      NOW \n  0x0000000000000007 (RELA)         0x16d10\n  0x0000000000000008 (RELASZ)       79080 (bytes)\n  0x0000000000000009 (RELAENT)      24 (bytes)\n  0x000000006ffffff9 (RELACOUNT)    3096\n  0x0000000000000017 (JMPREL)       0x2a1f8\n  0x0000000000000002 (PLTRELSZ)     24432 (bytes)\n  0x0000000000000003 (PLTGOT)       0xf9638\n  0x0000000000000014 (PLTREL)       RELA\n  0x0000000000000006 (SYMTAB)       0x2d0\n  0x000000000000000b (SYMENT)       24 (bytes)\n  0x0000000000000005 (STRTAB)       0xdacc\n  0x000000000000000a (STRSZ)        37437 (bytes)\n  0x000000006ffffef5 (GNU_HASH)     0xaf58\n  0x0000000000000019 (INIT_ARRAY)   0xf9148\n  0x000000000000001b (INIT_ARRAYSZ) 24 (bytes)\n  0x000000000000001a (FINI_ARRAY)   0xf9138\n  0x000000000000001c (FINI_ARRAYSZ) 16 (bytes)\n  0x000000006ffffff0 (VERSYM)       0xa188\n  0x000000006ffffffe (VERNEED)      0xaec4\n  0x000000006fffffff (VERNEEDNUM)   4\n  0x0000000000000000 (NULL)         0x0\n",
+      "programHeaders": "\nElf file type is DYN (Shared object file)\nEntry point 0x0\nThere are 9 program headers, starting at offset 64\n\nProgram Headers:\n  Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align\n  PHDR           0x000040 0x0000000000000040 0x0000000000000040 0x0001f8 0x0001f8 R   0x8\n  LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x0de910 0x0de910 R E 0x4000\n  LOAD           0x0de910 0x00000000000e2910 0x00000000000e2910 0x018d10 0x0196f0 RW  0x4000\n  LOAD           0x0f7620 0x00000000000ff620 0x00000000000ff620 0x019fe0 0x01acf0 RW  0x4000\n  DYNAMIC        0x0f5160 0x00000000000f9160 0x00000000000f9160 0x000210 0x000210 RW  0x8\n  GNU_RELRO      0x0de910 0x00000000000e2910 0x00000000000e2910 0x018d10 0x0196f0 R   0x1\n  GNU_EH_FRAME   0x0489e8 0x00000000000489e8 0x00000000000489e8 0x0034b4 0x0034b4 R   0x4\n  GNU_STACK      0x000000 0x0000000000000000 0x0000000000000000 0x000000 0x000000 RW  0x0\n  NOTE           0x000238 0x0000000000000238 0x0000000000000238 0x000098 0x000098 R   0x4\n\n Section to Segment mapping:\n  Segment Sections...\n   00     \n   01     .note.android.ident .dynsym .gnu.version .gnu.version_r .gnu.hash .dynstr .rela.dyn .rela.plt .rodata .gcc_except_table .eh_frame_hdr .eh_frame .text .plt \n   02     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   03     .data .bss \n   04     .dynamic \n   05     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   06     .eh_frame_hdr \n   07     \n   08     .note.android.ident \n   None   .comment .shstrtab \n"
+    },
+    "x86_64": {
+      "jniExportsMatchOriginal": true,
+      "jniExports": [
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeDestroy",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetAirplayTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopServiceName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetRaopTxtRecords",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeGetServerName",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeInit",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioConfigure",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioDebug",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioFormat",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeServerAudioStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetAudioEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetCodecs",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDefaultStreamValues",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetDisplaySize",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetH265Enabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetHlsEnabled",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetLang",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeSetPlist",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStart",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeStop",
+        "Java_io_github_jqssun_airplay_bridge_NativeBridge_nativeUpdatePlaybackInfo"
+      ],
+      "headers": "ELF Header:\n  Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00\n  Class:                             ELF64\n  Data:                              2's complement, little endian\n  Version:                           1 (current)\n  OS/ABI:                            UNIX - System V\n  ABI Version:                       0\n  Type:                              DYN (Shared object file)\n  Machine:                           Advanced Micro Devices X86-64\n  Version:                           0x1\n  Entry point address:               0x0\n  Start of program headers:          64 (bytes into file)\n  Start of section headers:          1121312 (bytes into file)\n  Flags:                             0x0\n  Size of this header:               64 (bytes)\n  Size of program headers:           56 (bytes)\n  Number of program headers:         9\n  Size of section headers:           64 (bytes)\n  Number of section headers:         26\n  Section header string table index: 25\n",
+      "dynamic": "Dynamic section at offset 0xf55b0 contains 33 entries:\n  Tag                Type           Name/Value\n  0x0000000000000001 (NEEDED)       Shared library: [liboboe.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libmediandk.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libm.so]\n  0x0000000000000001 (NEEDED)       Shared library: [liblog.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libandroid.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libcrypto.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libc++_shared.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libdl.so]\n  0x0000000000000001 (NEEDED)       Shared library: [libc.so]\n  0x000000000000000e (SONAME)       Library soname: [libairplay_native.so]\n  0x000000000000001e (FLAGS)        BIND_NOW \n  0x000000006ffffffb (FLAGS_1)      NOW \n  0x0000000000000007 (RELA)         0x16c98\n  0x0000000000000008 (RELASZ)       79032 (bytes)\n  0x0000000000000009 (RELAENT)      24 (bytes)\n  0x000000006ffffff9 (RELACOUNT)    3094\n  0x0000000000000017 (JMPREL)       0x2a150\n  0x0000000000000002 (PLTRELSZ)     24336 (bytes)\n  0x0000000000000003 (PLTGOT)       0xf9a88\n  0x0000000000000014 (PLTREL)       RELA\n  0x0000000000000006 (SYMTAB)       0x2d0\n  0x000000000000000b (SYMENT)       24 (bytes)\n  0x0000000000000005 (STRTAB)       0xda7c\n  0x000000000000000a (STRSZ)        37404 (bytes)\n  0x000000006ffffef5 (GNU_HASH)     0xaf08\n  0x0000000000000019 (INIT_ARRAY)   0xf95a8\n  0x000000000000001b (INIT_ARRAYSZ) 8 (bytes)\n  0x000000000000001a (FINI_ARRAY)   0xf9598\n  0x000000000000001c (FINI_ARRAYSZ) 16 (bytes)\n  0x000000006ffffff0 (VERSYM)       0xa140\n  0x000000006ffffffe (VERNEED)      0xae74\n  0x000000006fffffff (VERNEEDNUM)   4\n  0x0000000000000000 (NULL)         0x0\n",
+      "programHeaders": "\nElf file type is DYN (Shared object file)\nEntry point 0x0\nThere are 9 program headers, starting at offset 64\n\nProgram Headers:\n  Type           Offset   VirtAddr           PhysAddr           FileSiz  MemSiz   Flg Align\n  PHDR           0x000040 0x0000000000000040 0x0000000000000040 0x0001f8 0x0001f8 R   0x8\n  LOAD           0x000000 0x0000000000000000 0x0000000000000000 0x0ded40 0x0ded40 R E 0x4000\n  LOAD           0x0ded40 0x00000000000e2d40 0x00000000000e2d40 0x018d10 0x0192c0 RW  0x4000\n  LOAD           0x0f7a50 0x00000000000ffa50 0x00000000000ffa50 0x01a000 0x01ad20 RW  0x4000\n  DYNAMIC        0x0f55b0 0x00000000000f95b0 0x00000000000f95b0 0x000210 0x000210 RW  0x8\n  GNU_RELRO      0x0ded40 0x00000000000e2d40 0x00000000000e2d40 0x018d10 0x0192c0 R   0x1\n  GNU_EH_FRAME   0x04c180 0x000000000004c180 0x000000000004c180 0x003454 0x003454 R   0x4\n  GNU_STACK      0x000000 0x0000000000000000 0x0000000000000000 0x000000 0x000000 RW  0x0\n  NOTE           0x000238 0x0000000000000238 0x0000000000000238 0x000098 0x000098 R   0x4\n\n Section to Segment mapping:\n  Segment Sections...\n   00     \n   01     .note.android.ident .dynsym .gnu.version .gnu.version_r .gnu.hash .dynstr .rela.dyn .rela.plt .rodata .gcc_except_table .eh_frame_hdr .eh_frame .text .plt \n   02     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   03     .data .bss \n   04     .dynamic \n   05     .data.rel.ro .fini_array .init_array .dynamic .got .got.plt .relro_padding \n   06     .eh_frame_hdr \n   07     \n   08     .note.android.ident \n   None   .comment .shstrtab \n"
+    }
+  },
+  "toolVersions": {
+    "ndk": "27.0.12077973",
+    "clang": "Android (12027248, +pgo, +bolt, +lto, +mlgo, based on r522817) clang version 18.0.1 (https://android.googlesource.com/toolchain/llvm-project d8003a456d14a3deb8054cdaa529ffbf02d9b262)\nTarget: x86_64-unknown-linux-gnu\nThread model: posix\nInstalledDir: <ANDROID_NDK_HOME>/toolchains/llvm/prebuilt/linux-x86_64/bin\n",
+    "cmake": "cmake version 3.22.1-g37088a8\n\nCMake suite maintained and supported by Kitware (kitware.com/cmake).\n",
+    "ninja": "1.10.2\n"
+  },
+  "buildFlags": [
+    "Release",
+    "API24",
+    "c++_shared",
+    "ANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON",
+    "four build jobs"
+  ],
+  "recipe": "build_airplay_patched.py",
+  "recipeSha256": "c3b30761ecbf8d06fb80511a062a8ba1b696b66c31fa7922cac8879caa772842"
+}

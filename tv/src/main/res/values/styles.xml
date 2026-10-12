@@ -1,0 +1,18 @@
+<resources>
+    <style name="TvAppTheme" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#6E85FF</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">#080D1B</item>
+        <item name="android:alertDialogTheme">@style/TvDialogTheme</item>
+    </style>
+    <style name="TvDialogTheme" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:colorAccent">#6E85FF</item>
+        <item name="android:windowBackground">@drawable/tv_dialog_background</item>
+        <item name="android:backgroundDimAmount">0.18</item>
+        <item name="android:windowMinWidthMajor">58%</item>
+        <item name="android:windowMinWidthMinor">82%</item>
+    </style>
+</resources>

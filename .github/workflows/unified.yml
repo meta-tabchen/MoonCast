@@ -1,0 +1,51 @@
+name: Unified Android verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, unified/android-0.5.0 ]
+  pull_request:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Android SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Restore pinned complete-source inputs
+        run: python3 scripts/restore_release_inputs.py
+      - name: Pinned native inputs
+        run: |
+          python3 scripts/prepare_airplay.py --verify-sources
+          python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
+          python3 scripts/prepare_unified_native.py
+      - name: Behavior and discovery regressions
+        run: |
+          python3 scripts/run_unit_tests.py
+          python3 scripts/run_unified_policy_tests.py
+          python3 scripts/run_my_tv_discovery_tests.py
+          python3 scripts/run_apk_transfer_tests.py
+          python3 scripts/run_apk_settings_lifecycle_tests.py
+          python3 scripts/run_apk_archive_signature_tests.py
+          python3 scripts/run_tv_audio_tests.py
+          python3 scripts/run_airplay_rtp_transition_tests.py
+      - name: Build unsigned combined ARM64 app and lint
+        run: gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
+      - name: Inspect combined APK
+        run: python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release-unsigned.apk --abi arm64-v8a
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unified-arm64-unsigned-verification-only
+          path: |
+            unified/build/outputs/apk/release/unified-release-unsigned.apk
+            unified/build/reports/lint-results-release.*
+            unified/build/outputs/mapping/release/mapping.txt

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="gamestream_title">Connect an Android phone</string>
+    <string name="gamestream_introduction">Open MoonCast on your phone, tap Start casting, then select it below. Both devices must be on the same trusted home network.</string>
+    <string name="gamestream_protocol_note">Requires the MoonCast phone sender. Android’s system Cast menu does not connect here.\nH.264 SDR · stereo Opus · low-latency queues. Signed audio offset is unavailable. Stream quality applies to the next connection; actual output depends on the phone and TV.</string>
+    <string name="gamestream_discovery_searching">Looking for phones on your network…</string>
+    <string name="gamestream_discovery_finished">Scan finished. Rescan or enter the phone’s IPv4 address.</string>
+    <string name="gamestream_saved">Saved phones</string>
+    <string name="gamestream_nearby">Nearby phones</string>
+    <string name="gamestream_no_saved">Paired phones will appear here.</string>
+    <string name="gamestream_no_nearby">No new phone found. Start casting on the phone, rescan, or add its address.</string>
+    <string name="gamestream_paired">Paired on this TV</string>
+    <string name="gamestream_unpaired">Pairing needed</string>
+    <string name="gamestream_discovered">Found on network · identity not yet verified</string>
+    <string name="gamestream_host_label">%1$s\n%2$s · %3$s</string>
+    <string name="gamestream_manual">Add by IP address</string>
+    <string name="gamestream_rescan">Rescan</string>
+    <string name="gamestream_close">Close</string>
+    <string name="gamestream_cancel">Cancel</string>
+    <string name="gamestream_connect">Connect</string>
+    <string name="gamestream_connecting">Preparing the connection… Close or Back cancels.</string>
+    <string name="gamestream_error_generic">Could not connect. Check MoonCast on your phone and try again.</string>
+    <string name="gamestream_manual_title">Enter the phone’s IPv4 address</string>
+    <string name="gamestream_manual_note">Use the private IPv4 address shown in MoonCast on your phone. An optional HTTP port may follow a colon. Only addresses on the selected local subnet can connect.</string>
+    <string name="gamestream_manual_hint">192.168.1.20:47989</string>
+    <string name="gamestream_manual_label">Phone IPv4 address and optional HTTP port</string>
+    <string name="gamestream_invalid_address">Enter a private IPv4 address, such as 192.168.1.20, with an optional port from 1 to 65535. Do not enter a URL or hostname.</string>
+    <string name="gamestream_pair_title">Pair with your phone</string>
+    <string name="gamestream_pair_confirmation">Pair with %1$s (%2$s)?\n\nConfirm that this is your phone on a trusted local network. This TV will create and save a pairing key if needed, then show a PIN to enter in MoonCast on your phone. The phone’s certificate is remembered only after successful pairing.</string>
+    <string name="gamestream_pair">Pair</string>
+    <string name="gamestream_pin_instruction">Enter this PIN in the MoonCast app on %1$s.</string>
+    <string name="gamestream_pin_accessibility">Pairing PIN: %1$s, %2$s, %3$s, %4$s</string>
+    <string name="gamestream_pin_waiting">Waiting for the phone to confirm. Keep MoonCast open on both devices. Cancel or Back stops this attempt.</string>
+    <string name="gamestream_phone">your phone</string>
+    <string name="gamestream_forget">Forget</string>
+    <string name="gamestream_forget_title">Forget this phone on the TV?</string>
+    <string name="gamestream_forget_confirmation">Remove %1$s and its saved certificate from this TV?\n\nThis only removes the TV’s local record. It does not revoke this TV on the phone. Remote revocation is not available from this TV.</string>
+    <string name="gamestream_forget_accessibility">Forget %1$s on this TV</string>
+    <string name="gamestream_quality_title">GameStream quality · next connection</string>
+    <string name="gamestream_quality_button">Stream quality · %1$s</string>
+    <string name="gamestream_quality_720_60">720p · 60 fps · 15 Mbps</string>
+    <string name="gamestream_quality_1080_60">1080p · 60 fps · 30 Mbps</string>
+    <string name="gamestream_quality_1080_30">1080p · 30 fps · 20 Mbps</string>
+</resources>

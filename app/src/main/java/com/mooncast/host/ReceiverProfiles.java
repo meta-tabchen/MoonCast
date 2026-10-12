@@ -27,5 +27,20 @@ final class ReceiverProfiles {
     int selected(){return Math.max(0,Math.min(IDS.size()-1,index.getInt("selected",0)));}
     void select(int position){if(position<0 || position>=IDS.size())throw new IllegalArgumentException("profile");index.edit().putInt("selected",position).apply();}
     SharedPreferences settings(){return settings(selected());}
-    SharedPreferences settings(int position){return context.getSharedPreferences("profile-"+IDS.get(position),0);}
+    SharedPreferences settings(int position){
+        SharedPreferences settings=context.getSharedPreferences("profile-"+IDS.get(position),0);
+        // Older versions wrote these values without a user-choice marker. Any stored
+        // value, especially false, wins; defaults are only for genuinely missing keys.
+        SharedPreferences.Editor defaults=null;
+        for(String key:List.of("audio","muteLocal"))if(!settings.contains(key)){
+            if(defaults==null)defaults=settings.edit();
+            defaults.putBoolean(key,true);
+        }
+        if(defaults!=null)defaults.apply();
+        return settings;
+    }
+    static void recordAudioChoice(SharedPreferences settings,String key,boolean enabled){
+        if(!key.equals("audio") && !key.equals("muteLocal"))throw new IllegalArgumentException("audio preference");
+        settings.edit().putBoolean(key,enabled).putBoolean(key+"UserChosen",true).apply();
+    }
 }

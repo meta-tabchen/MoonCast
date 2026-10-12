@@ -1,0 +1,17 @@
+<resources>
+    <string name="gs_connect_title">连接安卓手机</string>
+    <string name="gs_network_required">请将两台设备连接到同一家庭 Wi-Fi 或以太网子网，仅支持私有 IPv4 地址。</string>
+    <string name="gs_discovery_unavailable">暂时无法发现设备，可手动输入手机的局域网 IPv4 地址。</string>
+    <string name="gs_scanning">正在寻找 MoonCast / GameStream 设备…</string>
+    <string name="gs_scan_finished">扫描已结束，可重新扫描或手动输入 IPv4 地址。</string>
+    <string name="gs_store_failed">无法读取或更新已保存设备的信任信息，未替换任何证书。</string>
+    <string name="gs_pair_failed">配对失败或已取消，请检查手机上的 PIN 提示。设备证书变更时，需要先明确选择本地忘记，再重新配对。</string>
+    <string name="gs_session">MoonCast / GameStream · H.264 SDR</string>
+    <string name="gs_connecting">正在连接所选手机…</string>
+    <string name="gs_connection_failed">GameStream 连接未能继续，请检查手机 MoonCast 发送端、屏幕捕获授权与已保存配对。</string>
+    <string name="gs_release_pending">上个画面或声音仍在释放，为避免重叠播放，暂不启动新会话。</string>
+    <string name="gs_timing_limit">GameStream：低延迟立体声，音频偏移 0 毫秒。此协议暂不支持正负音画校准。</string>
+    <string name="gs_start_receiver">请先启动接收，再连接手机。</string>
+    <string name="gs_surface_failed">暂时无法创建视频画面，已安全取消连接。</string>
+    <string name="gs_phone_detail">通过手机 MoonCast 发送端连接</string>
+</resources>

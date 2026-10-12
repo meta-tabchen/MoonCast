@@ -1,4 +1,29 @@
+# 0.5.0 unified preview (code 50)
+
+- One application with automatic phone/TV role selection and remembered manual override.
+- Transactional role switching waits for private process/resource cleanup before committing.
+- Unified My TV / APK transfer and all 0.4.6 phone + 0.4.5 TV audio fixes retained.
+- Receiver OpenSSL has a distinct ELF identity and runs separately from sender runtimes.
+- Four standby themes with remote-focus preview, explicit apply and persistent selection.
+- Updated bilingual setup, security, migration, native build and validation documentation.
+- Experimental separate package; no automatic migration or production-signature continuity.
+
+# 0.4.5 AirPlay audio transition candidate
+
+- Consume known empty RTP sequence slots instead of waiting for impossible resends; apply explicit FLUSH boundaries.
+- Preserve decoded audio/video clocks and normal loss recovery; rebuild native runtimes for three ABIs.
+- Authorized independent audio-test package, versionCode9. Launcher label MoonCast; version and package appear in About.
+- Host regressions do not establish Hongguo/iPhone/physical-TV interoperability; see docs/tv-airplay-audio-transitions.md.
+
 # Changelog
+
+## TV 0.4.4 — 2026-10-11 (APK validation fix preview)
+
+- Accept ordinary APKs with explicitly false Play split-required metadata or optional split inventory. Continue rejecting actual split APKs, required flags, uses-split and unresolved required metadata.
+- Refresh install-source permission and revalidate on actual foreground return, including OEM early/missing result callbacks. Retain a narrow ten-minute review lease across Settings recreation, with explicit next-click installation and actionable expiry messages.
+- Restyle the review action with clear waiting/checking/permission/install states and focused remote navigation; rename the home action Receive APK.
+- Preserve local review and user-controlled Android installation; no package-name whitelist or self-update restriction is introduced.
+- Generated unsigned APK regression reproduces old rejection/new acceptance; previously delivered signed MoonCast APKs also pass structural checks. This does not establish the cause of an unprovided user APK or physical TV installer compatibility.
 
 ## 0.3.1 — 2026-10-08 (preview)
 
