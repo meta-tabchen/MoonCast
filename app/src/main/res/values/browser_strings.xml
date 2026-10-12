@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="browser_tab">Browser</string>
+    <string name="browser_protocol_hint">Android → browser · WebRTC</string>
+    <string name="browser_ready">Cast to your browser</string>
+    <string name="browser_start_hint">Start sharing, then open the link on a computer on the same LAN.</string>
+    <string name="browser_start">Start browser sharing</string>
+    <string name="browser_open_link">Open on your computer</string>
+    <string name="browser_open_link_hint">Open this address in Chrome, then select Connect. Use a trusted LAN: anyone with the active link can view the shared screen. Stop sharing to revoke it.</string>
+    <string name="browser_address">Choose a LAN address</string>
+    <string name="browser_copy_link">Copy browser link</string>
+    <string name="browser_link_pending">The link appears after screen sharing starts.</string>
+    <string name="browser_capture_hint">Share the whole screen or select one app on Android 14+. Each new session requests Android screen-sharing consent.</string>
+    <string name="browser_audio_hint">Optional on Android 10+. Only audio permitted by Android and the source app is captured. In the browser, select Enable sound if asked.</string>
+    <string name="browser_controls_hint">Adjust Fit, Fill, zoom and position in the browser. The phone shares the complete captured frame at up to 30 fps. Protected content may be blank or silent.</string>
+    <string name="browser_permission_title">Allow screen sharing</string>
+    <string name="browser_permission_hint">Complete the Android sharing prompt. Your browser link will appear here.</string>
+    <string name="browser_permission_denied">Screen sharing cancelled</string>
+</resources>

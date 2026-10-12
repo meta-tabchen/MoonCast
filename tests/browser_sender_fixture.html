@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>MoonCast synthetic WebRTC sender fixture</title>
+<style>body { background:#10141d; color:#fff; font:18px system-ui; margin:24px } canvas { width:min(100%,960px); display:block; margin-top:20px } button { padding:12px 20px }</style>
+<h1>Synthetic sender — browser-only test</h1>
+<p>This generated canvas and oscillator are not Android capture or protected media.</p>
+<button id="start">Enable synthetic audio</button>
+<canvas id="canvas" width="1280" height="720"></canvas>
+<script>
+/* GPL-3.0-only. Test fixture: no microphone, camera, desktop capture or external service. */
+(() => {
+  'use strict';
+  const canvas = document.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const peers = new Map();
+  let frame = 0;
+  let audioContext;
+  let audioTrack;
+  function paint() {
+    frame += 1;
+    const gradient = ctx.createLinearGradient(0, 0, 1280, 720);
+    gradient.addColorStop(0, '#173558');
+    gradient.addColorStop(1, '#1b756f');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1280, 720);
+    ctx.fillStyle = '#81f4d1';
+    ctx.beginPath();
+    ctx.arc(640 + Math.sin(frame / 30) * 350, 350, 100, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#10141d';
+    ctx.fillRect(0, 0, 1280, 155);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 46px sans-serif';
+    ctx.fillText('MoonCast · Browser receiver', 54, 70);
+    ctx.font = '28px sans-serif';
+    ctx.fillText('SYNTHETIC WEBRTC TEST · NOT ANDROID CAPTURE', 54, 121);
+    ctx.fillStyle = '#fff';
+    ctx.font = '32px monospace';
+    ctx.fillText('VIDEO + 440 Hz TEST TONE', 54, 620);
+    ctx.fillText('Frame ' + String(frame).padStart(6, '0'), 54, 672);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, 165, 1260, 545);
+  }
+  paint();
+  setInterval(paint, 1000 / 30);
+  document.querySelector('#start').addEventListener('click', async () => {
+    if (!audioContext) {
+      audioContext = new AudioContext();
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      const destination = audioContext.createMediaStreamDestination();
+      oscillator.frequency.value = 440;
+      gain.gain.value = 0.12;
+      oscillator.connect(gain).connect(destination);
+      oscillator.start();
+      audioTrack = destination.stream.getAudioTracks()[0];
+    }
+    await audioContext.resume();
+    document.querySelector('#start').textContent = 'Synthetic audio ready';
+  });
+  async function iceComplete(pc) {
+    if (pc.iceGatheringState === 'complete') return;
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Sender ICE gathering timed out')), 12000);
+      const change = () => {
+        if (pc.iceGatheringState !== 'complete') return;
+        clearTimeout(timeout);
+        pc.removeEventListener('icegatheringstatechange', change);
+        resolve();
+      };
+      pc.addEventListener('icegatheringstatechange', change);
+      change();
+    });
+  }
+  window.fixture = {
+    async answer({id, sdp}) {
+      if (!audioTrack || audioContext.state !== 'running') throw new Error('Click Enable synthetic audio first');
+      const pc = new RTCPeerConnection({iceServers: []});
+      const stream = canvas.captureStream(30);
+      stream.addTrack(audioTrack.clone());
+      peers.set(id, {pc, stream});
+      await pc.setRemoteDescription({type: 'offer', sdp});
+      for (const track of stream.getTracks()) pc.addTrack(track, stream);
+      await pc.setLocalDescription(await pc.createAnswer());
+      await iceComplete(pc);
+      return {id, type: 'answer', sdp: pc.localDescription.sdp, audio: true};
+    },
+    stop(id) {
+      const peer = peers.get(id);
+      if (peer) {
+        peer.pc.close();
+        peer.stream.getTracks().forEach(track => track.stop());
+        peers.delete(id);
+      }
+    },
+    state(id) { return peers.get(id)?.pc.connectionState || 'closed'; },
+    async diagnostics() { return Promise.all([...peers].map(async ([id, {pc}]) => ({id, connection:pc.connectionState, ice:pc.iceConnectionState, signaling:pc.signalingState, stats:[...(await pc.getStats()).values()].filter(r=>['candidate-pair','local-candidate','remote-candidate','outbound-rtp'].includes(r.type)).map(r=>({type:r.type,state:r.state,kind:r.kind,candidateType:r.candidateType,addressClass:!r.address?'absent':r.address.endsWith('.local')?'mDNS':r.address.startsWith('127.')?'loopback':r.address.includes(':')?'IPv6':'IPv4',requestsSent:r.requestsSent,responsesReceived:r.responsesReceived,protocol:r.protocol,bytesReceived:r.bytesReceived,bytesSent:r.bytesSent,packetsSent:r.packetsSent,framesEncoded:r.framesEncoded}))}))); },
+    active() { return [...peers.keys()]; }
+  };
+})();
+</script>
+</html>

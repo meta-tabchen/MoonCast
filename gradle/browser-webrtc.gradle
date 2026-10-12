@@ -1,0 +1,21 @@
+// Separate from the existing protocol runtime inputs. Never substitute an arbitrary AAR.
+def webRtcLock = new groovy.json.JsonSlurper().parse(rootProject.file('native/webrtc/SOURCE_LOCK.json'))
+def webRtcInput = configurations.create('browserWebRtcInput') {
+    canBeConsumed = false
+    canBeResolved = true
+    transitive = false
+}
+dependencies {
+    implementation webRtcLock.coordinate
+    browserWebRtcInput(webRtcLock.coordinate + '@aar')
+}
+def verifyBrowserWebRtc = tasks.register('verifyBrowserWebRtc') {
+    inputs.files(webRtcInput)
+    inputs.file(rootProject.file('native/webrtc/SOURCE_LOCK.json'))
+    doLast {
+        File artifact = webRtcInput.singleFile
+        String digest = java.security.MessageDigest.getInstance('SHA-256').digest(artifact.bytes).encodeHex().toString()
+        if (digest != webRtcLock.sha256) throw new GradleException('Pinned browser WebRTC AAR checksum mismatch')
+    }
+}
+tasks.named('preBuild').configure { dependsOn verifyBrowserWebRtc }

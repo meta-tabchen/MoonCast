@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_version_name">版本：%1$s</string>
+    <string name="about_version_code">版本号：%1$s</string>
+    <string name="about_package_name">应用包名：%1$s</string>
+    <string name="about_build_id">构建标识：%1$s</string>
+    <string name="about_unavailable">不可用</string>
+</resources>

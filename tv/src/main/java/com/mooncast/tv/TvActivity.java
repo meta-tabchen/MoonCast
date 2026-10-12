@@ -277,9 +277,11 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private boolean hasPlayback(){return gameOwned||playingMirror||(mediaPresentationEnabled&&!uri.isEmpty());}
     private void hidePanel(){if(!requested||!hasPlayback())return;panel.setVisibility(View.GONE);root.setFocusableInTouchMode(true);root.requestFocus();}
     private void about(){
-        String message="MoonCast " + BuildConfig.VERSION_NAME + " (" + BuildConfig.VERSION_CODE + ")\n" + BuildConfig.APPLICATION_ID + "\n\n" + getString(R.string.about_body);
+        View returnFocus=getCurrentFocus();
+        String message=com.mooncast.locale.AppBuildInfo.describe(this)+"\n\n"+getString(R.string.about_body);
         if(getPackageName().equals("com.mooncast.community"))message+="\n\n"+getString(R.string.tv_community_signing_notice);
-        new AlertDialog.Builder(this).setTitle(R.string.about).setMessage(message).setPositiveButton(R.string.close,null).show();
+        new AlertDialog.Builder(this).setTitle(R.string.about).setMessage(message).setPositiveButton(R.string.close,null)
+            .setOnDismissListener(dialog->{if(!destroyed){if(returnFocus!=null&&returnFocus.isAttachedToWindow()&&returnFocus.isShown())returnFocus.requestFocus();else panel.requestPrimaryFocus();}}).show();
     }
     private VideoFraming activeFraming(){return gameOwned?gameFraming:playingMirror||uri.isEmpty()?mirrorFraming:mediaFraming;}
     private void cancelCropEdit(){if(cropEditor!=null&&cropEditor.isEditing())cropEditor.finish(false);}

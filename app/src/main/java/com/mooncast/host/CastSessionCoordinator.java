@@ -2,7 +2,7 @@ package com.mooncast.host;
 
 /** Pure state machine: a tab change cannot transfer a capture grant or outrun host teardown. */
 final class CastSessionCoordinator {
-    static final int MOONLIGHT = 0, AIRPLAY = 1;
+    static final int MOONLIGHT = 0, AIRPLAY = 1, BROWSER = 2;
     static final int IDLE = 0, PERMISSION = 1, STARTING = 2, RUNNING = 3, STOPPING = 4;
     private int selected, active = -1, target = -1, phase = IDLE, generation;
 
@@ -62,5 +62,5 @@ final class CastSessionCoordinator {
         phase = IDLE;
         ++generation;
     }
-    private static int validMode(int mode) { return mode == AIRPLAY ? AIRPLAY : MOONLIGHT; }
+    private static int validMode(int mode) { return mode == AIRPLAY || mode == BROWSER ? mode : MOONLIGHT; }
 }

@@ -27,6 +27,7 @@
         <service android:name=".AirPlayHostService" android:process=":host" android:exported="false"
             android:foregroundServiceType="mediaProjection" />
         <service android:name=".NativeHostService" android:process=":stream" android:exported="false" />
+        <service android:name=".BrowserHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <service android:name=".FileCinemaService" android:process=":files" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <service android:name=".ControlAccessibilityService" android:process=":host" android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/control_accessibility_label">

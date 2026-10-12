@@ -78,6 +78,20 @@ public final class VideoPipeline {
         if(handler==null || closed){removed.run();return;}
         handler.post(()->{try{Target target=targets.remove(session);if(target!=null && target.window!=EGL14.EGL_NO_SURFACE){current(home);EGL14.eglDestroySurface(egl,target.window);}}finally{removed.run();}});
     }
+    /** Resize a consumer whose SurfaceTexture buffer size changed, without another capture grant. */
+    public void resizeOutput(long session,int width,int height){
+        if(width<2 || height<2 || width>8192 || height>8192)throw new IllegalArgumentException("Invalid output size");
+        if(handler==null || closed)return;
+        handler.post(()->{
+            if(closed)return;
+            Target previous=targets.get(session);
+            if(previous==null || previous.width==width && previous.height==height)return;
+            Target next=new Target(previous.surface,width,height);
+            next.window=previous.window;next.timestamp=previous.timestamp;
+            targets.put(session,next);
+            maxOutputSize=Math.max(maxOutputSize,Math.max(width,height));
+        });
+    }
     public static DisplayMetrics metrics(DisplayManager m){DisplayMetrics result=new DisplayMetrics();m.getDisplay(Display.DEFAULT_DISPLAY).getRealMetrics(result);return result;}
     public void start(int width,int height,boolean followDisplay,Factory factory){
         followsDisplay=followDisplay;

@@ -2,6 +2,33 @@ package com.mooncast.host;
 
 public final class CastSessionCoordinatorTest {
     private static void check(boolean condition, String message) { if (!condition) throw new AssertionError(message); }
+    private static CastSessionCoordinator recreate(CastSessionCoordinator flow) {
+        return new CastSessionCoordinator(flow.selected(), flow.active(), flow.target(), flow.phase(), flow.generation());
+    }
+    private static void everyProtocolPair() {
+        int[] protocols = {CastSessionCoordinator.MOONLIGHT, CastSessionCoordinator.AIRPLAY, CastSessionCoordinator.BROWSER};
+        for (int from : protocols) for (int to : protocols) {
+            if (from == to) continue;
+            CastSessionCoordinator flow = new CastSessionCoordinator(from);
+            int oldGrant = flow.begin();
+            check(!flow.select(to), "switch while consent pending requires no host teardown");
+            check(!flow.accepts(oldGrant, from) && !flow.accepts(oldGrant, to), "old grant cannot cross any protocol boundary");
+            int freshGrant = flow.begin();
+            flow = recreate(flow);
+            check(flow.start(freshGrant, to), "fresh grant still starts selected protocol after rotation");
+            check(flow.active() == to, "browser and native service identities stay distinct");
+            flow.connected();
+            check(flow.select(from), "every active protocol must stop before switching");
+            flow = recreate(flow);
+            check(flow.active() == to && flow.selected() == to && flow.target() == from, "rotation preserves outgoing service and target");
+            check(flow.begin() == -1 && !flow.start(freshGrant, to), "consent cannot be reused during teardown");
+            flow.connected();
+            check(flow.phase() == CastSessionCoordinator.STOPPING, "late status cannot undo stop");
+            flow.hostGone();
+            check(flow.selected() == from && flow.active() == -1 && !flow.busy(), "teardown selects target without automatically starting it");
+            check(!flow.accepts(freshGrant, from), "consumed grant is invalid after teardown");
+        }
+    }
     public static void main(String[] args) {
         CastSessionCoordinator flow = new CastSessionCoordinator(CastSessionCoordinator.MOONLIGHT);
         int first = flow.begin();
@@ -37,6 +64,20 @@ public final class CastSessionCoordinatorTest {
         check(rotated.begin() > next, "stop/restart requires a new request generation");
         CastSessionCoordinator process = new CastSessionCoordinator(1); process.restoreHost(0);
         check(process.selected() == 0 && process.hasHost(), "existing host recovers its own tab");
-        System.out.println("PASS: dual-protocol session consent, teardown gating, cancellation and restore");
+        everyProtocolPair();
+        CastSessionCoordinator browser = new CastSessionCoordinator(CastSessionCoordinator.BROWSER);
+        int browserGrant = browser.begin();
+        browser = recreate(browser);
+        browser.denied(browserGrant);
+        check(browser.selected() == CastSessionCoordinator.BROWSER && !browser.busy(), "browser denial keeps the tab and allows retry");
+        int cancelledBrowserGrant = browser.begin();
+        browser.stop();
+        check(!browser.start(cancelledBrowserGrant, CastSessionCoordinator.BROWSER), "cancelled browser grant cannot restart capture");
+        browser.restoreHost(CastSessionCoordinator.BROWSER);
+        check(browser.active() == CastSessionCoordinator.BROWSER && browser.hasHost(), "browser host recovers after activity process restart");
+        browser.stop();browser.hostGone();
+        check(browser.begin() > cancelledBrowserGrant, "browser stop requires fresh consent");
+        check(new CastSessionCoordinator(99).selected() == CastSessionCoordinator.MOONLIGHT, "unknown stored protocol falls back safely");
+        System.out.println("PASS: three-protocol session consent, teardown gating, cancellation and restore");
     }
 }

@@ -75,3 +75,20 @@ physical receiver interoperability follows from a source build.
 Receiver OpenSSL is packaged as libtvcryp.so with a matching DT_NEEDED/SONAME change; its license and source remain the pinned OpenSSL input. See scripts/prepare_unified_native.py and native/unified-receiver-manifest.json. No third-party code license is changed by combining application roles.
 
 The publication Git checkout restores pinned binary inputs and complete generated native-source trees from the matching complete-source Release asset. Original license texts and public upstream test fixtures are preserved in that asset; see `scripts/release-inputs.json` and `docs/unified-build.md`.
+
+## Browser sender WebRTC
+
+The optional browser mode uses the unchanged Maven Central AAR
+`io.github.webrtc-sdk:android:144.7559.15`. Its WebRTC fork source is pinned to
+`30d5e63ae91da483e06577b5c35ee91cc5e5c3db`; the artifact and native ABI hashes are in
+[`native/webrtc/SOURCE_LOCK.json`](native/webrtc/SOURCE_LOCK.json). WebRTC is BSD
+3-Clause with its PATENTS grant; fork patches retain their Apache-2.0 NOTICE and
+the Android packaging repository has an MIT license. The complete upstream
+third-party notice bundle and these license texts are packaged as
+`app/src/main/assets/browser-webrtc-*`.
+
+Source URLs, the build entry point, and the distinction between the published AAR
+and a locally reproduced native build are in
+[`native/webrtc/README.md`](native/webrtc/README.md). The full WebRTC/Chromium
+dependency checkout is external and is not included in the MoonCast source ZIP.
+No proprietary casting SDK or hosted signaling service is used.

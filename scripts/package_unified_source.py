@@ -45,6 +45,8 @@ def main():
         required = {'unified/build.gradle', 'phone-ui/build.gradle', 'tv-ui/build.gradle',
                     'transfer-core/build.gradle', 'app/libs/airplaylib.aar',
                     'native/unified-receiver-manifest.json', 'native/airplay-sender/SOURCE_LOCK.json',
+                    'native/webrtc/SOURCE_LOCK.json', 'native/webrtc/README.md',
+                    'gradle/browser-webrtc.gradle', 'docs/browser-receiver.md',
                     'scripts/prepare_sender_build_inputs.py', 'native/sender-build-inputs/source-input-manifest.json',
                     'README.md', 'README.zh-CN.md', 'LICENSE',
                     'native/sender-build-inputs/openssl-3.5.5.tar.gz',
@@ -78,7 +80,12 @@ def main():
                 info.compress_type = zipfile.ZIP_DEFLATED
                 out.writestr(info, data)
             provenance = {'sourceCommit': commit, 'applicationId': 'com.mooncast.community',
-                          'version': '0.5.1-community', 'files': inventory,
+                          'version': '0.6.0-browser-preview', 'files': inventory,
+                          'externalWebRtc': {'lock': 'native/webrtc/SOURCE_LOCK.json',
+                                            'sourceGuide': 'native/webrtc/README.md',
+                                            'nativeSourceVendored': False,
+                                            'nativeSdkLocallyRebuilt': False,
+                                            'note': 'This archive is not a self-contained WebRTC/Chromium native source distribution.'},
                           'signing': 'No signing key included. Fixed community public certificate is recorded; owner-published test fixture remains in Git. Certificate: '+identity['certificateSha256']}
             out.writestr('MoonCast/CORRESPONDING-SOURCE.json', json.dumps(provenance, indent=2) + '\n')
     with zipfile.ZipFile(args.output) as archive:

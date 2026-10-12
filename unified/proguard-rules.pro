@@ -6,6 +6,8 @@
 -keep class com.limelight.** { *; }
 -keep class org.bouncycastle.** { *; }
 -keep class rikka.** { *; }
+# WebRTC reaches Java through JNI, including fork playback audio callbacks.
+-keep class org.webrtc.** { *; }
 -keepclasseswithmembernames class * { native <methods>; }
 -dontwarn javax.naming.**
 -dontwarn org.bouncycastle.**

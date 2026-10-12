@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="browser_tab">浏览器</string>
+    <string name="browser_protocol_hint">安卓 → 浏览器 · WebRTC</string>
+    <string name="browser_ready">投屏到浏览器</string>
+    <string name="browser_start_hint">开始共享后，在同一局域网的电脑上打开链接。</string>
+    <string name="browser_start">开始浏览器共享</string>
+    <string name="browser_open_link">在电脑上打开</string>
+    <string name="browser_open_link_hint">在 Chrome 输入此地址，然后点击「连接」。请使用可信的局域网：持有有效链接的人可查看共享画面。停止共享后链接失效。</string>
+    <string name="browser_address">选择局域网地址</string>
+    <string name="browser_copy_link">复制浏览器链接</string>
+    <string name="browser_link_pending">开始屏幕共享后，链接会显示在这里。</string>
+    <string name="browser_capture_hint">共享整个屏幕，或在 Android 14 及以上选择单个应用。每次新建会话都需要安卓屏幕共享授权。</string>
+    <string name="browser_audio_hint">Android 10 及以上可选。仅采集安卓和源应用允许的声音；浏览器提示时，请点击「开启声音」。</string>
+    <string name="browser_controls_hint">在浏览器调整适应、填充、缩放和位置。手机以最高 30 帧/秒共享完整采集画面。受保护内容可能显示黑屏或无声。</string>
+    <string name="browser_permission_title">允许屏幕共享</string>
+    <string name="browser_permission_hint">请完成安卓共享授权。浏览器链接随后显示在这里。</string>
+    <string name="browser_permission_denied">已取消屏幕共享</string>
+</resources>

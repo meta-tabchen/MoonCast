@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <title>MoonCast · Browser receiver</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="receiver.css">
+  <script src="receiver.js" defer></script>
+</head>
+<body data-state="idle">
+  <div class="app" id="app">
+    <header class="header">
+      <a class="brand" href="./" aria-label="MoonCast"><span class="moon" aria-hidden="true"></span>MoonCast<span class="preview" data-i18n="preview">Preview</span></a>
+      <div class="header-right">
+        <span class="local"><span aria-hidden="true">↔</span> <span data-i18n="local">Local connection</span></span>
+        <label class="sr-only" for="language" data-i18n="language">Language</label>
+        <select id="language"><option value="en">English</option><option value="zh">简体中文</option></select>
+      </div>
+    </header>
+
+    <main>
+      <div class="heading">
+        <div><p class="eyebrow" data-i18n="eyebrow">ANDROID → BROWSER</p><h1 data-i18n="title">A bigger view. Right here.</h1></div>
+        <div class="connection" role="status" aria-live="polite"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Ready to connect</span></div>
+      </div>
+
+      <section class="viewer" id="viewer" aria-label="Screen receiver">
+        <div id="stage" class="stage" tabindex="0" aria-label="Screen. Arrow keys to pan; plus or minus to zoom; 0 to reset; F for fullscreen.">
+          <video id="screen" autoplay muted playsinline aria-label="Shared Android screen"></video>
+          <div class="empty" id="empty">
+            <div class="screen-icon" aria-hidden="true"><span></span></div>
+            <h2 id="empty-title">Your screen belongs here</h2>
+            <p id="empty-description">Keep MoonCast sharing on your Android device, then connect.</p>
+          </div>
+          <div class="stream-info" id="stream-info" hidden><span class="live-dot" aria-hidden="true"></span><span data-i18n="live">LIVE</span><span class="resolution" id="resolution"></span></div>
+          <button id="play" class="play-prompt" hidden data-i18n="play">Play video</button>
+        </div>
+
+        <div class="toolbar">
+          <div class="session-controls">
+            <button id="connect" class="button primary"><span aria-hidden="true">↗</span><span data-i18n="connect">Connect</span></button>
+            <button id="disconnect" class="button" hidden data-i18n="disconnect">Disconnect</button>
+            <button id="sound" class="button" aria-pressed="false"><span id="sound-icon" aria-hidden="true">♪</span><span id="sound-label">Enable sound</span></button>
+          </div>
+          <div class="view-controls">
+            <div class="segmented" role="group" aria-label="Picture framing" id="fit-controls"><button class="selected" data-fit="fit" aria-pressed="true" data-i18n="fit">Fit</button><button data-fit="fill" aria-pressed="false" data-i18n="fill">Fill</button></div>
+            <div class="zoom-control"><label for="zoom" data-i18n="zoom">Zoom</label><input id="zoom" type="range" min="1" max="4" step="0.05" value="1"><output id="zoom-value" for="zoom">100%</output></div>
+            <button id="reset" class="button compact" data-i18n="reset">Reset</button>
+            <button id="fullscreen" class="button compact" aria-label="Enter fullscreen" title="Enter fullscreen"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M9 4H4v5m11-5h5v5M4 15v5h5m11-5v5h-5"/></svg></button>
+          </div>
+        </div>
+      </section>
+
+      <div class="details"><p id="hint" role="status">Video starts muted. Enable sound when you’re ready.</p><p data-i18n="panHint">Drag the picture to pan · Fit preserves the whole frame</p></div>
+      <footer><p data-i18n="privacy">Only the screen and audio allowed by Android and the source app can be shared. Protected content may appear black or silent.</p><p data-i18n="network">Keep both devices on the same trusted network. Keep this private session link to yourself.</p></footer>
+    </main>
+    <noscript>This receiver requires JavaScript. 此接收页需要启用 JavaScript。</noscript>
+  </div>
+</body>
+</html>

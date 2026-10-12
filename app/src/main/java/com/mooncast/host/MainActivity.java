@@ -21,14 +21,25 @@ public final class MainActivity extends Activity {
     private static final int DOCUMENT=52;
     private CastSessionCoordinator session;
     private final java.util.ArrayList<View> moonlightOnly=new java.util.ArrayList<>();
+    private final java.util.ArrayList<View> nativeSenderOnly=new java.util.ArrayList<>();
     private LinearLayout airPanel, advancedContent, airAdvanced;
     private Button advancedToggle;
+    private boolean advancedExpanded;
+    private LinearLayout browserPanel;
+    private RadioButton browserTab;
+    private Button browserStart,browserStop,browserCopy;
+    private TextView browserState,browserDetail,browserLink;
+    private Spinner browserSource,browserAddress;
+    private CompoundButton browserAudio;
+    private String browserUrls="";
     private MyTvPicker airPicker;
     private AlertDialog airChangeDialog;
     private Button airChange;
     private String selectedAirAddress="",selectedAirName="";
     private boolean airPickerOpen,reopenAirPickerAfterStop,airConnected;
-    private Button airTab,moonlightTab,airStart,airStop,airSubmit;
+    private ProtocolTabs protocolTabs;
+    private RadioButton airTab,moonlightTab;
+    private Button airStart,airStop,airSubmit;
     private TextView airState,airDetail,airMetrics,airLogs,airSelection,protocolHint,airPinHint;
     private EditText airPin;
     private Spinner airSource,airQuality;
@@ -41,9 +52,12 @@ public final class MainActivity extends Activity {
     private long startingSince,missingHostSince;
     private int senderPid=-1;
     private boolean airMode(){return session.selected()==CastSessionCoordinator.AIRPLAY;}
-    private Class<?> hostClass(){return session.active()==CastSessionCoordinator.AIRPLAY?AirPlayHostService.class:HostService.class;}
-    private TextView activeState(){return airMode()?airState:state;}
-    private TextView activeDetail(){return airMode()?airDetail:detail;}
+    private boolean browserMode(){return session.selected()==CastSessionCoordinator.BROWSER;}
+    private Class<?> hostClass(){return switch(session.active()){case CastSessionCoordinator.AIRPLAY->AirPlayHostService.class;case CastSessionCoordinator.BROWSER->BrowserHostService.class;default->HostService.class;};}
+    private TextView modeState(int mode){return mode==CastSessionCoordinator.BROWSER?browserState:mode==CastSessionCoordinator.AIRPLAY?airState:state;}
+    private TextView modeDetail(int mode){return mode==CastSessionCoordinator.BROWSER?browserDetail:mode==CastSessionCoordinator.AIRPLAY?airDetail:detail;}
+    private TextView activeState(){return modeState(session.selected());}
+    private TextView activeDetail(){return modeDetail(session.selected());}
     private Messenger fileRemote;
     private boolean fileBound;
     private TextView fileInfo;
@@ -103,12 +117,15 @@ public final class MainActivity extends Activity {
         String failure=b.getString("error","");
         if(!failure.isEmpty()){lastFailure=failure;activeDetail().setText(failure);}
         if(stopPending || b.getBoolean("stopping")){
+            if(browserMode())showBrowserUrls("");
             stopPending=true;session.stop();activeState().setText(R.string.ui_stopping);updateSessionUi();return;
         }
         session.connected();
         activeState().setText(b.getString("state",getString(R.string.ui_ready_to_cast)));
         activeDetail().setText(failure.isEmpty()?b.getString("detail",""):failure);
-        if(airMode()){
+        if(browserMode()){
+            showBrowserUrls(b.getString("urls",b.getString("url","")));
+        }else if(airMode()){
             airConnected=b.getBoolean("connected",false);refreshAirSelection();
             airLogs.setText(b.getString("logs",""));airMetrics.setText(b.getString("metrics",""));
             airPinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
@@ -122,8 +139,10 @@ public final class MainActivity extends Activity {
             controlInfo.setText(b.getString("controlStatus",getString(R.string.ui_off)));
         }
         running(true);
-        int mode=b.getInt("scaleMode",scale.getSelectedItemPosition());
-        if(scale.getSelectedItemPosition()!=mode){updatingScale=true;scale.setSelection(mode);updatingScale=false;}
+        if(!browserMode()){
+            int mode=b.getInt("scaleMode",scale.getSelectedItemPosition());
+            if(scale.getSelectedItemPosition()!=mode){updatingScale=true;scale.setSelection(mode);updatingScale=false;}
+        }
     }
     private void detachHost(){
         HostConnection old=connection;connection=null;remote=null;
@@ -135,11 +154,11 @@ public final class MainActivity extends Activity {
         detachHost();stopPending=false;senderPid=-1;session.hostGone();
         getPreferences(0).edit().putBoolean("hostExpected",false).remove("activeHostPid").putInt("selectedProtocol",session.selected()).apply();
         running(false);applyProtocol();
-        TextView previousState=oldMode==CastSessionCoordinator.AIRPLAY?airState:state;
-        TextView previousDetail=oldMode==CastSessionCoordinator.AIRPLAY?airDetail:detail;
+        TextView previousState=modeState(oldMode);
+        TextView previousDetail=modeDetail(oldMode);
         previousState.setText(lastFailure.isEmpty()?R.string.ui_stopped:R.string.ui_cast_failed);
         previousDetail.setText(lastFailure.isEmpty()?getString(R.string.ui_starting_again_will_request_screen_sharing_permission):lastFailure);
-        airPin.setText("");pendingEndpoint=null;missingHostSince=0;airConnected=false;refreshAirSelection();
+        airPin.setText("");pendingEndpoint=null;missingHostSince=0;airConnected=false;refreshAirSelection();showBrowserUrls("");
         if(reopenAirPickerAfterStop && airMode() && resumed){reopenAirPickerAfterStop=false;showAirPicker();}
         try{new LocalAudioMute(this).restore();}catch(RuntimeException ignored){}
     }
@@ -171,8 +190,9 @@ public final class MainActivity extends Activity {
         pendingShizukuStart=false;pendingToken=-1;pendingAudioRequest=pendingProjectionRequest=-1;
         if(!session.hasHost()){
             session.stop();pendingEndpoint=null;activeState().setText(R.string.ui_stopped);
-            activeDetail().setText(airMode()?R.string.ui_airplay_start_hint:R.string.ui_starting_again_will_request_screen_sharing_permission);updateSessionUi();return;
+            activeDetail().setText(browserMode()?R.string.browser_start_hint:airMode()?R.string.ui_airplay_start_hint:R.string.ui_starting_again_will_request_screen_sharing_permission);updateSessionUi();return;
         }
+        if(browserMode())showBrowserUrls("");
         session.stop();stopPending=true;activeState().setText(R.string.ui_stopping);
         if(lastFailure.isEmpty())activeDetail().setText("");updateSessionUi();
         if(remote!=null)send(HostService.STOP,null);
@@ -221,15 +241,16 @@ public final class MainActivity extends Activity {
         TextView title=text("MoonCast",28,INK);title.setGravity(Gravity.CENTER);title.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));title.setPadding(0,dp(8),0,dp(10));page.addView(title);
         if((getPackageName().equals("com.mooncast.unified.preview") || getPackageName().equals("com.mooncast.community"))){
             Button deviceMode=smallButton(getString(R.string.phone_device_settings));
-            deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle("MoonCast "+BuildConfig.VERSION_NAME)
+            deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle(R.string.phone_settings_title)
                 .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version)},(d,w)->{
                     if(w==0){PhoneRolePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("role_choice",choice).putExtra("require_cleanup",true));finish();});}
                     else if(w==1){com.mooncast.locale.LanguagePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));finish();});}
-                    else new android.app.AlertDialog.Builder(this).setMessage("MoonCast "+BuildConfig.VERSION_NAME+" ("+BuildConfig.VERSION_CODE+")\n"+getPackageName()+(getPackageName().equals("com.mooncast.community")?"\n\n"+getString(R.string.phone_community_signing_notice):"")).setPositiveButton(android.R.string.ok,null).show();
+                    else showAbout();
                 }).show());page.addView(deviceMode);
         }
         buildProtocolTabs(page);
         buildAirPlayPanel(page);
+        buildBrowserPanel(page);
 
         LinearLayout hero=card(page);moonlightOnly.add(hero);styleHero(hero);
         state=text(getString(R.string.ui_ready_to_cast),26,INK);state.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));hero.addView(state);state.setGravity(Gravity.CENTER);
@@ -283,17 +304,17 @@ public final class MainActivity extends Activity {
         panelState=text(getString(R.string.ui_off),12,MUTED);capture.addView(panelState);
         restoreDisplay=smallButton(getString(R.string.ui_panel_restore));restoreDisplay.setEnabled(false);restoreDisplay.setOnClickListener(v->{send(HostService.RESTORE_DISPLAY,null);panelOff.setChecked(false);});capture.addView(restoreDisplay);
 
-        LinearLayout picture=card(page);section(picture,getString(R.string.ui_picture),getString(R.string.ui_choose_how_the_picture_fits_your_screen));
+        LinearLayout picture=card(page);nativeSenderOnly.add(picture);section(picture,getString(R.string.ui_picture),getString(R.string.ui_choose_how_the_picture_fits_your_screen));
         scale=spinner(new String[]{getString(R.string.ui_whole_screen_fit),getString(R.string.ui_auto_crop_fit),getString(R.string.ui_fill_screen_crop_edges),getString(R.string.ui_video_region_centered_16_9),getString(R.string.ui_cinema_mode)});
         if(!settings().getBoolean("videoRegionIntroduced",false))settings().edit().putInt("scaleMode",3).putBoolean("videoRegionIntroduced",true).apply();
         scale.setSelection(settings().getInt("scaleMode",3));picture.addView(scale);modeInfo=text("",12,MUTED);picture.addView(modeInfo);
         rescan=smallButton(getString(R.string.ui_rescan_video));rescan.setEnabled(false);rescan.setOnClickListener(v->{send(HostService.CROP_RESET,null);toast(getString(R.string.ui_rescan_video_hint));});picture.addView(rescan);describeMode(scale.getSelectedItemPosition());
         scale.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
             public void onNothingSelected(AdapterView<?> parent){}
-            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){describeMode(position);if(updatingScale || loadingProfile)return;settings().edit().putInt("scaleMode",position).apply();if(remote!=null)try{Message m=Message.obtain(null,HostService.SCALE);m.arg1=position;remote.send(m);}catch(RemoteException ignored){}}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){describeMode(position);if(updatingScale || loadingProfile || browserMode())return;settings().edit().putInt("scaleMode",position).apply();if(remote!=null)try{Message m=Message.obtain(null,HostService.SCALE);m.arg1=position;remote.send(m);}catch(RemoteException ignored){}}
         });
 
-        LinearLayout sound=card(page);sound.setTag("quick_audio");
+        LinearLayout sound=card(page);nativeSenderOnly.add(sound);sound.setTag("quick_audio");
         audio=toggle(sound,getString(R.string.ui_stream_playback_audio),getString(R.string.ui_android_10_source_app_must_allow_capture),settings().getBoolean("audio",false));
         muteLocal=toggle(sound,getString(R.string.ui_mute_phone_locally),getString(R.string.ui_only_while_streaming_audio_restore_on_stop),settings().getBoolean("muteLocal",false));muteLocal.setEnabled(audio.isChecked());
 
@@ -316,7 +337,7 @@ public final class MainActivity extends Activity {
         muteLocal.setOnClickListener(view->{if(!loadingProfile)ReceiverProfiles.recordAudioChoice(settings(),"muteLocal",muteLocal.isChecked());});
         control.setOnCheckedChangeListener((button,checked)->{
             if(updatingControl || loadingProfile)return;settings().edit().putBoolean("control",checked).apply();refreshControlOptions();
-            if(remote!=null)try{Message m=Message.obtain(null,HostService.CONTROL);m.arg1=checked?1:0;remote.send(m);}catch(RemoteException ignored){}
+            if(remote!=null && !browserMode())try{Message m=Message.obtain(null,HostService.CONTROL);m.arg1=checked?1:0;remote.send(m);}catch(RemoteException ignored){}
         });
         controlBackend.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){if(loadingProfile)return;settings().edit().putInt("controlBackend",position).putBoolean("controlRoot",position==1).apply();refreshControlOptions();}});
         advanced.addView(text(getString(R.string.ui_device_encoders),12,MUTED));TextView codec=text(EncoderSupport.describe(),11,MUTED);codec.setTextIsSelectable(true);advanced.addView(codec);
@@ -339,8 +360,9 @@ public final class MainActivity extends Activity {
         buildApkTransferCard(page);
         advancedToggle=smallButton(getString(R.string.visual_advanced));advancedToggle.setTag("advanced_toggle");
         LinearLayout.LayoutParams disclosure=new LinearLayout.LayoutParams(-1,dp(52));disclosure.topMargin=dp(12);page.addView(advancedToggle,disclosure);page.addView(advancedContent);
-        advancedContent.setVisibility(b!=null && b.getBoolean("advancedOpen")?View.VISIBLE:View.GONE);
-        advancedToggle.setOnClickListener(v->{advancedContent.setVisibility(advancedContent.getVisibility()==View.VISIBLE?View.GONE:View.VISIBLE);updateAdvancedLabel();});updateAdvancedLabel();
+        advancedExpanded=b!=null && b.getBoolean("advancedOpen");
+        advancedContent.setVisibility(advancedExpanded?View.VISIBLE:View.GONE);
+        advancedToggle.setOnClickListener(v->{advancedExpanded=!advancedExpanded;advancedContent.setVisibility(advancedExpanded?View.VISIBLE:View.GONE);updateAdvancedLabel();});updateAdvancedLabel();
         TextView foot=text(getString(getPackageName().equals("com.mooncast.community")?R.string.phone_community_footer:R.string.phone_preview_footer),11,0xffa4adbc);foot.setGravity(Gravity.CENTER);foot.setPadding(0,dp(18),0,0);page.addView(foot);
         uiReady=true;
         if(b!=null){airSource.setSelection(b.getInt("airSource",airSource.getSelectedItemPosition()));}
@@ -357,16 +379,66 @@ public final class MainActivity extends Activity {
         hero.setBackgroundColor(Color.TRANSPARENT);hero.setPadding(0,dp(18),0,dp(10));
         ImageView icon=PhoneVisuals.icon(this,R.drawable.ic_cast,100,BLUE);LinearLayout.LayoutParams layout=new LinearLayout.LayoutParams(dp(100),dp(100));layout.gravity=Gravity.CENTER_HORIZONTAL;layout.bottomMargin=dp(14);hero.addView(icon,layout);
     }
-    private void updateAdvancedLabel(){advancedToggle.setText(advancedContent.getVisibility()==View.VISIBLE?R.string.visual_advanced_close:R.string.visual_advanced);}
+    private void updateAdvancedLabel(){advancedToggle.setText(advancedExpanded?R.string.visual_advanced_close:R.string.visual_advanced);}
 
     private void buildProtocolTabs(LinearLayout page){
-        LinearLayout tabs=new LinearLayout(this);tabs.setGravity(Gravity.CENTER_VERTICAL);tabs.setPadding(dp(4),dp(4),dp(4),dp(4));tabs.setBackground(background(0xffedf1f7,22));
-        airTab=button(getString(R.string.ui_tab_airplay),BLUE);moonlightTab=button(getString(R.string.ui_tab_moonlight),BLUE);
-        airTab.setTextSize(17);moonlightTab.setTextSize(17);airTab.setContentDescription(getString(R.string.ui_tab_airplay));moonlightTab.setContentDescription(getString(R.string.ui_tab_moonlight));
-        LinearLayout.LayoutParams left=new LinearLayout.LayoutParams(0,dp(64),1),right=new LinearLayout.LayoutParams(0,dp(64),1);right.setMarginStart(dp(4));
-        tabs.addView(airTab,left);tabs.addView(moonlightTab,right);page.addView(tabs);
-        airTab.setOnClickListener(v->selectProtocol(CastSessionCoordinator.AIRPLAY));moonlightTab.setOnClickListener(v->selectProtocol(CastSessionCoordinator.MOONLIGHT));
+        protocolTabs=new ProtocolTabs(this,mode->{selectProtocol(mode);protocolTabs.select(session.selected());});
+        airTab=protocolTabs.addTab(getString(R.string.ui_tab_airplay),"protocol_tab_airplay",CastSessionCoordinator.AIRPLAY);
+        moonlightTab=protocolTabs.addTab(getString(R.string.phone_tab_gamestream),"protocol_tab_gamestream",CastSessionCoordinator.MOONLIGHT);
+        browserTab=protocolTabs.addTab(getString(R.string.browser_tab),"protocol_tab_browser",CastSessionCoordinator.BROWSER);
+        page.addView(protocolTabs,new LinearLayout.LayoutParams(-1,-2));
         protocolHint=text("",12,MUTED);protocolHint.setGravity(Gravity.CENTER);page.addView(protocolHint);
+    }
+    private void showAbout(){
+        String message=com.mooncast.locale.AppBuildInfo.describe(this);
+        if(getPackageName().equals("com.mooncast.community"))message+="\n\n"+getString(R.string.phone_community_signing_notice);
+        new AlertDialog.Builder(this).setTitle(R.string.phone_about_version).setMessage(message).setPositiveButton(android.R.string.ok,null).show();
+    }
+    private void buildBrowserPanel(LinearLayout page){
+        browserPanel=new LinearLayout(this);browserPanel.setOrientation(LinearLayout.VERTICAL);page.addView(browserPanel);
+        LinearLayout hero=card(browserPanel);styleHero(hero);
+        browserState=text(getString(R.string.browser_ready),26,INK);browserState.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));browserState.setGravity(Gravity.CENTER);hero.addView(browserState);
+        browserDetail=text(getString(R.string.browser_start_hint),13,MUTED);browserDetail.setGravity(Gravity.CENTER);hero.addView(browserDetail);
+        browserStart=button(getString(R.string.browser_start),BLUE);browserStart.setTag("browser_start");browserStart.setOnClickListener(v->begin());hero.addView(browserStart);
+        browserStop=button(getString(R.string.ui_stop_casting),0xff8a97ad);browserStop.setOnClickListener(v->requestStop());hero.addView(browserStop);
+
+        LinearLayout connect=card(browserPanel);section(connect,getString(R.string.browser_open_link),getString(R.string.browser_open_link_hint));
+        browserAddress=spinner(new String[]{});browserAddress.setContentDescription(getString(R.string.browser_address));connect.addView(browserAddress);
+        browserLink=text(getString(R.string.browser_link_pending),14,INK);browserLink.setTypeface(Typeface.MONOSPACE);browserLink.setTextIsSelectable(true);connect.addView(browserLink);
+        browserAddress.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){
+            public void onNothingSelected(AdapterView<?> parent){}
+            public void onItemSelected(AdapterView<?> parent,View view,int position,long id){Object address=browserAddress.getSelectedItem();if(address!=null)browserLink.setText(address.toString());}
+        });
+        browserCopy=smallButton(getString(R.string.browser_copy_link));browserCopy.setOnClickListener(v->{
+            Object address=browserAddress.getSelectedItem();if(address==null || browserUrls.isEmpty())return;
+            getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast",address.toString()));toast(getString(R.string.ui_file_link_copied));
+        });connect.addView(browserCopy);showBrowserUrls("");
+
+        LinearLayout capture=card(browserPanel);section(capture,getString(R.string.ui_capture_source),getString(R.string.browser_capture_hint));
+        browserSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});
+        browserSource.setSelection(Math.max(0,Math.min(1,getPreferences(0).getInt("browserSource",0))));capture.addView(browserSource);
+        browserSource.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> parent){}public void onItemSelected(AdapterView<?> parent,View view,int position,long id){if(uiReady && !session.busy())saveBrowser();}});
+        browserAudio=toggle(capture,getString(R.string.ui_stream_playback_audio),getString(R.string.browser_audio_hint),getPreferences(0).getBoolean("browserAudio",false));
+        browserAudio.setOnCheckedChangeListener((button,checked)->{if(uiReady && !session.busy())saveBrowser();});
+        capture.addView(text(getString(R.string.browser_controls_hint),12,MUTED));
+    }
+    private void showBrowserUrls(String urls){
+        String normalized=urls==null?"":urls.trim();
+        if(!normalized.equals(browserUrls) || browserAddress.getAdapter().getCount()==0){
+            String previous=browserAddress.getSelectedItem()==null?"":browserAddress.getSelectedItem().toString();
+            browserUrls=normalized;
+            String[] addresses=browserUrls.isEmpty()?new String[]{}:browserUrls.split("\\s*\\n\\s*");
+            browserAddress.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,addresses));
+            int selected=0;for(int i=0;i<addresses.length;i++)if(addresses[i].equals(previous))selected=i;
+            if(addresses.length>0){browserAddress.setSelection(selected);browserLink.setText(addresses[selected]);}
+        }
+        if(browserUrls.isEmpty())browserLink.setText(R.string.browser_link_pending);
+        browserAddress.setVisibility(browserAddress.getAdapter().getCount()>1?View.VISIBLE:View.GONE);
+        browserCopy.setEnabled(!browserUrls.isEmpty() && session.hasHost() && session.phase()!=CastSessionCoordinator.STOPPING);
+    }
+    private void saveBrowser(){
+        if(browserSource==null || browserAudio==null)return;
+        getPreferences(0).edit().putInt("browserSource",browserSource.getSelectedItemPosition()).putBoolean("browserAudio",browserAudio.isChecked()).apply();
     }
     private void buildAirPlayPanel(LinearLayout page){
         airPanel=new LinearLayout(this);airPanel.setOrientation(LinearLayout.VERTICAL);page.addView(airPanel);
@@ -421,20 +493,20 @@ public final class MainActivity extends Activity {
     private void selectProtocol(int protocol){
         if(session.phase()==CastSessionCoordinator.STOPPING || session.selected()==protocol)return;
         dismissAirPicker();reopenAirPickerAfterStop=false;if(airChangeDialog!=null)airChangeDialog.dismiss();
-        saveProfile();saveAirPlay();pendingShizukuStart=false;pendingToken=-1;pendingAudioRequest=pendingProjectionRequest=-1;pendingEndpoint=null;airPin.setText("");pin.setText("");
+        saveProfile();saveAirPlay();saveBrowser();pendingShizukuStart=false;pendingToken=-1;pendingAudioRequest=pendingProjectionRequest=-1;pendingEndpoint=null;airPin.setText("");pin.setText("");
         if(session.select(protocol)){requestStop();protocolHint.setText(R.string.ui_protocol_switch_wait);}
         else{lastFailure="";applyProtocol();running(false);}
     }
     private void applyProtocol(){
         if(!uiReady)return;
-        boolean air=airMode();
+        boolean air=airMode(),browser=browserMode(),moonlight=!air && !browser;
         airAdvanced.setVisibility(air?View.VISIBLE:View.GONE);
-        for(View view:moonlightOnly)if(view!=pinBox)view.setVisibility(air?View.GONE:View.VISIBLE);
-        pinBox.setVisibility(View.GONE);airPanel.setVisibility(air?View.VISIBLE:View.GONE);
-        airTab.setSelected(air);moonlightTab.setSelected(!air);
-        airTab.setBackground(background(air?BLUE:0xffe4e9f2,16));airTab.setTextColor(air?Color.WHITE:INK);
-        moonlightTab.setBackground(background(air?0xffe4e9f2:BLUE,16));moonlightTab.setTextColor(air?INK:Color.WHITE);
-        protocolHint.setText(air?R.string.ui_airplay_protocol_hint:R.string.ui_moonlight_protocol_hint);
+        for(View view:moonlightOnly)if(view!=pinBox)view.setVisibility(moonlight?View.VISIBLE:View.GONE);
+        for(View view:nativeSenderOnly)view.setVisibility(browser?View.GONE:View.VISIBLE);
+        pinBox.setVisibility(View.GONE);airPanel.setVisibility(air?View.VISIBLE:View.GONE);browserPanel.setVisibility(browser?View.VISIBLE:View.GONE);
+        advancedToggle.setVisibility(browser?View.GONE:View.VISIBLE);advancedContent.setVisibility(!browser && advancedExpanded?View.VISIBLE:View.GONE);
+        protocolTabs.select(session.selected());
+        protocolHint.setText(browser?R.string.browser_protocol_hint:air?R.string.ui_airplay_protocol_hint:R.string.ui_moonlight_protocol_hint);
         getPreferences(0).edit().putInt("selectedProtocol",session.selected()).apply();
         refreshControlOptions();updateSessionUi();updateDiscovery();
     }
@@ -444,13 +516,17 @@ public final class MainActivity extends Activity {
         int pinInput=airLegacy.isChecked()?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD;
         if(airPin.getInputType()!=pinInput){airPin.setText("");airPin.setInputType(pinInput);airPin.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(airLegacy.isChecked()?128:8)});}
         airPinHint.setText(airLegacy.isChecked()?R.string.ui_airplay_password_hint:R.string.ui_airplay_pin_hint);
-        airTab.setEnabled(!stopping);moonlightTab.setEnabled(!stopping);
+        airTab.setEnabled(!stopping);moonlightTab.setEnabled(!stopping);browserTab.setEnabled(!stopping);
         if(busy && airPicker.isShowing())dismissAirPicker();
         airStart.setVisibility(busy?View.GONE:View.VISIBLE);airStart.setEnabled(!busy);airStart.setText(lastFailure.isEmpty()?R.string.ui_airplay_start:R.string.ui_airplay_retry_cast);
         airChange.setVisibility(hasHost?View.VISIBLE:View.GONE);airChange.setEnabled(!stopping);
         if(airMode() && session.phase()==CastSessionCoordinator.PERMISSION){airState.setText(R.string.ui_airplay_permission_title);airDetail.setText(R.string.ui_airplay_permission_hint);}
         refreshAirSelection();
         airStop.setVisibility(busy?View.VISIBLE:View.GONE);airStop.setEnabled(!stopping);airStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
+        browserStart.setVisibility(busy?View.GONE:View.VISIBLE);browserStart.setEnabled(!busy);
+        browserStop.setVisibility(busy?View.VISIBLE:View.GONE);browserStop.setEnabled(!stopping);browserStop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
+        browserSource.setEnabled(!busy);browserAudio.setEnabled(!busy && Build.VERSION.SDK_INT>=29);browserCopy.setEnabled(!browserUrls.isEmpty() && hasHost && !stopping);
+        if(browserMode() && session.phase()==CastSessionCoordinator.PERMISSION){browserState.setText(R.string.browser_permission_title);browserDetail.setText(R.string.browser_permission_hint);}
         start.setVisibility(busy?View.GONE:View.VISIBLE);start.setEnabled(!busy);stop.setVisibility(busy?View.VISIBLE:View.GONE);stop.setEnabled(!stopping);stop.setText(hasHost?R.string.ui_stop_casting:R.string.ui_cancel_start);
         airSource.setEnabled(!busy);airQuality.setEnabled(!busy && !airLegacy.isChecked());airLegacy.setEnabled(!busy);
         profile.setEnabled(!busy);source.setEnabled(!busy);scenario.setEnabled(!busy);root.setEnabled(!busy);hevc.setEnabled(!busy);name.setEnabled(!busy);watchParty.setEnabled(!busy);panelOff.setEnabled(!busy);
@@ -508,6 +584,14 @@ public final class MainActivity extends Activity {
         return false;
     }
     private void refreshControlOptions(){
+        if(browserMode()){
+            if(browserAudio!=null)browserAudio.setEnabled(Build.VERSION.SDK_INT>=29 && !session.busy());
+            if(audio!=null)audio.setEnabled(false);
+            if(muteLocal!=null)muteLocal.setEnabled(false);
+            if(control!=null)control.setEnabled(false);
+            if(controlBackend!=null)controlBackend.setEnabled(false);
+            return;
+        }
         if(airMode()){
             if(audio!=null){boolean allowed=Build.VERSION.SDK_INT>=29 && airLegacy!=null && !airLegacy.isChecked();audio.setEnabled(allowed && !session.busy());muteLocal.setEnabled(allowed && audio.isChecked() && !session.busy());}
             return;
@@ -548,7 +632,7 @@ public final class MainActivity extends Activity {
         if(airMode()){
             pendingEndpoint=AirPlayEndpoint.parse(selectedAirAddress);
             if(pendingEndpoint==null){showAirPicker();return;}
-        }else{
+        }else if(!browserMode()){
             if(watchParty.isChecked() && !io.github.jqssun.displaymirror.sunshine.NativeSessions.packaged()){toast(getString(R.string.ui_session_bridge_unavailable));return;}
             if(((!root.isChecked() && panelOff.isChecked()) || source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
             if(control.isChecked() && !root.isChecked() && controlBackend.getSelectedItemPosition()==0 && !accessibilityEnabled()){
@@ -557,19 +641,19 @@ public final class MainActivity extends Activity {
         }
         if(effectiveSource()==1 && Build.VERSION.SDK_INT<34){toast(getString(R.string.ui_app_capture_requires_14));return;}
         pendingToken=session.begin();if(pendingToken<0)return;pendingMode=session.selected();lastFailure="";
-        pendingAudioAllowed=audio.isChecked() && Build.VERSION.SDK_INT>=29 && (airMode()?!airLegacy.isChecked():!root.isChecked() && effectiveSource()!=2);
-        saveProfile();updateSessionUi();
+        pendingAudioAllowed=Build.VERSION.SDK_INT>=29 && (browserMode()?browserAudio.isChecked():audio.isChecked() && (airMode()?!airLegacy.isChecked():!root.isChecked() && effectiveSource()!=2));
+        saveProfile();saveBrowser();updateSessionUi();
         java.util.ArrayList<String> permissions=new java.util.ArrayList<>();
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)permissions.add(Manifest.permission.POST_NOTIFICATIONS);
         if(pendingAudioAllowed && checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)permissions.add(Manifest.permission.RECORD_AUDIO);
         if(!permissions.isEmpty()){pendingAudioRequest=1000+pendingToken*2;requestPermissions(permissions.toArray(new String[0]),pendingAudioRequest);return;}
         continueStart();
     }
-    private int effectiveSource(){return airMode()?airSource.getSelectedItemPosition():source.getSelectedItemPosition();}
+    private int effectiveSource(){return browserMode()?browserSource.getSelectedItemPosition():airMode()?airSource.getSelectedItemPosition():source.getSelectedItemPosition();}
     private boolean acceptsPending(){return pendingToken>=0 && session.accepts(pendingToken,pendingMode);}
     private void continueStart(){
         if(!acceptsPending())return;
-        if(!airMode() && (root.isChecked() || effectiveSource()==2))launch(null);else requestProjection();
+        if(!airMode() && !browserMode() && (root.isChecked() || effectiveSource()==2))launch(null);else requestProjection();
     }
     private void requestProjection() {
         if(!acceptsPending())return;
@@ -596,11 +680,19 @@ public final class MainActivity extends Activity {
     private void projectionDenied(){
         session.denied(pendingToken);pendingToken=-1;pendingAudioRequest=pendingProjectionRequest=-1;pendingEndpoint=null;
         if(airMode()){lastFailure=getString(R.string.ui_screen_sharing_was_not_authorized);airState.setText(R.string.ui_airplay_permission_denied);airDetail.setText(R.string.ui_airplay_permission_retry);}
+        if(browserMode()){lastFailure=getString(R.string.ui_screen_sharing_was_not_authorized);browserState.setText(R.string.browser_permission_denied);browserDetail.setText(R.string.browser_start_hint);}
         updateSessionUi();toast(getString(R.string.ui_screen_sharing_was_not_authorized));
     }
     private void launch(Intent grant) {
         if(!acceptsPending())return;
         if(airMode()){launchAirPlay(grant);return;}
+        if(browserMode()){
+            if(grant==null){projectionDenied();return;}
+            showBrowserUrls("");
+            startHost(new Intent(this,BrowserHostService.class).putExtra("grant",grant).putExtra("audio",pendingAudioAllowed)
+                .putExtra("source",effectiveSource()).putExtra("frameLimit",30).putExtra("scaleMode",CropGeometry.SCREEN));
+            return;
+        }
         String host=name.getText().toString().trim();
         if(host.isEmpty()) host="MoonCast";
         settings().edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putInt("controlBackend",controlBackend.getSelectedItemPosition()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
@@ -641,10 +733,10 @@ public final class MainActivity extends Activity {
         shownReceivers=ids.clone();receiverList.removeAllViews();for(int i=0;i<ids.length;i++){long id=ids[i];Button disconnect=smallButton(labels[i]+" · "+getString(R.string.ui_disconnect));disconnect.setOnClickListener(v->{Bundle data=new Bundle();data.putLong("session",id);send(HostService.DISCONNECT,data);});receiverList.addView(disconnect);}
     }
     private void queryFile(){if(fileRemote==null)return;try{Message m=Message.obtain(null,FileCinemaService.STATUS);m.replyTo=fileResponse;fileRemote.send(m);}catch(RemoteException ignored){}}
-    @Override protected void onPause(){resumed=false;saveProfile();saveAirPlay();main.removeCallbacks(poll);dismissAirPicker();super.onPause();}
+    @Override protected void onPause(){resumed=false;saveProfile();saveAirPlay();saveBrowser();main.removeCallbacks(poll);dismissAirPicker();super.onPause();}
     @Override protected void onSaveInstanceState(Bundle out){
-        super.onSaveInstanceState(out);saveProfile();saveAirPlay();
-        out.putBoolean("advancedOpen",advancedContent.getVisibility()==View.VISIBLE);
+        super.onSaveInstanceState(out);saveProfile();saveAirPlay();saveBrowser();
+        out.putBoolean("advancedOpen",advancedExpanded);
         out.putInt("protocol",session.selected());out.putInt("activeProtocol",session.active());out.putInt("targetProtocol",session.target());
         out.putInt("sessionPhase",session.phase());out.putInt("sessionGeneration",session.generation());out.putInt("senderPid",senderPid);
         out.putInt("pendingToken",pendingToken);out.putInt("pendingMode",pendingMode);out.putInt("pendingAudioRequest",pendingAudioRequest);out.putInt("pendingProjectionRequest",pendingProjectionRequest);

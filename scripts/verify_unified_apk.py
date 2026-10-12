@@ -3,6 +3,7 @@
 """Verify every unified native payload byte, JNI graph and standalone APK identity."""
 from pathlib import Path
 import argparse, hashlib, json, os, re, subprocess, tempfile, zipfile
+from elf_dependencies import dynamic_strings
 R = Path(__file__).resolve().parents[1]
 
 def sha(b):
@@ -28,9 +29,11 @@ for row in moon['binaries']:
         expected['libmoonlight-core.so'] = row['sha256']
 with zipfile.ZipFile(R / 'app/libs/airplaylib.aar') as z:
     expected['libgojni.so'] = sha(z.read('jni/' + a.abi + '/libgojni.so'))
+webrtc = json.loads((R / 'native/webrtc/SOURCE_LOCK.json').read_text())
+expected['libjingle_peerconnection_so.so'] = webrtc['libraries'][a.abi + '/libjingle_peerconnection_so.so']
 with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
     names = [n for n in z.namelist() if n.startswith('lib/') and n.endswith('.so')]
-    if not len(names) == len(expected) == 10:
+    if not len(names) == len(expected) == 11:
         raise ValueError((len(names), len(expected)))
     if not set(names) == {'lib/' + a.abi + '/' + n for n in expected}:
         raise ValueError('Verification failed')
@@ -38,20 +41,25 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
         data = z.read('lib/' + a.abi + '/' + name)
         if not sha(data) == h:
             raise ValueError(name)
-        f = Path(d) / name
-        f.write_bytes(data)
-        dyn = subprocess.check_output(['readelf', '-d', f], text=True)
-        for dep in re.findall('NEEDED.*\\[(.*?)\\]', dyn):
-            if not (dep in expected or dep in {'libandroid.so', 'libmediandk.so', 'liblog.so', 'libm.so', 'libdl.so', 'libc.so', 'libz.so', 'libOpenSLES.so'}):
+        dyn = dynamic_strings(data)
+        for dep in dyn['needed']:
+            if not (dep in expected or dep in {'libandroid.so', 'libmediandk.so', 'liblog.so', 'libm.so', 'libdl.so', 'libc.so', 'libz.so', 'libOpenSLES.so', 'libEGL.so'}):
                 raise ValueError((name, dep))
         if name == 'libairplay_native.so':
-            if not ('[libtvcryp.so]' in dyn and '[libcrypto.so]' not in dyn):
+            if not ('libtvcryp.so' in dyn['needed'] and 'libcrypto.so' not in dyn['needed']):
                 raise ValueError('Verification failed')
         if name == 'libtvcryp.so':
-            if not ('SONAME' in dyn and '[libtvcryp.so]' in dyn):
+            if not dyn['soname'] == 'libtvcryp.so':
                 raise ValueError('Verification failed')
     dex = b''.join((z.read(n) for n in z.namelist() if re.fullmatch('classes\\d*\\.dex', n)))
-    for cls in ['com/mooncast/host/MainActivity', 'com/mooncast/tv/TvActivity', 'com/mooncast/unified/RoleActivity', 'com/mooncast/transfer/ApkTransfer']:
+    for asset in ('index.html', 'receiver.js', 'receiver.css'):
+        name = 'assets/browser/' + asset
+        if z.read(name) != (R / 'app/src/main/assets/browser' / asset).read_bytes():
+            raise ValueError('Browser asset mismatch: ' + asset)
+    for notice in webrtc['licenses']:
+        if sha(z.read('assets/' + Path(notice['path']).name)) != notice['sha256']:
+            raise ValueError('WebRTC license notice mismatch')
+    for cls in ['com/mooncast/host/MainActivity', 'com/mooncast/tv/TvActivity', 'com/mooncast/unified/RoleActivity', 'com/mooncast/transfer/ApkTransfer', 'com/mooncast/host/BrowserHostService', 'org/webrtc/PeerConnection']:
         if not ('L' + cls + ';').encode() in dex:
             raise ValueError(cls)
     if not a.debug:
@@ -60,7 +68,7 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
     sdk = Path(os.environ['ANDROID_HOME'])
     aapt = sdk / 'build-tools/35.0.0/aapt'
     badge = subprocess.check_output([aapt, 'dump', 'badging', a.apk], text=True)
-    if not "package: name='com.mooncast.community' versionCode='51' versionName='0.5.1-community'" in badge:
+    if not "package: name='com.mooncast.community' versionCode='52' versionName='0.6.0-browser-preview'" in badge:
         raise ValueError('Verification failed')
     if not ("sdkVersion:'26'" in badge and "targetSdkVersion:'35'" in badge):
         raise ValueError('Verification failed')

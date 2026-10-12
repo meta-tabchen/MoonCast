@@ -10,7 +10,7 @@ public final class RoleCleanupService extends Service {
  @Override public IBinder onBind(Intent intent){return new Messenger(new Handler(Looper.getMainLooper(),m->{
   if(m.replyTo==null)return true;
   boolean owned=SenderOwnership.isHeld();
-  stopService(new Intent(this,HostService.class));stopService(new Intent(this,AirPlayHostService.class));
+  stopService(new Intent(this,HostService.class));stopService(new Intent(this,AirPlayHostService.class));stopService(new Intent(this,BrowserHostService.class));
   Message result=Message.obtain();Bundle b=new Bundle();b.putInt("pid",android.os.Process.myPid());b.putBoolean("owned",owned);result.setData(b);
   try{m.replyTo.send(result);}catch(RemoteException ignored){}return true;
  })).getBinder();}

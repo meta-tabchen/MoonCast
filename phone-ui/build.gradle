@@ -5,8 +5,8 @@ android {
  buildToolsVersion '35.0.0'
  defaultConfig {
   minSdk 26; targetSdk 35
-  buildConfigField 'int', 'VERSION_CODE', '51'
-  buildConfigField 'String', 'VERSION_NAME', '"0.5.1-community"'
+  buildConfigField 'int', 'VERSION_CODE', '52'
+  buildConfigField 'String', 'VERSION_NAME', '"0.6.0-browser-preview"'
   buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.community"'
  }
  buildFeatures { buildConfig true; aidl true }
@@ -28,5 +28,6 @@ dependencies {
  implementation 'dev.rikka.shizuku:api:13.1.5'
  implementation 'dev.rikka.shizuku:provider:13.1.5'
 }
+apply from: rootProject.file('gradle/browser-webrtc.gradle')
 
 dependencies { implementation project(':locale-core') }

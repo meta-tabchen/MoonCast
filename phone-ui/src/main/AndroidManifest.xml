@@ -19,6 +19,7 @@
         <activity android:name="com.mooncast.host.ApkSendActivity" android:exported="false" />
         <service android:name="com.mooncast.host.HostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection|connectedDevice" />
         <service android:name="com.mooncast.host.AirPlayHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name="com.mooncast.host.BrowserHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <service android:name="com.mooncast.host.NativeHostService" android:process=":stream" android:exported="false" />
         <service android:name="com.mooncast.host.FileCinemaService" android:process=":files" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <service android:name="com.mooncast.host.ControlAccessibilityService" android:process=":host" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/control_accessibility_label">

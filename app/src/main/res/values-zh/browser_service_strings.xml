@@ -1,0 +1,13 @@
+<resources>
+    <string name="browser_service_channel">浏览器屏幕共享</string>
+    <string name="browser_service_projection_only">浏览器共享需要 Android 屏幕录制授权。</string>
+    <string name="browser_service_preparing">正在准备浏览器共享</string>
+    <string name="browser_service_lan_hint">在同一可信 Wi-Fi 的浏览器中打开会话链接。停止共享即撤销链接。</string>
+    <string name="browser_service_video_only">无法捕获声音，画面继续传输，声音保留在手机。</string>
+    <string name="browser_service_no_lan">没有局域网 IPv4 地址，请连接 Wi-Fi 后重新开始共享。</string>
+    <string name="browser_service_connected">浏览器已连接</string>
+    <string name="browser_service_connecting">正在连接浏览器</string>
+    <string name="browser_service_reconnecting">等待浏览器重新连接</string>
+    <string name="browser_service_waiting">浏览器共享已就绪</string>
+    <string name="browser_service_failed">浏览器共享已停止</string>
+</resources>
