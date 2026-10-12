@@ -50,6 +50,14 @@ final class CommunityLocaleTest {
         report.put("scope","Actual debug APK UI on an Android emulator. No screen-capture permission, sent stream, decoded media, physical-TV or AirPlay interoperability is tested.")
             .put("phase",phase).put("language",language).put("sdk",Build.VERSION.SDK_INT).put("checks",checks).put("screenshots",screenshots);
         try {
+            if("flows".equals(phase)||"phone".equals(phase)||"tv".equals(phase)){
+                // The host harness may wake/dismiss the nonsecure disposable emulator;
+                // this runner only observes readiness and never bypasses a device lock.
+                android.os.PowerManager power=target.getSystemService(android.os.PowerManager.class);
+                android.app.KeyguardManager keyguard=target.getSystemService(android.app.KeyguardManager.class);
+                await("UI precondition: display is interactive",()->power!=null&&power.isInteractive(),5000);
+                await("UI precondition: keyguard is dismissed",()->keyguard!=null&&!keyguard.isKeyguardLocked(),5000);
+            }
             switch(phase){
                 case "select" -> {AppLocale.select(target,language);verifyResources();}
                 case "verify" -> verifyResources();

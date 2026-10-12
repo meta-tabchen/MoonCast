@@ -94,7 +94,7 @@ Advanced sender features retain their [per-feature implementation and historical
 
 Minimum Android 8.0 (API 26). Use ARM64 for a device with a 64-bit ARM Android system; use ARMv7 for a 32-bit ARM system. Check the device's supported ABI rather than its marketing CPU name. Both APKs contain the same phone and TV roles; install only one variant per device. These are signed experimental preview APKs. CI's unsigned verification APK is not an installable release download. No x86 APK is published in this release.
 
-The source branch is `unified/community`. Before building a Git checkout, run `python3 scripts/restore_release_inputs.py`; see [build instructions](docs/unified-build.md). The complete source ZIP includes these pinned dependencies but excludes the MoonCast app-signing PKCS12 fixture. It supports an explicit unsigned verification build with a separate package. Signed community builds use the full Git checkout and the fixed test identity initialized once by the owner.
+The currently linked 0.5.0 source ZIP corresponds to that older preview. The following build policy describes the next community release, whose source branch is `unified/community`. Before building a Git checkout, run `python3 scripts/restore_release_inputs.py`; see [build instructions](docs/unified-build.md). The complete source ZIP includes these pinned dependencies but excludes the MoonCast app-signing PKCS12 fixture. It supports an explicit unsigned verification build with a separate package. Signed community builds use the full Git checkout and the fixed test identity initialized once by the owner.
 
 ## How the devices cooperate
 
@@ -129,7 +129,9 @@ A public test key cannot establish maintainer authenticity: anyone can sign with
 
 See the [community signing policy](signing/community/README.md) for the fixed identity and fail-closed build checks.
 
-## Language
+## Language · upcoming community 0.5.1
+
+This language picker is implemented on the community branch but is not yet in a published APK. The currently downloadable 0.5.0 does not have this menu.
 
 Choose **Follow system**, **English** or **简体中文** in phone settings or TV advanced settings. Cancel and choosing the current language keep the session running; accepting another language stops the old session before reopening the selected role. Android 13+ also supports the system app-language selector. See the [language guide](docs/unified-guide.md) for the active-notification refresh limitation when changing language outside MoonCast.
 

@@ -94,7 +94,7 @@ GameStream 和 DLNA 的连接方式见下文。
 
 最低 Android 8.0（API 26）。64 位 ARM 安卓系统选 ARM64，32 位 ARM 安卓系统选 ARMv7；以系统实际支持的 ABI 为准，不只看处理器宣传名称。两个安装包功能相同，均包含手机和电视模式，每台设备只选一个安装。下载附件是已签名的实验预览包；CI 生成的 unsigned 验证包不能直接作为安装版使用。本次不发布 x86 安装包。
 
-统一版源码在 `unified/community` 分支。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](docs/unified-build.md)操作；完整源 ZIP 已含这些固定依赖，但不含 MoonCast 应用的 PKCS12 签名文件；可按构建指南生成独立包名的无签名验证产物。签名社区构建使用完整 Git checkout 中由用户一次初始化的固定公开测试身份。
+上方 0.5.0 源码 ZIP 对应旧预览版。以下构建策略适用于下一社区版，其源码在 `unified/community` 分支。Git 克隆后先运行 `python3 scripts/restore_release_inputs.py` 恢复固定构建输入，再按[构建说明](docs/unified-build.md)操作；完整源 ZIP 已含这些固定依赖，但不含 MoonCast 应用的 PKCS12 签名文件；可按构建指南生成独立包名的无签名验证产物。签名社区构建使用完整 Git checkout 中由用户一次初始化的固定公开测试身份。
 
 ## 两台设备怎么配合
 
@@ -129,7 +129,9 @@ My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。�
 
 社区签名身份与构建失败保护见[签名说明](signing/community/README.md)。
 
-## 语言设置
+## 语言设置 · 待发布社区版 0.5.1
+
+此语言入口已在社区分支实现，但尚未发布 APK；当前可下载的 0.5.0 不含此入口。
 
 手机设置和电视高级设置提供「跟随系统」、English、简体中文。取消或选择当前语言不会停止会话；确认更换语言后才结束旧会话并重新打开当前角色。Android 13 及以上也支持系统应用语言选择。直接从系统设置切换时，活跃通知可能延后刷新，见[语言使用说明](docs/unified-guide.md)。
 
@@ -147,7 +149,7 @@ python3 scripts/prepare_unified_native.py
 gradle :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
 ```
 
-完整 Git checkout 的社区 release 构建使用用户一次初始化的固定公开测试身份。运行 `python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk` 校验；添加 `--previous /path/to/previous-community.apk` 可检查升级身份与递增 versionCode。缺失或被修改的签名输入会令构建失败，不会临时生成替代身份。独立私有身份实现前，production 构建明确禁用。Release 源码 ZIP 不含 PKCS12；可显式加 `-PmooncastUnsignedVerification=true` 构建独立 `com.mooncast.community.verification` 无签名验证产物，不可覆盖社区版。原生库重建、依赖与源码打包见[构建指南](docs/unified-build.md)。
+完整 Git checkout 的社区 release 构建使用用户一次初始化的固定公开测试身份。运行 `python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk` 校验；添加 `--previous /path/to/previous-community.apk` 可检查升级身份与递增 versionCode。缺失或被修改的签名输入会令构建失败，不会临时生成替代身份。独立私有身份实现前，production 构建明确禁用。Release 源码 ZIP 不含 MoonCast 应用的 PKCS12 签名文件；可显式加 `-PmooncastUnsignedVerification=true` 构建独立 `com.mooncast.community.verification` 无签名验证产物，不可覆盖社区版。原生库重建、依赖与源码打包见[构建指南](docs/unified-build.md)。
 
 设备报告请附发送端／接收端型号、系统和应用版本、协议、编码／分辨率／帧率／码率、画面模式及复现步骤。将「能连接」「有画面」「有声音」「裁剪正确」分别描述，删除日志中的隐私及配对信息。[反馈问题](https://github.com/meta-tabchen/MoonCast/issues) · [参与贡献](CONTRIBUTING.md) · [安全说明](SECURITY.md)。
 

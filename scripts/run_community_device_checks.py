@@ -36,21 +36,45 @@ def command(items, *, timeout=180, check=True):
     return result
 
 
+def parse_badging(badging: str) -> dict | None:
+    # Android test APKs may legitimately omit versionCode/versionName. Application
+    # fixtures still must match exact numeric versions in main() before installation.
+    line = re.search(r"^package: name='([^']+)'([^\n]*)", badging, re.M)
+    if not line:
+        return None
+    code = re.search(r"\bversionCode='(\d*)'", line[2])
+    name = re.search(r"\bversionName='([^']*)'", line[2])
+    return {'applicationId': line[1],
+            'versionCode': int(code[1]) if code and code[1] else None,
+            'versionName': name[1] if name else ''}
+
+
 def inspect_apk(path: Path, aapt: str, apksigner: str) -> dict:
     if not path.is_file():
         raise FileNotFoundError(path)
     badging = command([aapt, 'dump', 'badging', path]).stdout
-    package = re.search(r"^package: name='([^']+)' versionCode='(\d+)' versionName='([^']*)'", badging, re.M)
+    package = parse_badging(badging)
     if not package:
-        raise RuntimeError(f'aapt could not identify {path}')
+        raise RuntimeError(f'aapt could not identify {path}: {badging.splitlines()[:2]}')
     verification = command([apksigner, 'verify', '--verbose', '--print-certs', path]).stdout
     certificates = re.findall(r'^Signer #\d+ certificate SHA-256 digest:\s*([a-fA-F0-9]+)', verification, re.M)
     if len(certificates) != 1:
         raise RuntimeError(f'Expected one verified signing certificate: {path}')
-    return {'filename': path.name, 'sha256': digest(path), 'applicationId': package[1],
-            'versionCode': int(package[2]), 'versionName': package[3],
+    return {'filename': path.name, 'sha256': digest(path), 'applicationId': package['applicationId'],
+            'versionCode': package['versionCode'], 'versionName': package['versionName'],
             'debuggable': bool(re.search(r'^application-debuggable', badging, re.M)),
             'certificateSha256': certificates[0].lower()}
+
+
+def validate_fixtures(artifacts: dict, certificate: str) -> None:
+    for name, code in (('baseline', 50), ('candidate', 51), ('debug', 51)):
+        item = artifacts[name]
+        if item['applicationId'] != PACKAGE or item['versionCode'] != code or item['certificateSha256'] != certificate:
+            raise RuntimeError(f'{name} has the wrong package/version/community certificate')
+    if artifacts['baseline']['debuggable'] or artifacts['candidate']['debuggable'] or not artifacts['debug']['debuggable']:
+        raise RuntimeError('Baseline/candidate must be release APKs; debug must be a debuggable APK')
+    if artifacts['test']['applicationId'] != TEST_PACKAGE or artifacts['test']['certificateSha256'] != certificate:
+        raise RuntimeError('androidTest package/signature must match the community debug target')
 
 
 def png_info(path: Path) -> dict:
@@ -103,6 +127,7 @@ def main() -> None:
     remote = f'/sdcard/Android/data/{PACKAGE}/files/community-locale/{marker}'
 
     def install(apk: Path, package: str):
+        print(f"Installing {apk.name} on disposable {args.serial}", flush=True)
         result = adb('install', '-r', *(['-t'] if package == TEST_PACKAGE else []), apk, timeout=240)
         if 'Success' not in result.stdout:
             raise RuntimeError(f'install -r did not succeed: {apk}\n{result.stdout}\n{result.stderr}')
@@ -115,6 +140,14 @@ def main() -> None:
         return {'operation': 'adb install -r -t' if package == TEST_PACKAGE else 'adb install -r', 'success': True, 'installedSha256': installed_hash}
 
     def instrument(phase: str, language='en', version=None):
+        print(f"Running phase {phase}, language {language}", flush=True)
+        if phase in ('flows', 'phone', 'tv'):
+            # Only after the emulator/fresh-install assertions above; no credentials
+            # or user device are involved. Boot-completed alone does not dismiss its UI.
+            adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
+            adb('shell', 'wm', 'dismiss-keyguard')
+            policy = adb('shell', 'dumpsys', 'window', 'policy', check=False)
+            (args.output / f'{phase}-{language}-window-policy.txt').write_text(policy.stdout, encoding='utf-8')
         options = ['shell', 'am', 'instrument', '-w', '-r', '-e', 'suite', 'locale', '-e', 'phase', phase,
                    '-e', 'language', language, '-e', 'run_id', marker, '-e', 'marker', marker]
         if version is not None:
@@ -144,14 +177,8 @@ def main() -> None:
         artifacts = {name: inspect_apk(getattr(args, name), args.aapt, args.apksigner)
                      for name in ('baseline', 'candidate', 'debug', 'test')}
         manifest['artifacts'] = artifacts
-        for name, code in (('baseline', 50), ('candidate', 51), ('debug', 51)):
-            item = artifacts[name]
-            if item['applicationId'] != PACKAGE or item['versionCode'] != code or item['certificateSha256'] != certificate:
-                raise RuntimeError(f'{name} has the wrong package/version/community certificate')
-        if artifacts['baseline']['debuggable'] or artifacts['candidate']['debuggable'] or not artifacts['debug']['debuggable']:
-            raise RuntimeError('Baseline/candidate must be release APKs; debug must be a debuggable APK')
-        if artifacts['test']['applicationId'] != TEST_PACKAGE or artifacts['test']['certificateSha256'] != certificate:
-            raise RuntimeError('androidTest package/signature must match the community debug target')
+        print(json.dumps({'fixtureMetadata': artifacts}, sort_keys=True), flush=True)
+        validate_fixtures(artifacts, certificate)
         manifest['upgrade']['baselineInstall'] = install(args.baseline, PACKAGE)
         manifest['testInstall'] = install(args.test, TEST_PACKAGE)
         before = instrument('upgrade-seed', version=50)

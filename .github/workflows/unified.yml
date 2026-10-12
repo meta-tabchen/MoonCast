@@ -35,6 +35,7 @@ jobs:
         run: |
           python3 scripts/check_localization.py
           python3 scripts/run_locale_policy_tests.py
+          python3 scripts/test_community_device_preflight.py
           python3 scripts/run_phone_message_tests.py
           python3 scripts/run_unit_tests.py
           python3 scripts/run_unified_policy_tests.py
@@ -125,6 +126,7 @@ jobs:
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline50.apk"
           git restore -- unified/build.gradle
       - name: Start disposable emulator without changing host permissions
+        timeout-minutes: 17
         shell: bash
         run: |
           export ANDROID_AVD_HOME="$RUNNER_TEMP/mooncast-avd"
@@ -140,17 +142,24 @@ jobs:
           mkdir -p "$RUNNER_TEMP/mooncast-device/evidence"
           "$ANDROID_HOME/emulator/emulator" -avd mooncast -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt" 2>&1 &
           emulator_pid=$!
-          for i in $(seq 1 120); do
+          deadline=$((SECONDS + 900))
+          next_status=$SECONDS
+          while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$emulator_pid" 2>/dev/null; then
               cat "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt"
               echo 'Emulator exited before Android boot; no UI/device validation is claimed.' >&2
               exit 1
             fi
-            if [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            if [ "$SECONDS" -ge "$next_status" ]; then
+              echo "Waiting for Android boot; elapsed shell seconds: $SECONDS"
+              tail -5 "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt"
+              next_status=$((SECONDS + 60))
+            fi
             sleep 5
           done
           tail -100 "$RUNNER_TEMP/mooncast-device/evidence/emulator.txt"
-          echo 'Emulator did not boot within 10 minutes; no UI/device validation is claimed.' >&2
+          echo 'Emulator did not boot within 15 minutes; no UI/device validation is claimed.' >&2
           exit 1
       - name: Actual update, locale and screenshot checks
         run: |

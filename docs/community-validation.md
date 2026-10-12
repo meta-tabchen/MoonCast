@@ -51,3 +51,9 @@ An external Android Settings language change may leave an active service notific
 [Run 38196873831](https://github.com/meta-tabchen/MoonCast/actions/runs/38196873831), commit e6ae6ff: all host suites, missing-fixture/mismatched-pin fail-closed guards, ARM64 build/lint, ARMv7 build, native graph and both APK certificate/package checks passed. API30/35 x86_64 release/debug/test fixtures compiled; emulator boot and UI/update tests are still pending in this snapshot. No actual screenshot or runtime-upgrade pass is claimed here.
 
 该次 CI 已通过主机测试、签名拒绝负例、两 ARM 架构构建、lint、原生库与签名包名检查；两种 Android API 的测试安装包也已编译。模拟器启动及实际界面、覆盖升级仍待结果，不计为通过。
+
+## Device harness findings / 设备测试框架排障
+
+Run 38198883114 at d6c1f54 repeated the build/signature/native checks successfully, including ZIP alignment. API30 completed software-emulator boot, but the harness rejected the test APK's optional version fields before installation; no app/UI/upgrade pass resulted. API35 initialized its emulator without KVM but did not confirm Android boot during the bounded attempt. Both evidence archives were retrieved and checked against their GitHub digests. The next harness revision accepts absent version metadata only for the test package while retaining mandatory application version, package and certificate checks, adds fixture regressions and explicit awake/unlocked preconditions, and bounds each boot probe.
+
+该轮再次通过构建／签名／原生库及 ZIP 对齐检查。API30 已启动，但测试脚本把测试 APK 的可选版本字段误当必需字段，在安装前失败；API35 无硬件加速时未确认启动完成。两者均不计应用运行、覆盖升级或 UI 通过。下一轮修复只放宽测试包版本元数据，应用版本／包名／签名校验不变，并增加预检回归、屏幕状态检查和严格启动探测时限。
