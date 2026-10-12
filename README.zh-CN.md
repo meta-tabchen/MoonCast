@@ -1,3 +1,22 @@
+# MoonCast · 手机与电视统一预览版
+
+**当前下载：[MoonCast 0.5.0 统一预览版](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)。**
+
+手机和电视安装同一个 APP。普通手机默认发送，Android TV 默认接收；设置中可手动切换角色。ARM64、ARMv7 是 CPU 架构版本，功能相同，每台设备只需选一个。
+
+- [ARM64 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 安装包](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk)
+- [当前源码与完整说明](https://github.com/meta-tabchen/MoonCast/tree/unified/android-0.5.0) · [使用与排障](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-guide.md)
+- [构建和固定依赖恢复](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-build.md) · [完整对应源码 ZIP](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS 校验和](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
+
+AirPlay、DLNA、GameStream 按各自流程使用；**未实现 Miracast、Google Cast、Lelink**。统一「我的电视」显示已发现设备及能力。电视开启 APK 接收后，手机可通过固定端口 48152 推送普通 APK，无额外配对码；电视仍须确认并交由 Android 系统安装。APK 传输未加密，仅适合可信局域网。包含电视待机主题和半透明播放设置。
+
+这是独立包名、临时测试签名的实验并存版，不保证未来覆盖升级。最终统一版 UI、视频叠加、设备互通和系统安装尚未实机验收；编译和主机测试不能替代实机结果。CI unsigned 文件不是可安装发布包。
+
+**main 保留历史手机发送端源码。** 当前统一源码请切换 `unified/android-0.5.0` 分支，旧分支和 Release 均保留。
+
+<details>
+<summary>历史 0.3.1 手机发送端说明（不是当前推荐下载）</summary>
+
 <p align="center"><img src="docs/assets/banner.svg" alt="MoonCast — 安卓手机作为 Moonlight 发射端" width="920"></p>
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
 
@@ -70,3 +89,5 @@ Windows 使用 `gradlew.bat`。默认构建使用已固定、已校验的原生�
 ## 许可证与致谢
 
 [GPLv3](LICENSE)。原生核心复用 [Mirror](https://github.com/jqssun/android-display-mirror) 对 [Sunshine](https://github.com/LizardByte/Sunshine) 的安卓移植，并非本项目从零实现。感谢 Mirror、Sunshine、Moonlight 和依赖维护者。[完整署名](THIRD_PARTY_NOTICES.md) · [固定源码版本](native/SOURCE_LOCK.json)。本项目独立维护，不代表上游官方。
+
+</details>

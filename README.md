@@ -1,3 +1,23 @@
+# MoonCast · unified phone and TV preview
+
+**Current download: [MoonCast 0.5.0 unified preview](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview).**
+
+Install the same app on an Android phone and TV. Phones default to Send; Android TV devices default to Receive. Switch roles in the app's settings. ARM64 and ARMv7 are CPU variants of the same complete app, not separate sender/receiver products.
+
+- [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-armeabi-v7a.apk)
+- [Current source and full README](https://github.com/meta-tabchen/MoonCast/tree/unified/android-0.5.0) · [中文说明](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/README.zh-CN.md)
+- [Setup, My TV discovery and APK transfer](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-guide.md) · [Build and restore pinned dependencies](https://github.com/meta-tabchen/MoonCast/blob/unified/android-0.5.0/docs/unified-build.md)
+- [Complete corresponding source](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/MoonCast-0.5.0-unified-complete-source.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/unified-v0.5.0-preview/SHA256SUMS)
+
+AirPlay, DLNA and GameStream use their documented workflows. **Miracast, Google Cast and Lelink are not implemented.** APK transfer is unencrypted HTTP on a trusted LAN, fixed port 48152, enabled on the TV; the TV still requires user confirmation and Android's installer. Standby themes and translucent playback settings are included.
+
+This experimental package installs alongside older previews. Its disposable test signature does not promise future upgrade compatibility. Physical-device interoperability and the final unified UI/video/install flows remain unverified; build and host-test results are not those claims. CI unsigned artifacts are for verification, not installation.
+
+The **main branch below retains historical sender-only source**. For the current unified implementation, select `unified/android-0.5.0`; old branches/releases are preserved.
+
+<details>
+<summary>Historical 0.3.1 sender-only documentation (not the current download)</summary>
+
 <p align="center">
   <img src="docs/assets/banner.svg" alt="MoonCast — Your Android phone, on a bigger screen" width="920">
 </p>
@@ -97,3 +117,5 @@ See [contributing](CONTRIBUTING.md), [security](SECURITY.md), and the [roadmap](
 ## License and credits
 
 MoonCast is distributed under [GPLv3](LICENSE), with retained third-party notices and licenses. The native core is pinned to Mirror commit `d7eea1b9e44eea38850bffa32ed0623506a2aa9a`; see [source lock](native/SOURCE_LOCK.json) and [runtime manifest](native/prebuilt-manifest.json). Thank you to Mirror, Sunshine, Moonlight, and their dependency maintainers.
+
+</details>
