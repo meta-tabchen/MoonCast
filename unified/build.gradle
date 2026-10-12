@@ -58,7 +58,15 @@ dependencies {
  }
 }
 tasks.register('resolveHostIdentityTestArtifacts') {
- doLast { configurations.hostIdentityBaseline.files; configurations.releaseRuntimeClasspath.files }
+ doLast {
+  configurations.hostIdentityBaseline.files
+  // Resolve only BC module JARs for the host JVM regression. Raw Android project
+  // runtime configurations expose several artifact types and are ambiguous here.
+  configurations.releaseRuntimeClasspath.incoming.artifactView {
+   attributes { attribute(org.gradle.api.artifacts.type.ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, 'jar') }
+   componentFilter { id -> id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier && id.group == 'org.bouncycastle' }
+  }.files.files
+ }
 }
 dependencies { debugImplementation project(':moonlight-core') }
 // Refuse a source-only/partial native update or an accidental old-runtime restore.
