@@ -3,14 +3,14 @@
 <p align="center"><sub>模型生成品牌概念图，非设备截图或实际互通测试。</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4"><img src="https://img.shields.io/badge/download-0.6.0_browser_preview.4-547BEB" alt="Current download: 0.6.0 browser preview.4"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7"><img src="https://img.shields.io/badge/download-0.7-547BEB" alt="Current download: 0.7"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4">下载 APK</a> · <a href="docs/browser-receiver.md">浏览器上手</a> · <a href="docs/unified-guide.md">电视指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7">下载 APK</a> · <a href="docs/browser-receiver.md">浏览器上手</a> · <a href="docs/unified-guide.md">电视指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
 
 # MoonCast · 从手机到大屏，也到浏览器
 
@@ -18,9 +18,19 @@
 
 视频本身可能已经被黑边包在手机画面里。把整张手机画面等比放进电视，又会增加一层留白。MoonCast 帮你利用这部分空间：检测稳定黑边、按比例显示有效画面，并在自动判断不确定时提供手动调整。
 
+## 0.7：启动问题修复与手机显示优化
+
+- **修复已复现的GameStream身份初始化缺类。** 统一Bouncy Castle官方BOM配套：bcpkix／bcutil 1.85、bcprov 1.85.2。旧混合依赖在首次生成身份时会抛出NoClassDefFoundError；临时目录测试覆盖首次与已有身份，并检查不会重写已有密钥。
+- **启动失败不会只留下“已停止”。** 保存有界的启动阶段／错误，主动回传后再清理host，避免短时进程退出早于界面轮询而丢失原因。
+- **窄屏协议Tab更易读。** 手机两行等权布局，针对中英文与窄屏断词检查。
+- **连接中仍可取消。** 保留连接期间的Disconnect入口，新增offer尚未完成时取消的桌面浏览器用例。
+- **浏览器提供沉浸视图。** 控件自动隐藏并可触摸恢复，照顾安全区；全屏API缺失或被拒绝时降级为页面内沉浸，不承诺隐藏Safari浏览器或系统栏。
+
+**验证范围：** Mac主机／模拟布局／桌面浏览器检查与最终两ABI签名／BC类型引用检查有结果；没有追加手机、iPhone或完整GameStream端到端验证。本地OriginalMediaServerTest连接重置失败保留，首轮CI有测试解析失败；修复后的b8be236 CI通过主机／BC回归、双ABI构建、lint及签名检查，手动设备任务跳过。[本版验证明细](docs/release-0.7-validation.md)
+
 ## 扫码连接，按设备选择画质
 
-**0.6.0-browser-preview.4 / code 55**，构建 `c093667`，加入自动二维码与按设备能力选择画质。相对 `d44a4c4` 的最终改动仅为图标；按用户要求，最终图标构建未追加真机测试，下方画质观察属于图标修改前的构建。
+自动二维码与画质控制沿用此前code55实现。下方为图标修改前的历史短窗观察，不是0.7重新实测。
 
 - **二维码自动出现。** 浏览器模式开始共享并确认录屏后，连接卡直接展示二维码和复制链接，不需要再点展开。两者对应同一个临时局域网 URL，二维码本地生成，不向外部服务上传。停止后清除；请像保护链接一样保护有效二维码。
 - **在细节与流量之间选择。** 流畅上限为长边 720／24 fps／2 Mbps；均衡保留之前的 1280／30／8 Mbps 默认。清晰按设备报告能力选择最高候选，最多 3840／30 fps／24 Mbps，必要时降低到设备报告支持的帧率。
@@ -69,7 +79,7 @@
 - **手机电视装同一个应用。** 手机默认发送，Android TV / Leanback 默认接收；设置可切换并记住角色。切换会先停止旧角色，不支持同时收发。
 - **找电视与传 APK 共用设备入口。**「我的电视」展示投屏及 APK 接收能力；传完仍由你在电视上确认安装。
 
-MoonCast 0.6 为实验预览版，欢迎提交设备体验与兼容性反馈。
+部分 MoonCast 协议路径仍为实验性功能，欢迎提交设备体验与兼容性反馈。
 
 ## 去掉黑边，不等于无损填满屏幕
 
@@ -132,15 +142,17 @@ GameStream 和 DLNA 的连接方式见下文。
 
 进阶发送功能保留[逐项实现与历史验证说明](docs/feature-development.md)。历史结果不能替当前统一 APK 验收；当前浏览器路径见[浏览器验证记录](docs/browser-validation.md)，旧版记录仍保留。
 
-## 下载 0.6.0 浏览器预览版 .4
+## 下载 0.7
 
-[版本说明与全部附件](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-armeabi-v7a.apk) · [应用源码](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-source.zip) · [ABI与许可证](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-browser-preview.4-abi-and-notices.zip)
+[版本说明](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [应用源码](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [许可证清单](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
 
-最低 Android 8.0；按安卓系统实际 ABI 选择一个 APK，每个包含手机和电视角色。版本 `0.6.0-browser-preview.4`，versionCode `55`，源码与运行提交 `c0936675193c49e3bcd64bb0a76171059b9f9210`。固定 `com.mooncast.community` 包名与证书不变；浏览器播放音频需要 Android 10+ 且源应用允许。最终图标构建没有追加真机验收。
+最低Android 8.0。每台设备按系统ABI选择一个APK，每个均含手机与电视角色。版本 `0.7`，versionCode `57`；固定 `com.mooncast.community` 包名与现有公开测试证书不变。最终来源、产物哈希与检查结果以Release清单为准。公开测试签名保证升级身份连续性，不证明发布者身份。
 
-应用源码与构建说明包含固定 WebRTC SDK 源码／DEPS 获取及构建映射，**不是完整离线 WebRTC 依赖树；预编译原生 SDK 尚未独立重建**。[源码范围](docs/browser-release-source.md) · [SDK锁定](native/webrtc/SOURCE_LOCK.json)。发布附件应对照 Release 的 SHA256SUMS；源码包哈希以实际打包验证结果为准。
+应用源码与声明提供固定WebRTC外部源码／DEPS及构建获取映射，**不是完整离线SDK依赖树，预编译原生SDK未独立重建**。[源码范围](docs/browser-release-source.md) · [版本规则](docs/versioning.md)。
 
-[历史 preview.3 / code54](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.3) · [历史0.5.1](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [历史0.5.0](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)。已有GIF与截图保留各自历史版本标注，不代表本版新增界面或最终图标验收。
+[0.6.0-browser-preview.4 / code55](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4) · [0.6.0-browser-preview.3 / code54](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.3) · [0.5.1](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [0.5.0](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
+
+以上历史公开附件与影像保留原版本。数字0.6.0仅停留在草稿，不是此前公开发行版；不提供草稿下载链接。
 
 ## 两台设备怎么配合
 

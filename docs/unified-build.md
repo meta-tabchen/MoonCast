@@ -1,6 +1,6 @@
 # Build the community app / 构建社区版
 
-Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current browser preview.4 is `0.6.0-browser-preview.4`, versionCode 55; historical browser preview.3 is code54.
+Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current application metadata is `0.7`, versionCode 57. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release.
 
 ## Full Git checkout: fixed community signing
 
@@ -17,7 +17,7 @@ python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/u
 
 `mooncastAbi` accepts `arm64-v8a`, `armeabi-v7a` or `x86_64`; omit it for a larger universal build. This does not promise every ABI is published as a release download.
 
-The normal community build uses `com.mooncast.community`, versionCode 55 for browser preview.4 (published preview.3 used 54; initial 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
+The normal community build uses `com.mooncast.community`, versionCode 57 for 0.7 (historical browser preview.4 used 55, preview.3 used 54 and 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
 
 For subsequent releases add `--previous /path/to/previous-community.apk` to the identity verifier to check a matching identity and increasing versionCode. Old 0.5.0 is a different package with an unavailable disposable signing identity; it requires a one-time migration and cannot serve as a community in-place-update fixture.
 
@@ -88,4 +88,6 @@ The restoration asset remains the historical 0.5.0 complete-source ZIP because t
 
 Browser preview.4 QR and quality behavior is documented in [browser-qr-quality.md](browser-qr-quality.md). Target ceilings and device capability reports are not measured throughput or sustained quality. Final build identity and artifact verification must be recorded before describing a candidate as published.
 
-Final preview.4 source/runtime: c0936675193c49e3bcd64bb0a76171059b9f9210. Its delta from d44a4c4 is icon-only; no additional device test was requested or performed. Pre-icon quality observations and code54 media remain separately scoped.
+Historical preview.4 source/runtime: c0936675193c49e3bcd64bb0a76171059b9f9210. Its delta from d44a4c4 is icon-only; no additional device test was requested or performed. Pre-icon quality observations and code54 media remain separately scoped.
+
+For 0.7 checks and limits see [release-0.7-validation.md](release-0.7-validation.md). Follow the project engineering pitfalls and release procedure; no device pass is implied by a host or DEX check.

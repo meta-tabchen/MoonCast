@@ -3,14 +3,14 @@
 <p align="center"><sub>Model-generated brand illustration, not a device screenshot or an interoperability test.</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4"><img src="https://img.shields.io/badge/download-0.6.0_browser_preview.4-547BEB" alt="Current download: 0.6.0 browser preview.4"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7"><img src="https://img.shields.io/badge/download-0.7-547BEB" alt="Current download: 0.7"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4">Download APK</a> · <a href="docs/browser-receiver.md">Browser quick start</a> · <a href="docs/unified-guide.md">TV setup</a> · <a href="docs/cropping.md">Cropping explained</a> · <a href="docs/unified-build.md">Build</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7">Download APK</a> · <a href="docs/browser-receiver.md">Browser quick start</a> · <a href="docs/unified-guide.md">TV setup</a> · <a href="docs/cropping.md">Cropping explained</a> · <a href="docs/unified-build.md">Build</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
 
 # MoonCast · Your screen, a better fit.
 
@@ -18,9 +18,19 @@
 
 A video can already have black bars inside the phone's captured screen. Fitting that entire capture onto a TV adds another layer of empty space. MoonCast helps you reclaim that space: detect stable black borders, keep the useful picture in proportion, and adjust the framing when automatic detection is uncertain.
 
+## 0.7: startup fixes and a better phone layout
+
+- **Fix a reproduced GameStream identity-initialization class failure.** Align Bouncy Castle to the official BOM-compatible set: bcpkix/bcutil 1.85 and bcprov 1.85.2. The old mixed set threw NoClassDefFoundError during fresh identity creation; temporary-directory checks cover fresh/existing identity without rewriting existing keys.
+- **Keep startup failures visible.** Persist a bounded startup stage/error and actively publish it before host teardown, so a short-lived process does not erase the reason before the UI polls.
+- **Make phone protocol tabs readable.** Equal-width two-line labels address narrow layouts and English/Chinese wrapping.
+- **Cancel while connecting.** Keep Disconnect reachable before the offer completes, covered by an added desktop-browser cancellation fixture.
+- **Use an immersive browser view.** Controls auto-hide and return on touch, with safe-area layout. Missing or rejected fullscreen APIs fall back to page-level immersion; this does not promise to hide Safari or system bars.
+
+**Validation scope:** Mac host/mock-layout/desktop-browser checks and both final ABIs’ signature/BC type-reference checks have results; there is no additional phone, iPhone or complete GameStream end-to-end acceptance. The local OriginalMediaServerTest connection-reset failure is retained; the first CI had a test-resolver failure; the repaired CI on b8be236 passed host/BC regressions, both ABI builds, lint and signature checks. The manual device job was skipped. [0.7 validation details](docs/release-0.7-validation.md)
+
 ## Scan the link, choose your quality
 
-**0.6.0-browser-preview.4 / code 55**, build `c093667`, adds automatic QR and device-aware quality controls. The final change from `d44a4c4` is icon-only. At the user’s request, no additional device run was performed on this final icon build; the quality observations below belong to the pre-icon build.
+Automatic QR and quality controls retain the earlier code55 implementation. The short-window measurements below are historical pre-icon observations, not a new 0.7 device run.
 
 - **The QR appears automatically.** After starting Browser sharing and accepting capture consent, the connection card shows a locally generated QR beside Copy link. Both encode the same temporary LAN URL; no QR service receives it. Stop clears the code. Keep a live code private, just like its link.
 - **Choose detail or lighter traffic.** Smooth targets a maximum 720-pixel long edge / 24 fps / 2 Mbps; Balanced keeps the previous 1280 / 30 / 8 Mbps default. Clear selects the highest device-reported candidate up to 3840 / 30 fps / 24 Mbps, falling back to lower reported frame rates where needed.
@@ -69,7 +79,7 @@ Capability preflight can accept one reported-compatible encoder while WebRTC may
 - **One app on both devices.** Phones default to Send; Android TV/Leanback devices default to Receive. Switch and remember the role in settings. Switching stops the previous role; simultaneous sending and receiving is not supported.
 - **Cast and transfer from one device picker.** My TV shows relevant casting and APK-receiving capabilities. Installing a transferred APK still requires approval on the TV.
 
-MoonCast 0.6 is an experimental preview. Device reports and compatibility feedback are welcome.
+Some MoonCast protocol paths remain experimental. Device reports and compatibility feedback are welcome.
 
 ## Black-bar removal and full-screen filling are different
 
@@ -132,15 +142,17 @@ This is a deterministic pixel-threshold and geometry algorithm, **not AI scene r
 
 Advanced sender features retain their [per-feature implementation and historical test notes](docs/feature-development.md). That historical evidence does not certify the current unified APK. Use [browser validation](docs/browser-validation.md) for the new path; earlier evidence remains historical.
 
-## Download 0.6.0 browser preview .4
+## Download 0.7
 
-[Release notes and assets](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-armeabi-v7a.apk) · [Application source](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-0.6.0-browser-preview.4-c093667-source.zip) · [ABI and notices](https://github.com/meta-tabchen/MoonCast/releases/download/browser-v0.6.0-preview.4/MoonCast-browser-preview.4-abi-and-notices.zip)
+[Release notes](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [Application source](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [Notices](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
 
-Minimum Android 8.0. Choose one APK for the Android system's ABI; each includes phone and TV roles. Version `0.6.0-browser-preview.4`, versionCode `55`; source/runtime commit `c0936675193c49e3bcd64bb0a76171059b9f9210`. The fixed `com.mooncast.community` package and certificate are unchanged. Browser playback capture requires Android 10+ and source-app permission. No additional device acceptance was performed on the final icon build.
+Minimum Android 8.0. Choose one APK for the system ABI; each includes phone and TV roles. Version `0.7`, versionCode `57`; the fixed `com.mooncast.community` package and existing public test certificate are unchanged. Use the Release inventory for final provenance, artifact hashes and check results. The public test signer provides upgrade continuity, not publisher authentication.
 
-Application source/build instructions include pinned external WebRTC source/DEPS fetch and build mappings, **not a complete offline WebRTC checkout; the prebuilt native SDK has not been independently rebuilt**. [Source scope](docs/browser-release-source.md) · [SDK lock](native/webrtc/SOURCE_LOCK.json). Compare assets with the Release's SHA256SUMS; the source archive hash must come from actual packaging verification.
+Application source/notices supply pinned external WebRTC source/DEPS fetch/build mappings, **not a full offline SDK checkout; the prebuilt native SDK has not been independently rebuilt**. [Source scope](docs/browser-release-source.md) · [Version naming](docs/versioning.md).
 
-[Historical preview.3 / code54](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.3) · [Historical 0.5.1](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [Historical 0.5.0](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview). Existing GIFs/screenshots retain their historical version labels, not acceptance of new UI or the final icon build.
+[0.6.0-browser-preview.4 / code55](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.4) · [0.6.0-browser-preview.3 / code54](https://github.com/meta-tabchen/MoonCast/releases/tag/browser-v0.6.0-preview.3) · [0.5.1](https://github.com/meta-tabchen/MoonCast/releases/tag/community-v0.5.1) · [0.5.0](https://github.com/meta-tabchen/MoonCast/releases/tag/unified-v0.5.0-preview)
+
+Earlier public assets and media retain their original version labels. Numeric 0.6.0 remained a draft, not a previous public release; no draft download is linked here.
 
 ## How the devices cooperate
 
