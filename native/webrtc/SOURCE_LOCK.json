@@ -1,0 +1,92 @@
+{
+  "schema": 1,
+  "coordinate": "io.github.webrtc-sdk:android:144.7559.15",
+  "url": "https://repo.maven.apache.org/maven2/io/github/webrtc-sdk/android/144.7559.15/android-144.7559.15.aar",
+  "sha256": "fc7c8d027eb33860ccbb7847988f7f942d44a92d1f575348bba6c0250cde4071",
+  "size": 48665974,
+  "source": {
+    "repository": "https://github.com/webrtc-sdk/webrtc",
+    "commit": "30d5e63ae91da483e06577b5c35ee91cc5e5c3db"
+  },
+  "wrapper": {
+    "repository": "https://github.com/webrtc-sdk/android",
+    "tag": "v144.7559.15",
+    "commit": "0c62f604c97087664e412ec04e0ec79721a263b1"
+  },
+  "upstream_build_repository": "https://github.com/webrtc-sdk/webrtc-build",
+  "licenses": [
+    {
+      "path": "app/src/main/assets/browser-webrtc-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/webrtc-sdk/webrtc/30d5e63ae91da483e06577b5c35ee91cc5e5c3db/LICENSE",
+      "sha256": "ab00a482b6a3902e40211b43c5d0441962ea99b6cc7c25c0f243fa270b78d482"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-THIRD-PARTY.md",
+      "url": "https://raw.githubusercontent.com/webrtc-sdk/android/v144.7559.15/Licenses/WEBRTC.md",
+      "sha256": "d1f9382c6878ac024155fd6d44a5977329108bb8b0a01cea40e4a2f1d7de252e"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-PATENTS.txt",
+      "url": "https://raw.githubusercontent.com/webrtc-sdk/webrtc/30d5e63ae91da483e06577b5c35ee91cc5e5c3db/PATENTS",
+      "sha256": "01462e2068d1a04c2274f3389773014c14ed9bc3446b28303543bd3e3c064145"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-NOTICE.txt",
+      "url": "https://raw.githubusercontent.com/webrtc-sdk/webrtc/30d5e63ae91da483e06577b5c35ee91cc5e5c3db/NOTICE",
+      "sha256": "e00ec4edd5966821115deb6c73e0e158524b310250fbda3a50e8d542b2a501c2"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-WRAPPER-LICENSE.txt",
+      "url": "https://raw.githubusercontent.com/webrtc-sdk/android/v144.7559.15/LICENSE",
+      "sha256": "e6b282fe6c0fb353928923470457f31b44cbab203effd60c0cde4a5bb96c8aec"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-JNI-ZERO-LICENSE.txt",
+      "url": "https://chromium.googlesource.com/chromium/src/third_party/+/a3b630c291f1cf3b711687b1c4be322d3015512e/jni_zero/LICENSE?format=TEXT",
+      "download_encoding": "gitiles-base64",
+      "sha256": "57faf03e216d5628169a779df31a842347e55c8e6567e1107b6cb8fb90175b59"
+    },
+    {
+      "path": "app/src/main/assets/browser-webrtc-BORINGSSL-LICENSE.txt",
+      "url": "https://boringssl.googlesource.com/boringssl/+/b94d71f87ff943a617d77f3ff029f9a01a1ec6bc/LICENSE?format=TEXT",
+      "download_encoding": "gitiles-base64",
+      "sha256": "827c8d8fc207c2392794eef9e00fe246f9f61fdcc132556c275be3dd8c3cd97f"
+    }
+  ],
+  "libraries": {
+    "armeabi-v7a/libjingle_peerconnection_so.so": "58e3fd27ef738fb11a66f8d8548dc7aed4225986207d3b32b498125ce6735815",
+    "arm64-v8a/libjingle_peerconnection_so.so": "5d68547da3fad7679846187577a0333c10d9ff4d39322bce61f366426924612e",
+    "x86_64/libjingle_peerconnection_so.so": "6fa42eba21bcf4d02234d63e007b58966d9919d0d1eb0c887b8ef005964f7158",
+    "x86/libjingle_peerconnection_so.so": "d14971f27acc4f4c242cc6b77f4077a665d45b3dff33b026c3c42a61fccb00e7"
+  },
+  "local_modifications": "None to the WebRTC AAR or its native libraries; integration uses public Java APIs.",
+  "dependency_pins": {
+    "provenance": "Source revisions from the pinned WebRTC DEPS; not a complete linked-component SBOM or proof of the published AAR build configuration.",
+    "deps_url": "https://raw.githubusercontent.com/webrtc-sdk/webrtc/30d5e63ae91da483e06577b5c35ee91cc5e5c3db/DEPS",
+    "boringssl": {
+      "repository": "https://boringssl.googlesource.com/boringssl.git",
+      "commit": "b94d71f87ff943a617d77f3ff029f9a01a1ec6bc",
+      "source_path": "src/third_party/boringssl/src",
+      "license_path": "app/src/main/assets/browser-webrtc-BORINGSSL-LICENSE.txt"
+    },
+    "jni_zero": {
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party",
+      "commit": "a3b630c291f1cf3b711687b1c4be322d3015512e",
+      "source_path": "src/third_party/jni_zero",
+      "path_within_repository": "jni_zero",
+      "license_path": "app/src/main/assets/browser-webrtc-JNI-ZERO-LICENSE.txt"
+    },
+    "chromium": {
+      "repository": "https://chromium.googlesource.com/chromium/src",
+      "commit": "dd64a1bc0f36e9b9c690a8a00f1328ad68805e27"
+    },
+    "build": {
+      "repository": "https://github.com/webrtc-sdk/build",
+      "commit": "be1a8f6dcd7df7e46320192c5e2f364e50d79bbf"
+    },
+    "chromium_third_party": {
+      "repository": "https://chromium.googlesource.com/chromium/src/third_party",
+      "commit": "a3b630c291f1cf3b711687b1c4be322d3015512e"
+    }
+  }
+}

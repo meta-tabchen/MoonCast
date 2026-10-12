@@ -1,0 +1,58 @@
+[
+    {
+        "group": "com.squareup.okhttp3",
+        "name": "okhttp",
+        "version": "4.12.0",
+        "filename": "okhttp-4.12.0.jar",
+        "sha256": "b1050081b14bb7a3a7e55a4d3ef01b5dcfabc453b4573a4fc019767191d5f4e0"
+    },
+    {
+        "group": "com.squareup.okio",
+        "name": "okio-jvm",
+        "version": "3.6.0",
+        "filename": "okio-jvm-3.6.0.jar",
+        "sha256": "67543f0736fc422ae927ed0e504b98bc5e269fda0d3500579337cb713da28412"
+    },
+    {
+        "group": "org.bouncycastle",
+        "name": "bcprov-jdk18on",
+        "version": "1.85.2",
+        "filename": "bcprov-jdk18on-1.85.2.jar",
+        "sha256": "986b0fb92ec10e0c66b43e036ce0077e6150cfaecd1db9fb92b56672e157afe5"
+    },
+    {
+        "group": "org.jetbrains.kotlin",
+        "name": "kotlin-stdlib",
+        "version": "1.9.10",
+        "filename": "kotlin-stdlib-1.9.10.jar",
+        "sha256": "55e989c512b80907799f854309f3bc7782c5b3d13932442d0379d5c472711504"
+    },
+    {
+        "group": "org.jetbrains.kotlin",
+        "name": "kotlin-stdlib-common",
+        "version": "1.9.10",
+        "filename": "kotlin-stdlib-common-1.9.10.jar",
+        "sha256": "cde3341ba18a2ba262b0b7cf6c55b20c90e8d434e42c9a13e6a3f770db965a88"
+    },
+    {
+        "group": "org.jetbrains.kotlin",
+        "name": "kotlin-stdlib-jdk7",
+        "version": "1.9.10",
+        "filename": "kotlin-stdlib-jdk7-1.9.10.jar",
+        "sha256": "ac6361bf9ad1ed382c2103d9712c47cdec166232b4903ed596e8876b0681c9b7"
+    },
+    {
+        "group": "org.jetbrains.kotlin",
+        "name": "kotlin-stdlib-jdk8",
+        "version": "1.9.10",
+        "filename": "kotlin-stdlib-jdk8-1.9.10.jar",
+        "sha256": "a4c74d94d64ce1abe53760fe0389dd941f6fc558d0dab35e47c085a11ec80f28"
+    },
+    {
+        "group": "org.jetbrains",
+        "name": "annotations",
+        "version": "13.0",
+        "filename": "annotations-13.0.jar",
+        "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478"
+    }
+]

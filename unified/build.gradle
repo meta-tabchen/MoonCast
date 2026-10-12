@@ -1,0 +1,80 @@
+plugins { id 'com.android.application' }
+// Explicit unsigned verification is a different, noninstallable identity, never a fallback.
+def verificationOnly = providers.gradleProperty('mooncastUnsignedVerification').orNull == 'true'
+def communityIdentity = null
+def communityKey = null
+if (!verificationOnly) {
+communityIdentity = new groovy.json.JsonSlurper().parse(rootProject.file('signing/community/identity.json'))
+communityKey = rootProject.file(communityIdentity.keystore)
+// The test material is deliberately public, but its exact bytes must never silently change.
+if (!communityKey.isFile()) throw new GradleException('Fixed public community fixture missing; restore it from Git. Never generate a replacement.')
+def fixtureSha = java.security.MessageDigest.getInstance('SHA-256').digest(communityKey.bytes).encodeHex().toString()
+if (fixtureSha != communityIdentity.keystoreSha256) throw new GradleException('Community fixture byte fingerprint mismatch')
+def fixtureStore = java.security.KeyStore.getInstance('PKCS12')
+communityKey.withInputStream { fixtureStore.load(it, communityIdentity.publicPassword.toCharArray()) }
+def fixtureCert = fixtureStore.getCertificate(communityIdentity.alias)
+def certSha = java.security.MessageDigest.getInstance('SHA-256').digest(fixtureCert.encoded).encodeHex().toString()
+if (certSha != rootProject.file('signing/community/certificate-sha256.txt').text.trim() || certSha != communityIdentity.certificateSha256 || communityIdentity.applicationId != 'com.mooncast.community') throw new GradleException('Unexpected community identity')
+ }
+def abi = providers.gradleProperty('mooncastAbi').orNull
+if (abi != null && !(abi in ['arm64-v8a','armeabi-v7a','x86_64'])) throw new GradleException('Unsupported ABI')
+android {
+ namespace 'com.mooncast.unified'
+ compileSdk 35
+ buildToolsVersion '35.0.0'
+ defaultConfig {
+  applicationId (verificationOnly ? 'com.mooncast.community.verification' : 'com.mooncast.community')
+  minSdk 26; targetSdk 35
+  manifestPlaceholders.mooncastBuildId = providers.gradleProperty('mooncastBuildId').orElse('').get()
+  versionCode 54; versionName '0.6.0-browser-preview.3'
+  testInstrumentationRunner 'com.mooncast.unified.UnifiedInstrumentation'
+  ndk { if (abi != null) abiFilters abi else abiFilters 'arm64-v8a','armeabi-v7a','x86_64' }
+ }
+ buildFeatures { buildConfig true }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ signingConfigs { if (!verificationOnly) community {
+  storeFile communityKey; storeType 'PKCS12'
+  storePassword communityIdentity.publicPassword; keyPassword communityIdentity.publicPassword; keyAlias communityIdentity.alias
+ } }
+ buildTypes { release { minifyEnabled true; shrinkResources true; signingConfig (verificationOnly ? null : signingConfigs.community); proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' }; debug { signingConfig (verificationOnly ? null : signingConfigs.community) }; production { initWith release; applicationIdSuffix ".production"; signingConfig null } }
+ sourceSets.main.jniLibs.srcDirs = ['native-receiver']
+ packaging { jniLibs { useLegacyPackaging true; keepDebugSymbols += ['**/*.so'] } }
+ lint { abortOnError true }
+}
+dependencies { implementation project(':phone-ui'); implementation project(':tv-ui') }
+dependencies { debugImplementation project(':moonlight-core') }
+// Refuse a source-only/partial native update or an accidental old-runtime restore.
+def verifyUnifiedNative = tasks.register('verifyUnifiedNative') {
+ doLast {
+  def digest = { File f -> java.security.MessageDigest.getInstance('SHA-256').digest(f.bytes).encodeHex().toString() }
+  def manifest = new groovy.json.JsonSlurper().parse(rootProject.file('native/unified-receiver-manifest.json'))
+  if (manifest.libraries.size() != 12) throw new GradleException('All three receiver ABIs are required as source inputs')
+  manifest.libraries.each { name, row ->
+   def src = rootProject.file('tv/src/main/jniLibs/' + row.source)
+   def out = file('native-receiver/' + name)
+   if (!src.isFile() || !out.isFile() || digest(src) != row.sourceSha256 || digest(out) != row.sha256)
+    throw new GradleException('Unified native input mismatch: ' + name + '; run the pinned rebuild and prepare_unified_native.py')
+  }
+  def sender = new groovy.json.JsonSlurper().parse(rootProject.file('native/airplay-sender/prebuilt-manifest.json'))
+  if (digest(rootProject.file(sender.aar.path)) != sender.aar.sha256) throw new GradleException('Sender AAR no longer matches source provenance')
+ }
+}
+tasks.named('preBuild').configure { dependsOn verifyUnifiedNative }
+android.sourceSets.androidTest.java.srcDirs += ['../tv/src/androidTest/java']
+dependencies {
+ androidTestImplementation 'androidx.annotation:annotation:1.6.0'
+ androidTestImplementation 'androidx.collection:collection:1.2.0'
+ androidTestImplementation project(':moonlight-core')
+ androidTestImplementation 'androidx.media3:media3-exoplayer:1.5.1'
+}
+dependencies {
+ androidTestImplementation 'androidx.core:core:1.8.0'
+ androidTestImplementation project(':transfer-core')
+}
+
+dependencies { implementation project(':locale-core') }
+
+// No community-to-production fallback: a store build requires a separate reviewed identity.
+tasks.configureEach { if (name.toLowerCase().contains('production')) doFirst {
+ throw new GradleException('Production publication is not configured. Use a separate applicationId and confidential certificate; public community signing is forbidden.')
+} }

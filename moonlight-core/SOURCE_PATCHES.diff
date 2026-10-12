@@ -1,0 +1,408 @@
+--- upstream/nvstream/NvConnection.java
++++ modified/nvstream/NvConnection.java
+@@ -49,6 +49,17 @@
+     private final boolean isMonkey;
+     private final Context appContext;
+ 
++    // MoonCast: one-shot, cancellable lifecycle; never over-release upstream's global permit.
++    private static final Object nativeOwnerLock = new Object();
++    private static NvConnection nativeOwner;
++    private final java.util.concurrent.atomic.AtomicBoolean startInvoked = new java.util.concurrent.atomic.AtomicBoolean();
++    private final java.util.concurrent.CountDownLatch startupFinished = new java.util.concurrent.CountDownLatch(1);
++    private volatile boolean stopRequested;
++    private volatile boolean nativeRunning;
++    private volatile NvHTTP startupHttp;
++    private volatile Thread startupThread;
++    private final java.util.concurrent.atomic.AtomicBoolean terminalFailureReported = new java.util.concurrent.atomic.AtomicBoolean();
++
+     public NvConnection(Context appContext, ComputerDetails.AddressTuple host, int httpsPort, String uniqueId, StreamConfiguration config, LimelightCryptoProvider cryptoProvider, X509Certificate serverCert)
+     {
+         this.appContext = appContext;
+@@ -86,20 +97,41 @@
+         return new SecureRandom().nextInt();
+     }
+ 
++    /** Blocking native cleanup: call from an owner worker, not the Android UI thread. */
+     public void stop() {
+-        // Interrupt any pending connection. This is thread-safe.
+-        MoonBridge.interruptConnection();
+-
+-        // Moonlight-core is not thread-safe with respect to connection start and stop, so
+-        // we must not invoke that functionality in parallel.
++        stopRequested = true;
++        NvHTTP pending = startupHttp;
++        if (pending != null) pending.cancelRequests();
++        Thread starter = startupThread;
++        if (starter != null && starter != Thread.currentThread()) starter.interrupt();
++
++        synchronized (nativeOwnerLock) {
++            // Interrupt only our own native session, never another receiver's session.
++            if (nativeOwner != this) return;
++            MoonBridge.interruptConnection();
++        }
+         synchronized (MoonBridge.class) {
+-            MoonBridge.stopConnection();
+-            MoonBridge.cleanupBridge();
+-        }
+-
+-        // Now a pending connection can be processed
+-        connectionAllowed.release();
+-    }
++            if (nativeRunning) {
++                nativeRunning = false;
++                try {
++                    MoonBridge.stopConnection();
++                } finally {
++                    MoonBridge.cleanupBridge();
++                    synchronized (nativeOwnerLock) {
++                        if (nativeOwner == this) nativeOwner = null;
++                    }
++                    connectionAllowed.release();
++                }
++            }
++        }
++    }
++
++    /** Does not imply a live stream; useful before disposing a cancelled startup owner. */
++    public boolean awaitStartupComplete(long timeoutMillis) throws InterruptedException {
++        return startupFinished.await(timeoutMillis, java.util.concurrent.TimeUnit.MILLISECONDS);
++    }
++
++    public boolean isRunning() { return nativeRunning; }
+ 
+     private InetAddress resolveServerAddress() throws IOException {
+         // Try to find an address that works for this host
+@@ -222,6 +254,8 @@
+     private boolean startApp() throws XmlPullParserException, IOException
+     {
+         NvHTTP h = new NvHTTP(context.serverAddress, context.httpsPort, uniqueId, context.serverCert, cryptoProvider);
++        startupHttp = h;
++        if (stopRequested) { h.cancelRequests(); return false; }
+ 
+         String serverInfo = h.getServerInfo(true);
+         
+@@ -379,52 +413,39 @@
+         return true;
+     }
+ 
+-    public void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer, final NvConnectionListener connectionListener)
+-    {
+-        new Thread(new Runnable() {
+-            public void run() {
+-                context.connListener = connectionListener;
++    public void start(final AudioRenderer audioRenderer, final VideoDecoderRenderer videoDecoderRenderer,
++                      final NvConnectionListener connectionListener) {
++        if (!startInvoked.compareAndSet(false, true)) {
++            throw new IllegalStateException("NvConnection is one-shot; create a new connection for reconnect");
++        }
++        context.connListener = connectionListener;
++        startupThread = new Thread(() -> {
++            boolean acquired = false;
++            boolean running = false;
++            String appName = context.streamConfig.getApp().getAppName();
++            try {
++                // Serialize HTTP launch as well as native startup, so two clients cannot
++                // race to replace a host session before acquiring the native permit.
++                connectionAllowed.acquire();
++                acquired = true;
++                if (stopRequested) return;
+                 context.videoCapabilities = videoDecoderRenderer.getCapabilities();
+-
+-                String appName = context.streamConfig.getApp().getAppName();
+-
+-                context.connListener.stageStarting(appName);
+-
+-                try {
+-                    if (!startApp()) {
+-                        context.connListener.stageFailed(appName, 0, 0);
+-                        return;
+-                    }
+-                    context.connListener.stageComplete(appName);
+-                } catch (HostHttpResponseException e) {
+-                    e.printStackTrace();
+-                    context.connListener.displayMessage(e.getMessage());
+-                    context.connListener.stageFailed(appName, 0, e.getErrorCode());
++                connectionListener.stageStarting(appName);
++                if (!startApp()) {
++                    if (!stopRequested) connectionListener.stageFailed(appName, 0, 0);
+                     return;
+-                } catch (XmlPullParserException | IOException e) {
+-                    e.printStackTrace();
+-                    context.connListener.displayMessage(e.getMessage());
+-                    context.connListener.stageFailed(appName, MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989, 0);
+-                    return;
+-                }
+-
++                }
++                if (stopRequested) return;
++                connectionListener.stageComplete(appName);
+                 ByteBuffer ib = ByteBuffer.allocate(16);
+                 ib.putInt(context.riKeyId);
+-
+-                // Acquire the connection semaphore to ensure we only have one
+-                // connection going at once.
+-                try {
+-                    connectionAllowed.acquire();
+-                } catch (InterruptedException e) {
+-                    context.connListener.displayMessage(e.getMessage());
+-                    context.connListener.stageFailed(appName, 0, 0);
+-                    return;
+-                }
+-
+-                // Moonlight-core is not thread-safe with respect to connection start and stop, so
+-                // we must not invoke that functionality in parallel.
+                 synchronized (MoonBridge.class) {
+-                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, connectionListener);
++                    synchronized (nativeOwnerLock) {
++                        if (stopRequested) return;
++                        nativeOwner = this;
++                    }
++                    try {
++                    MoonBridge.setupBridge(videoDecoderRenderer, audioRenderer, cancellationAware(connectionListener));
+                     int ret = MoonBridge.startConnection(context.serverAddress.address,
+                             context.serverAppVersion, context.serverGfeVersion, context.rtspSessionUrl,
+                             context.serverCodecModeSupport,
+@@ -438,18 +459,81 @@
+                             context.videoCapabilities,
+                             context.streamConfig.getColorSpace(),
+                             context.streamConfig.getColorRange());
+-                    if (ret != 0) {
+-                        // LiStartConnection() failed, so the caller is not expected
+-                        // to stop the connection themselves. We need to release their
+-                        // semaphore count for them.
+-                        connectionAllowed.release();
+-                        return;
+-                    }
+-                }
+-            }
+-        }).start();
+-    }
+-    
++                    if (ret == 0) {
++                        nativeRunning = true;
++                        running = true;
++                    } else if (!stopRequested && terminalFailureReported.compareAndSet(false, true)) {
++                        // Several native argument-validation failures return before any
++                        // stage callback. Do not strand the UI in CONNECTING.
++                        connectionListener.stageFailed("Native connection", 0, ret);
++                    }
++                    } finally {
++                        // LiStartConnection cleans its native partial startup on an error return.
++                        // Always drop Java callback references even if the JNI call throws.
++                        if (!running) MoonBridge.cleanupBridge();
++                    }
++                }
++            } catch (InterruptedException e) {
++                Thread.currentThread().interrupt();
++                if (!stopRequested) connectionListener.stageFailed(appName, 0, -1);
++            } catch (HostHttpResponseException e) {
++                if (!stopRequested) {
++                    connectionListener.displayMessage(e.getMessage());
++                    connectionListener.stageFailed(appName, 0, e.getErrorCode());
++                }
++            } catch (XmlPullParserException | IOException | RuntimeException | LinkageError e) {
++                if (!stopRequested) {
++                    connectionListener.displayMessage(e.getMessage());
++                    connectionListener.stageFailed(appName,
++                            MoonBridge.ML_PORT_FLAG_TCP_47984 | MoonBridge.ML_PORT_FLAG_TCP_47989, 0);
++                }
++            } finally {
++                try {
++                startupHttp = null;
++                if (!running) {
++                    synchronized (nativeOwnerLock) {
++                        if (nativeOwner == this) nativeOwner = null;
++                    }
++                    if (acquired) connectionAllowed.release();
++                } else if (stopRequested) {
++                    stop();
++                }
++                } finally {
++                    startupFinished.countDown();
++                }
++            }
++        }, "MoonCast-GameStream-start");
++        startupThread.start();
++    }
++
++    private NvConnectionListener cancellationAware(NvConnectionListener delegate) {
++        return new NvConnectionListener() {
++            public void stageStarting(String stage) {
++                // Native LiStartConnection resets ConnectionInterrupted before this first
++                // callback. Reapply cancellation here to close the pre-JNI interrupt race.
++                if (stopRequested) MoonBridge.interruptConnection();
++                else delegate.stageStarting(stage);
++            }
++            public void stageComplete(String stage) { if (!stopRequested) delegate.stageComplete(stage); }
++            public void stageFailed(String stage, int ports, int code) {
++                if (!stopRequested && terminalFailureReported.compareAndSet(false, true)) delegate.stageFailed(stage, ports, code);
++            }
++            public void connectionStarted() {
++                if (stopRequested) MoonBridge.interruptConnection();
++                else delegate.connectionStarted();
++            }
++            public void connectionTerminated(int code) { delegate.connectionTerminated(code); }
++            public void connectionStatusUpdate(int status) { if (!stopRequested) delegate.connectionStatusUpdate(status); }
++            public void displayMessage(String message) { if (!stopRequested) delegate.displayMessage(message); }
++            public void displayTransientMessage(String message) { if (!stopRequested) delegate.displayTransientMessage(message); }
++            public void rumble(short n, short lo, short hi) { delegate.rumble(n, lo, hi); }
++            public void rumbleTriggers(short n, short left, short right) { delegate.rumbleTriggers(n, left, right); }
++            public void setHdrMode(boolean enabled, byte[] metadata) { delegate.setHdrMode(enabled, metadata); }
++            public void setMotionEventState(short n, byte type, short rate) { delegate.setMotionEventState(n, type, rate); }
++            public void setControllerLED(short n, byte r, byte g, byte b) { delegate.setControllerLED(n, r, g, b); }
++        };
++    }
++
+     public void sendMouseMove(final short deltaX, final short deltaY)
+     {
+         if (!isMonkey) {
+--- upstream/nvstream/http/NvHTTP.java
++++ modified/nvstream/http/NvHTTP.java
+@@ -70,8 +70,9 @@
+     public static final int LONG_CONNECTION_TIMEOUT = 5000;
+     public static final int READ_TIMEOUT = 7000;
+ 
+-    // Print URL and content to logcat on debug builds
+-    private static boolean verbose = BuildConfig.DEBUG;
++    // MoonCast prototype: pairing and launch URLs can contain identity/key material.
++    // Never log their full contents, including in debug builds.
++    private static final boolean verbose = false;
+ 
+     private HttpUrl baseUrlHttp;
+ 
+@@ -85,6 +86,27 @@
+     private X509TrustManager trustManager;
+     private X509KeyManager keyManager;
+     private X509Certificate serverCert;
++    // MoonCast: cancellation is sticky so a cancelled PIN/launch flow cannot issue
++    // another request after the caller closes its UI or starts a new host flow.
++    private volatile boolean cancelled;
++    private final Object requestLock = new Object();
++    private final java.util.ArrayList<okhttp3.Call> issuedCalls = new java.util.ArrayList<>();
++
++    public void cancelRequests() {
++        java.util.ArrayList<okhttp3.Call> snapshot;
++        synchronized (requestLock) {
++            if (cancelled) return;
++            cancelled = true;
++            snapshot = new java.util.ArrayList<>(issuedCalls);
++        }
++        // Cancellation is logically immediate. Socket teardown can call platform code,
++        // so keep it off a UI caller as well as outside the short registration lock.
++        if (!snapshot.isEmpty()) new Thread(() -> {
++            for (okhttp3.Call call : snapshot) call.cancel();
++        }, "MoonCast-HTTP-cancel").start();
++    }
++
++    public boolean isCancelled() { return cancelled; }
+ 
+     void setServerCert(X509Certificate serverCert) {
+         this.serverCert = serverCert;
+@@ -134,6 +156,14 @@
+                 throw new IllegalStateException("Should never be called");
+             }
+             public void checkServerTrusted(X509Certificate[] certs, String authType) throws CertificateException {
++                // MoonCast: an established host pin is authoritative even when another
++                // presented certificate chains to a public CA. Do not silently repin.
++                if (NvHTTP.this.serverCert != null) {
++                    if (certs.length == 0 || !certs[0].equals(NvHTTP.this.serverCert)) {
++                        throw new CertificateException("Paired host certificate mismatch");
++                    }
++                    return;
++                }
+                 try {
+                     // Try the default trust manager first to allow pairing with certificates
+                     // that chain up to a trusted root CA. This will raise CertificateException
+@@ -178,7 +208,8 @@
+                 .readTimeout(READ_TIMEOUT, TimeUnit.MILLISECONDS)
+                 .connectTimeout(LONG_CONNECTION_TIMEOUT, TimeUnit.MILLISECONDS)
+                 .proxy(Proxy.NO_PROXY)
+-                .fastFallback(false)
++                .followRedirects(false)
++                .followSslRedirects(false)
+                 .build();
+ 
+         httpClientShortConnectTimeout = httpClientLongConnectTimeout.newBuilder()
+@@ -187,6 +218,7 @@
+ 
+         httpClientLongConnectNoReadTimeout = httpClientLongConnectTimeout.newBuilder()
+                 .readTimeout(0, TimeUnit.MILLISECONDS)
++                .callTimeout(120, TimeUnit.SECONDS)
+                 .build();
+     }
+ 
+@@ -311,43 +343,14 @@
+         // like there are extra request headers required to make this stuff work over HTTP.
+         //
+ 
+-        // When we have a pinned cert, use HTTPS to fetch serverinfo and fall back on cert mismatch
++        // MoonCast: an established pairing never downgrades /serverinfo to HTTP on
++        // a certificate mismatch or 401. The user must explicitly choose to re-pair.
+         if (serverCert != null) {
+-            try {
+-                try {
+-                    resp = openHttpConnectionToString(client, getHttpsUrl(likelyOnline), "serverinfo");
+-                } catch (SSLHandshakeException e) {
+-                    // Detect if we failed due to a server cert mismatch
+-                    if (e.getCause() instanceof CertificateException) {
+-                        // Jump to the GfeHttpResponseException exception handler to retry
+-                        // over HTTP which will allow us to pair again to update the cert
+-                        throw new HostHttpResponseException(401, "Server certificate mismatch");
+-                    }
+-                    else {
+-                        throw e;
+-                    }
+-                }
+-
+-                // This will throw an exception if the request came back with a failure status.
+-                // We want this because it will throw us into the HTTP case if the client is unpaired.
+-                getServerVersion(resp);
+-            }
+-            catch (HostHttpResponseException e) {
+-                if (e.getErrorCode() == 401) {
+-                    // Cert validation error - fall back to HTTP
+-                    return openHttpConnectionToString(client, baseUrlHttp, "serverinfo");
+-                }
+-
+-                // If it's not a cert validation error, throw it
+-                throw e;
+-            }
+-
++            resp = openHttpConnectionToString(client, getHttpsUrl(likelyOnline), "serverinfo");
++            getServerVersion(resp);
+             return resp;
+         }
+-        else {
+-            // No pinned cert, so use HTTP
+-            return openHttpConnectionToString(client, baseUrlHttp, "serverinfo");
+-        }
++        return openHttpConnectionToString(client, baseUrlHttp, "serverinfo");
+     }
+ 
+     private static ComputerDetails.AddressTuple makeTuple(String address, int port) {
+@@ -430,7 +433,14 @@
+     private ResponseBody openHttpConnection(OkHttpClient client, HttpUrl baseUrl, String path, String query) throws IOException {
+         HttpUrl completeUrl = getCompleteUrl(baseUrl, path, query);
+         Request request = new Request.Builder().url(completeUrl).get().build();
+-        Response response = performAndroidTlsHack(client).newCall(request).execute();
++        // SSLContext/provider and client construction may be expensive. Never hold
++        // requestLock here: main-thread cancellation must not wait for TLS setup.
++        okhttp3.Call call = performAndroidTlsHack(client).newCall(request);
++        synchronized (requestLock) {
++            if (cancelled) throw new IOException("Host operation cancelled");
++            issuedCalls.add(call);
++        }
++        Response response = call.execute();
+ 
+         ResponseBody body = response.body();
+         
+@@ -444,7 +454,8 @@
+         }
+         
+         if (response.code() == 404) {
+-            throw new FileNotFoundException(completeUrl.toString());
++            // Launch/PIN query strings contain key material; never expose the URL.
++            throw new FileNotFoundException("Host endpoint unavailable (HTTP 404): " + path);
+         }
+         else {
+             throw new HostHttpResponseException(response.code(), response.message());

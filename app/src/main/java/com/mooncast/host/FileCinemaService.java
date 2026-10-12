@@ -9,6 +9,10 @@ import java.util.*;
 
 /** Separate process and notification: stopping mirroring does not stop file sharing. */
 public final class FileCinemaService extends Service {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     static final int STATUS=1,STOP=2;
     private final Handler main=new Handler(Looper.getMainLooper());
     private OriginalMediaServer server;
@@ -41,7 +45,7 @@ public final class FileCinemaService extends Service {
                 DocumentMedia media=new DocumentMedia(this,uri);
                 // Fail before publishing a link if the document can no longer be opened.
                 try(var ignored=media.open()){}
-                candidate=new OriginalMediaServer(media,InetAddress.getByName("0.0.0.0"),chinese);
+                candidate=new OriginalMediaServer(media,InetAddress.getByName("0.0.0.0"),chinese,getString(R.string.phone_original_media_hint));
                 OriginalMediaServer ready=candidate;String links=addresses(ready);
                 main.post(()->{if(selected!=generation){ready.close();return;}server=ready;name=media.name();urls=links;});
             }catch(Exception e){if(candidate!=null)candidate.close();main.post(()->{if(selected==generation)error=getString(R.string.ui_file_open_failed)+" "+e.getClass().getSimpleName();});}

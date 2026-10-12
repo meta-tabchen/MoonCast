@@ -1,0 +1,33 @@
+plugins { id 'com.android.library' }
+android {
+ namespace 'com.mooncast.host'
+ compileSdk 35
+ buildToolsVersion '35.0.0'
+ defaultConfig {
+  minSdk 26; targetSdk 35
+  buildConfigField 'int', 'VERSION_CODE', '54'
+  buildConfigField 'String', 'VERSION_NAME', '"0.6.0-browser-preview.3"'
+  buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.community"'
+ }
+ buildFeatures { buildConfig true; aidl true }
+ compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+ sourceSets.main {
+  java.exclude 'com/mooncast/transfer/**'
+  java.srcDirs = ['../app/src/main/java']
+  aidl.srcDirs = ['../app/src/main/aidl']
+  res.srcDirs = ['../app/src/main/res']
+  assets.srcDirs = ['../app/src/main/assets']
+  jniLibs.srcDirs = ['../app/src/main/jniLibs']
+ }
+ packaging { jniLibs { keepDebugSymbols += ['**/*.so'] } }
+}
+dependencies {
+ implementation project(':transfer-core')
+ implementation(name: 'airplaylib', ext: 'aar')
+ implementation 'org.bouncycastle:bcpkix-jdk18on:1.77'
+ implementation 'dev.rikka.shizuku:api:13.1.5'
+ implementation 'dev.rikka.shizuku:provider:13.1.5'
+}
+apply from: rootProject.file('gradle/browser-webrtc.gradle')
+
+dependencies { implementation project(':locale-core') }

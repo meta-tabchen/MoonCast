@@ -27,11 +27,11 @@ final class NativeHostConnection implements AutoCloseable {
         public void onServiceConnected(ComponentName n,IBinder binder){
             if(closed)return;remote=INativeHost.Stub.asInterface(binder);restarting=false;
             int current=++generation;
-            try{remote.start(name,hevc,callbacks(current));new Thread(()->awaitReady(current),"NativeHostReady").start();}catch(RemoteException e){listener.error("Native host binding failed");}
+            try{remote.start(name,hevc,callbacks(current));new Thread(()->awaitReady(current),"NativeHostReady").start();}catch(RemoteException e){listener.error(PhoneMessages.message(R.string.phone_native_bind_failed));}
         }
         public void onServiceDisconnected(ComponentName n){remote=null;if(closed)return;++generation;active.clear();lost.run();releaseSurfaces();rebind();}
         public void onBindingDied(ComponentName n){onServiceDisconnected(n);}
-        public void onNullBinding(ComponentName n){listener.error("Native host unavailable");}
+        public void onNullBinding(ComponentName n){listener.error(PhoneMessages.message(R.string.phone_native_unavailable));}
     };
     void start(){main.post(this::bind);}
     private void awaitReady(int expected){
@@ -45,14 +45,14 @@ final class NativeHostConnection implements AutoCloseable {
             }catch(java.io.IOException ignored){}finally{if(request!=null)request.disconnect();}
             SystemClock.sleep(100);
         }
-        if(!closed && generation==expected)listener.error("Native transport restart timed out");
+        if(!closed && generation==expected)listener.error(PhoneMessages.message(R.string.phone_native_restart_timeout));
     }
-    private void bind(){if(closed || bound)return;bound=context.bindService(new Intent(context,NativeHostService.class),connection,Context.BIND_AUTO_CREATE);if(!bound)listener.error("Cannot bind native host");}
+    private void bind(){if(closed || bound)return;bound=context.bindService(new Intent(context,NativeHostService.class),connection,Context.BIND_AUTO_CREATE);if(!bound)listener.error(PhoneMessages.message(R.string.phone_native_bind_failed));}
     private void rebind(){if(bound){context.unbindService(connection);bound=false;}main.postDelayed(this::bind,250);}
     boolean active(long session){return active.contains(session);}
     void pin(String pin){INativeHost r=remote;if(r!=null)try{r.pin(pin);}catch(RemoteException ignored){}}
     void disconnect(long session){INativeHost r=remote;if(r!=null)try{r.disconnect(session);}catch(RemoteException ignored){}}
-    void audio(int frames){INativeHost r=remote;if(r!=null)try{r.audio(frames);}catch(RemoteException e){listener.error("Native audio process unavailable");}}
+    void audio(int frames){INativeHost r=remote;if(r!=null)try{r.audio(frames);}catch(RemoteException e){listener.error(PhoneMessages.message(R.string.phone_native_audio_unavailable));}}
     void restart(){if(closed || restarting)return;restarting=true;++generation;active.clear();INativeHost r=remote;if(r!=null)try{r.shutdown();}catch(RemoteException ignored){}else rebind();}
     private INativeHostCallbacks callbacks(int expected){return new INativeHostCallbacks.Stub(){
         private boolean valid(){return !closed && generation==expected;}

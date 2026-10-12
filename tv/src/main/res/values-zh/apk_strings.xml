@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apk_receive_title">从手机安装 APK</string>
+    <string name="apk_home">接收 APK</string>
+    <string name="apk_starting">正在开启临时接收…</string>
+    <string name="apk_network_required">请将电视和手机连接至同一可信 Wi-Fi 或有线局域网。不支持 VPN 连接。</string>
+    <string name="apk_cancel">取消 / 关闭接收</string>
+    <string name="apk_install">安装应用 · 打开系统安装器</string>
+    <string name="tv_apk_ready">电视地址：%1$s:%2$d\n\n已开启接收，5 分钟内仅接收一个 APK。在手机 MoonCast 中选择「发送 APK」和本电视，无需配对码或绑定。\n\n仅在可信家庭局域网开启：此页面打开时，同一网络内的设备均可发送 APK。传输未加密。您必须在电视核对并确认后才能打开 Android 系统安装器。APK 可能有风险。不支持 .apks / .xapk、网址下载或自动安装。打开系统设置或安装器会停止播放。</string>
+    <string name="apk_receiving">正在接收 APK：%1$d / %2$d MiB…</string>
+    <string name="apk_receive_failed">接收已停止。关闭后重新打开此页面可开启新会话。\n\n技术详情（可能为英文）：%1$s</string>
+    <string name="apk_discovery_failed">无法自动发现，请在手机输入电视地址和端口。</string>
+    <string name="apk_validating">正在检查 APK 和签名证书…</string>
+    <string name="tv_apk_metadata">应用：%1$s\n包名：%2$s\n版本：%3$s\n大小：%4$.1f MiB\n\n签名证书 SHA-256：\n%5$s\n\n文件 SHA-256：\n%6$s\n\n以上仅为文件及证书信息，不是安全扫描或可信开发者保证。请只安装可信应用。最终兼容性及安装检查由 Android 完成。\n\n用遥控器确认此 APK 后打开系统安装器。打开安装器会停止播放。</string>
+    <string name="apk_invalid">APK 已被拒绝，临时文件已丢弃。请从可信来源获取完整 APK 后重试。\n\n技术详情（可能为英文）：%1$s</string>
+    <string name="apk_permission_title">允许此安装来源？</string>
+    <string name="apk_permission_detail">Android 要求您允许 MoonCast 请求安装应用。请打开系统设置并自行选择。返回后再次核对 APK，再按安装按钮。不会自动安装。</string>
+    <string name="apk_open_settings">打开 Android 设置</string>
+    <string name="apk_settings_unavailable">此电视未提供安装来源设置页面。请自行在系统设置中允许此来源后重试。</string>
+    <string name="apk_installer_unavailable">无法打开 Android 安装器。电视可能禁止 APK 安装或未提供安装器。可取消并丢弃 APK。</string>
+    <string name="apk_install_return_ok">Android 报告安装完成。临时 APK 已删除。</string>
+    <string name="apk_install_return_cancel">系统安装器已关闭，未报告成功。可能已取消，或 Android 因签名、版本、CPU 架构等兼容性问题拒绝安装。请查看系统提示。临时 APK 已删除。</string>
+    <string name="apk_network_changed">网络已变化，接收已关闭。请重新打开此页面以开启接收。</string>
+    <string name="apk_permission_allowed">已允许此安装来源。请再次核对此文件并按安装按钮继续。</string>
+    <string name="apk_permission_denied">尚未允许此安装来源，未安装任何应用。可以取消，或再次打开 Android 设置。</string>
+    <string name="apk_expired">APK 会话已过期，临时文件已丢弃。请重新打开接收页面。</string>
+    <string name="apk_allow_install">前往设置允许安装</string>
+    <string name="apk_waiting_file">等待接收 APK</string>
+    <string name="apk_checking_file">正在核对 APK…</string>
+    <string name="apk_waiting_settings">返回此页后继续安装</string>
+    <string name="apk_returning_settings">在 Android 设置中选择是否允许此安装来源，然后返回此页。APK 最多保留 10 分钟，返回后将重新检查权限和文件，仍需您再次点击安装。</string>
+    <string name="apk_opening_installer">正在打开系统安装器…</string>
+    <string name="apk_restore_expired">APK 核对已过期或临时文件已被清理。请关闭此页面，重新接收 APK，再核对并安装。</string>
+</resources>

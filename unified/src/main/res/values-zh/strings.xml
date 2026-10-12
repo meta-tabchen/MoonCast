@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="unified_role_title">设备模式</string>
+  <string name="unified_role_auto">自动选择（按设备）</string>
+  <string name="unified_role_phone">手机 · 发送投屏</string>
+  <string name="unified_role_tv">电视 · 接收投屏</string>
+  <string name="unified_stopping">正在停止上一会话…</string>
+  <string name="unified_stop_failed">上一会话仍在停止，设置尚未更改。请稍后重试。</string>
+  <string name="unified_language_title">Language / 语言</string>
+  <string name="unified_language_system">跟随系统</string>
+  <string name="unified_language_notice">更改语言会停止当前投屏或 APK 传输会话。不支持的系统语言将使用英文。</string>
+  <string name="unified_language_failed">无法保存语言，请重试。</string>
+<string name="unified_app_label">MoonCast 社区版</string>
+</resources>

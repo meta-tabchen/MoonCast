@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "source_lock_sha256": "16b7243ed6ef7f8a00a196d741419d237829eaddda060612ed656a0c9ccc75e1",
+  "source_revisions": [
+    {
+      "path": "upstream",
+      "url": "https://github.com/moonlight-stream/moonlight-android.git",
+      "commit": "b48494cb96bff23d8886c4775cc4f39a1075495d"
+    },
+    {
+      "path": "upstream/app/src/main/jni/moonlight-core/moonlight-common-c",
+      "url": "https://github.com/moonlight-stream/moonlight-common-c.git",
+      "commit": "874ac9548f1bd6f095ef2b435c42cdde460e7821"
+    },
+    {
+      "path": "upstream/app/src/main/jni/moonlight-core/moonlight-common-c/enet",
+      "url": "https://github.com/cgutman/enet.git",
+      "commit": "aca87840b57f045a1f7f9299e4b1b9b8e2a5e2f1"
+    },
+    {
+      "path": "upstream/app/src/main/jni/moonlight-core/moonlight-common-c/nanors",
+      "url": "https://github.com/sleepybishop/nanors.git",
+      "commit": "b1e3c22ca0cdc0bb83e3cd6ed1a2fc77869ed99a"
+    },
+    {
+      "path": "native-sources/opus",
+      "url": "https://github.com/xiph/opus.git",
+      "commit": "22244de5a79bd1d6d623c32e72bf1954b56235be"
+    },
+    {
+      "path": "native-sources/openssl",
+      "url": "https://github.com/openssl/openssl.git",
+      "commit": "f089acdf4bc7ba94a79f4bf6eb7362c3e7d14aa9"
+    }
+  ],
+  "toolchain": {
+    "ndk": "29.0.14206865",
+    "cmake": "cmake version 3.31.10",
+    "dependency_api": 21,
+    "jni_api": 26,
+    "configuration": "release",
+    "python": "3.12.14"
+  },
+  "binaries": [
+    {
+      "abi": "arm64-v8a",
+      "path": "src/main/jniLibs/arm64-v8a/libmoonlight-core.so",
+      "bytes": 5073168,
+      "sha256": "abd441f1c3cd66dad72d20188f84c360305d7169b839384296cfc4b05f66c4f7",
+      "jni_exports": 32
+    },
+    {
+      "abi": "armeabi-v7a",
+      "path": "src/main/jniLibs/armeabi-v7a/libmoonlight-core.so",
+      "bytes": 3318848,
+      "sha256": "4d8eb4ddb488eea49b8ec0a1e574e4d50b2fd88b63f28d58f2a9f865b78c3eca",
+      "jni_exports": 32
+    },
+    {
+      "abi": "x86_64",
+      "path": "src/main/jniLibs/x86_64/libmoonlight-core.so",
+      "bytes": 5379064,
+      "sha256": "14d82b8c9fc33b54f68fa91de59ef11f02a557bccd94b48424aee56caf5ecae4",
+      "jni_exports": 32
+    }
+  ],
+  "static_archives": [
+    {
+      "path": "arm64-v8a/libcrypto.a",
+      "sha256": "c17f6fd147ea40457df92d35effbc787724cc22956ab7eef3bfd0a8fda299b8b",
+      "bytes": 11384062
+    },
+    {
+      "path": "arm64-v8a/libopus.a",
+      "sha256": "99bdec61f3eb3b3545f6e8a2cf7d6dbf92c39ccc72bd55d53083ec67ba2956d2",
+      "bytes": 3603450
+    },
+    {
+      "path": "armeabi-v7a/libcrypto.a",
+      "sha256": "a9a81ba1c2986261fa3618e90ac95a629972decf612cd239727f84a78bb980b2",
+      "bytes": 7461284
+    },
+    {
+      "path": "armeabi-v7a/libopus.a",
+      "sha256": "9f1272e869d8d4a9c4cb8e6d7a3d1e6b9481b5790ee98a93d6c1dae4791067c3",
+      "bytes": 2334606
+    },
+    {
+      "path": "x86_64/libcrypto.a",
+      "sha256": "b80df4374aef09f921c5f09c295cf81a289827ff3295f0d0088c420de68cdf59",
+      "bytes": 11369526
+    },
+    {
+      "path": "x86_64/libopus.a",
+      "sha256": "c2f1ccf9121bad74f67cfb57c04cae040576ddab92967cf8e9bdd00851f08139",
+      "bytes": 3655556
+    }
+  ],
+  "validation": "architectures via build target; exact JNI exports; crypto/Opus symbols hidden; no shared crypto/Opus dependency; 64-bit 16KB ELF alignment. Not device interoperability."
+}

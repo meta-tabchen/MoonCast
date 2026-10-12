@@ -1,0 +1,80 @@
+{
+  "format_version": 1,
+  "upstream": {
+    "repository": "https://github.com/jqssun/android-display-mirror",
+    "tag": "v0.0.33",
+    "commit": "6836ad7efe3e27b8db76422fdbc9b81b4973c16a",
+    "doubletake_repository": "https://github.com/omarroth/doubletake",
+    "doubletake_commit": "568a06ed32afa9fafdf229a798db0786f4d020f2"
+  },
+  "aar": {
+    "path": "app/libs/airplaylib.aar",
+    "sha256": "ccbd8ffb184881128f7e3c3f9223cd10d500457bb8dbab7a36d681b5a973baaf",
+    "size": 13380564
+  },
+  "source_lock_sha256": "0e830b499b929414f48873db3d630c54e04ed5bf43bcd3cddaf64d4547936073",
+  "toolchain": {
+    "go": "go1.25.10",
+    "gomobile": "v0.0.0-20260611195102-4dd8f1dbf5d2",
+    "ndk": "29.0.14206865",
+    "jdk": "OpenJDK javac 21.0.12.1",
+    "host": "linux/amd64",
+    "android_sdk_platform": 35,
+    "android_sdk_platform_revision": 2,
+    "android_api": 26,
+    "targets": [
+      "android/arm64",
+      "android/arm",
+      "android/amd64"
+    ],
+    "go_archive_sha256": "42d4f7a32316aa66591eca7e89867256057a4264451aca10570a715b3637ba70",
+    "ndk_archive_sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+    "android_jar_sha256": "4566663c3876e022b4fa4ced8c8697c4ab1688267f090114fd92d027b32e619b",
+    "canonical_module_replacement": "/tmp/mooncast-airplay-v0.0.33/source"
+  },
+  "validation": {
+    "go_race_tests": "PASS: go test -race -count=5 ./airplaylib",
+    "offline_rebuild": "PASS: two builds from fresh temporary module caches using only the vendored file:// proxy produced byte-identical normalized AARs; shared compile cache, exact recorded toolchains",
+    "device_interoperability": "not tested",
+    "upstream_selected_tests": "PASS with Go race detector: ALAC/audio framing and ciphers, congestion/drop, H.264 SPS/slices, plist ports, HTTP content length/header parsing, bitrate/keyframe/VBV helpers",
+    "elf": "PASS: all three ABIs have 16 KiB-aligned LOAD segments and only Android system shared-library dependencies",
+    "java_api": "PASS: generated airplaylib API inspected with javap; Java bindings and Go runtime are included in the AAR",
+    "developer_path_scan": "PASS: no /workspace path in compiled ELF; canonical /tmp module replacement only",
+    "date_utc": "2026-10-11"
+  },
+  "jni": {
+    "jni/arm64-v8a/libgojni.so": {
+      "sha256": "91eedb51ca1b8b5297959cc05e5d1c4668f055b924cf316cb225b5de7595a5d3",
+      "size": 8399328,
+      "load_alignment": [
+        "0x4000",
+        "0x4000",
+        "0x4000"
+      ],
+      "machine": "AArch64"
+    },
+    "jni/armeabi-v7a/libgojni.so": {
+      "sha256": "01cc43c56967782a0915a746e60749dbd8b123eeda820e1418c38ef93219780f",
+      "size": 8103112,
+      "load_alignment": [
+        "0x4000",
+        "0x4000",
+        "0x4000"
+      ],
+      "machine": "ARM"
+    },
+    "jni/x86_64/libgojni.so": {
+      "sha256": "07c35fd7033662bf07ac81f8feffd9fe223184ddea128e9ab3d9e3efc1913b7c",
+      "size": 9022640,
+      "load_alignment": [
+        "0x4000",
+        "0x4000",
+        "0x4000"
+      ],
+      "machine": "Advanced Micro Devices X86-64"
+    }
+  },
+  "classes_jar_sha256": "24d0df2718d97436f49f904a4a0982668206c8b3f6d2f37b93921390a75d100e",
+  "original_source_lock_sha256": "b8c6f2370b06d35b35c41a2b769c1a41f30eb8eeb5d7f29b5a6145d2531c9e90",
+  "layout_note": "Sender sources moved from native/airplay to native/airplay-sender; source bytes and AAR unchanged; path-only helper edits re-pinned."
+}

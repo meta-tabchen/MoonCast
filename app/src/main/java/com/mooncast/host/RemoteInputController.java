@@ -28,7 +28,7 @@ final class RemoteInputController implements InputBridge.Receiver {
     boolean enabled(){return enabled;}
     String status(android.content.Context context){return !enabled?context.getString(R.string.ui_off):backend.ready()?context.getString(R.string.ui_ready):context.getString(R.string.ui_waiting_for_permission_root_connection);}
     private boolean accepts(long value){return enabled && session!=0 && value==session && mapping!=null && backend.ready();}
-    private void run(Runnable task){handler.post(()->{try{task.run();}catch(RuntimeException e){enabled=false;try{cancel();}catch(RuntimeException ignored){}log.accept("反控已关闭: "+e.getMessage());}});}
+    private void run(Runnable task){handler.post(()->{try{task.run();}catch(RuntimeException e){enabled=false;try{cancel();}catch(RuntimeException ignored){}log.accept(PhoneMessages.message(R.string.phone_input_disabled_error , e.getMessage()));}});}
     @Override public void touch(long value,int type,int id,float x,float y,float pressure){
         if(!enabled)return;
         run(()->processTouch(value,type,id,x,y,pressure));
@@ -42,7 +42,7 @@ final class RemoteInputController implements InputBridge.Receiver {
             CropGeometry.Point point=mapping.map(x,y);
             if(type==1){if(point==null || pointers.size()>=10)return;pointers.put(id,point);}
             else{if(!pointers.containsKey(id))return;if(point==null)point=pointers.get(id);else pointers.put(id,point);}
-            if(!announced){announced=true;log.accept("Moonlight 输入已到达；按当前视频区域映射");}
+            if(!announced){announced=true;log.accept(PhoneMessages.message(R.string.phone_input_received));}
             backend.touch(type,id,point.x(),point.y(),Math.max(.01f,Math.min(1,pressure)));
             if(type==2)pointers.remove(id);
     }

@@ -1,0 +1,24 @@
+<resources>
+    <string name="my_tv_title">我的电视</string>
+    <string name="my_tv_apk_hint">请在电视端 MoonCast 打开“接收 APK”，再选择电视。</string>
+    <string name="my_tv_airplay_hint">选择同一 Wi-Fi 下支持 AirPlay 的电视。</string>
+    <string name="my_tv_searching">正在查找局域网中的电视…</string>
+    <string name="my_tv_discovery_limited">自动发现暂不可用，可在下方输入电视 IP。</string>
+    <string name="my_tv_empty">暂未发现电视。请保持电视开启，并连接同一网络。</string>
+    <string name="my_tv_manual">输入电视 IP</string>
+    <string name="my_tv_ip_hint">电视 IP，例如 192.168.1.20</string>
+    <string name="my_tv_manual_explain">两项功能共用一个 IP，只需输入一次。将自动检查 APK 接收能力。</string>
+    <string name="my_tv_check">查找电视</string>
+    <string name="my_tv_checking">正在检查这台电视…</string>
+    <string name="my_tv_bad_ip">请输入局域网 IPv4 地址，无需填写端口。</string>
+    <string name="my_tv_apk_unavailable">暂不支持 APK 接收，请在电视端 MoonCast 打开“接收 APK”。</string>
+    <string name="my_tv_airplay_unavailable">尚未发现这台电视的 AirPlay 服务。</string>
+    <string name="my_tv_unverified_hint">手动 AirPlay 使用 7000 端口，尚未验证是否支持。</string>
+    <string name="my_tv_choose">请在下方选择电视。</string>
+    <string name="my_tv_last">上次使用</string>
+    <string name="my_tv_airplay">AirPlay</string>
+    <string name="my_tv_airplay_manual">AirPlay · 手动，未验证</string>
+    <string name="my_tv_apk">APK 接收</string>
+    <string name="my_tv_refresh">重新查找</string>
+    <string name="my_tv_last_address">%1$s · 上次使用</string>
+</resources>

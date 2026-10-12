@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "27967d778c55042bb2adc926074bc3b1d94e19b9",
+  "ciRun": 38203238592,
+  "package": "com.mooncast.community",
+  "versionCode": 51,
+  "certificateSha256": "290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2",
+  "deviceValidation": {
+    "android35": "Synthetic same-certificate versionCode 50-to-51 update preserved first-install time and private data; system-language stage passed ten resource groups; next locale process startup ANR; remaining UI tests incomplete.",
+    "android30": "Package-manager service disappeared during installation; one non-streamed retry failed; application runtime not validated.",
+    "physicalDevices": "Not validated in this release run.",
+    "screenshotsAndGif": "No usable actual UI screenshots or GIF produced.",
+    "anrRootCause": "Unknown; CPU saturation observed but no startup thread trace captured."
+  },
+  "assets": [
+    {
+      "file": "MoonCast-0.5.1-community-arm64-v8a.apk",
+      "size": 20938424,
+      "sha256": "7f78111492e24da8c3e98fc5fb006e93da13cc7dc79b888af986e0024939049c"
+    },
+    {
+      "file": "MoonCast-0.5.1-community-armeabi-v7a.apk",
+      "size": 18267248,
+      "sha256": "83aee2d529cfe61a9c6641d3813d8482909efa2e5b4f2bb19e5321d662bf5b91"
+    },
+    {
+      "file": "MoonCast-0.5.1-community-complete-source.zip",
+      "size": 355216785,
+      "sha256": "74539454f347bbf956f7e6e2fce2f31bc6ff32ae2119fc05d8573ffc3e78f19d"
+    }
+  ],
+  "releaseTag": "community-v0.5.1",
+  "versionName": "0.5.1-community",
+  "minimumAndroid": 26,
+  "targetSdk": 35,
+  "ciConclusion": "failure",
+  "aggregateBuildVerification": "success",
+  "correspondingSourceInventoryEntriesVerified": 9864,
+  "signingPolicy": "Fixed owner-initialized public community test identity; update continuity, not publisher authenticity. Release source excludes the MoonCast app-signing PKCS12 fixture; upstream cryptographic test fixtures remain.",
+  "documentationNote": "This manifest describes app/source assets built from sourceCommit. A later documentation-only commit does not change their provenance or hashes."
+}

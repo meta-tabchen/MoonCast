@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_app_name">MoonCast</string>
+    <string name="title">MoonCast TV · Coexist Preview</string>
+    <string name="home_instructions">Coexist preview: stop the old TV receiver first. Use only one receiver app at a time.</string>
+</resources>

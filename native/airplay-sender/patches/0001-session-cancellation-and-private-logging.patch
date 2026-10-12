@@ -1,0 +1,406 @@
+--- a/airplaylib/airplaylib.go
++++ b/airplaylib/airplaylib.go
+@@ -30,11 +30,13 @@
+ }
+ 
+ type Session struct {
+-	mu      sync.Mutex
+-	client  *airplay.AirPlayClient
+-	mirror  *airplay.MirrorSession
+-	handler EventHandler
+-	cancel  context.CancelFunc
++	lifecycle sync.Mutex
++	epoch     uint64
++	mu        sync.Mutex
++	client    *airplay.AirPlayClient
++	mirror    *airplay.MirrorSession
++	handler   EventHandler
++	cancel    context.CancelFunc
+ 
+ 	pipeW        *io.PipeWriter
+ 	firstSendLog bool
+@@ -107,31 +109,53 @@
+ 	}()
+ }
+ 
++func init() {
++	// Set once, rather than racing concurrent callback/connection goroutines.
++	airplay.DebugMode = false
++	airplay.SetTargetLatency(100 * time.Millisecond)
++}
++
++func (s *Session) current(ctx context.Context, epoch uint64) bool {
++	if ctx.Err() != nil {
++		return false
++	}
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	return s.epoch == epoch
++}
++
+ func (s *Session) Connect(host string, port int, pin string, width int, height int, fps int) {
++	// Install cancellation before returning to Java, even if the goroutine has not run.
++	s.lifecycle.Lock()
++	s.disconnect()
++	ctx, cancel := context.WithCancel(context.Background())
++	s.mu.Lock()
++	s.cancel = cancel
++	epoch := s.epoch
++	s.mu.Unlock()
++	s.lifecycle.Unlock()
+ 	go func() {
+-		s.mu.Lock()
+-		if s.cancel != nil {
+-			s.cancel()
+-		}
+-		ctx, cancel := context.WithCancel(context.Background())
+-		s.cancel = cancel
+-		s.mu.Unlock()
+-
+-		airplay.DebugMode = false
+-		// cmd/doubletake default; 1ms library default gives Apple no jitter budget
+-		airplay.SetTargetLatency(100 * time.Millisecond)
++		if !s.current(ctx, epoch) {
++			return
++		}
+ 		client := airplay.NewAirPlayClient(host, port)
+ 		if err := client.Connect(ctx); err != nil {
+-			s.handler.OnError("connect: " + err.Error())
+-			return
+-		}
+-
++			if s.current(ctx, epoch) {
++				s.handler.OnError("connect: " + err.Error())
++			}
++			return
++		}
+ 		s.mu.Lock()
++		if ctx.Err() != nil || s.epoch != epoch {
++			s.mu.Unlock()
++			client.Close()
++			return
++		}
+ 		s.client = client
+ 		s.mu.Unlock()
+ 
+-		// match the receiver's display; airplay1 keeps caller dims + clamp
+-		if airplay.AirPlay1Mode {
++		airplay1 := airplay.AirPlay1Mode
++		if airplay1 {
+ 			airplay.AirPlay1Password = pin
+ 			width, height = clampAirPlay1(width, height)
+ 		} else {
+@@ -140,85 +164,88 @@
+ 				return
+ 			}
+ 			if rw, rh := info.DisplaySize(); rw > 0 && rh > 0 {
+-				s.logf("[AIRPLAY] using receiver display %dx%d (caller requested %dx%d)", rw, rh, width, height)
+ 				width, height = rw, rh
+ 			}
+ 		}
++		if !s.current(ctx, epoch) {
++			client.Close()
++			return
++		}
++		var mirror *airplay.MirrorSession
++		var err error
++		if airplay1 {
++			mirror, err = client.SetupMirrorAirPlay1(ctx)
++		} else {
++			mirror, err = client.SetupMirror(ctx, airplay.StreamConfig{FPS: fps})
++		}
++		if err != nil {
++			client.Close()
++			if !s.current(ctx, epoch) {
++				return
++			}
++			if errors.Is(err, airplay.ErrAirPlay1PasswordRequired) {
++				s.handler.OnPinRequired()
++			} else {
++				s.handler.OnError("setup_mirror: " + err.Error())
++			}
++			return
++		}
++		pipeR, pipeW := io.Pipe()
++		var capture *airplay.AudioCapture
++		var audioW *io.PipeWriter
++		if mirror.HasAudio() {
++			capture, audioW = airplay.NewPipeAudioCapture()
++		}
+ 		s.mu.Lock()
+-		s.streamWidth = width
+-		s.streamHeight = height
++		if ctx.Err() != nil || s.epoch != epoch {
++			s.mu.Unlock()
++			pipeR.Close()
++			pipeW.Close()
++			if audioW != nil {
++				airplay.StopPipeAudioCapture(capture, audioW)
++			}
++			client.Close()
++			mirror.Close()
++			return
++		}
++		s.mirror, s.pipeW = mirror, pipeW
++		s.audioCapture, s.audioW = capture, audioW
++		s.streamWidth, s.streamHeight = width, height
++		s.sessionStart = time.Now()
++		s.airplay1Stored, s.firstSendLog = false, false
+ 		s.mu.Unlock()
+-
+-		s.logf("[AIRPLAY] setting up mirror session %dx%d@%d (airplay1=%v)", width, height, fps, airplay.AirPlay1Mode)
+-		var mirror *airplay.MirrorSession
+-		var setupErr error
+-		if airplay.AirPlay1Mode {
+-			mirror, setupErr = client.SetupMirrorAirPlay1(ctx)
+-		} else {
+-			mirror, setupErr = client.SetupMirror(ctx, airplay.StreamConfig{FPS: fps})
+-		}
+-		if setupErr != nil {
+-			if errors.Is(setupErr, airplay.ErrAirPlay1PasswordRequired) {
+-				s.logf("[AIRPLAY] receiver requires password")
+-				client.Close()
+-				s.handler.OnPinRequired()
+-				return
+-			}
+-			s.handler.OnError("setup_mirror: " + setupErr.Error())
+-			client.Close()
+-			return
+-		}
+-		s.logf("[AIRPLAY] mirror session ready, data port=%d", mirror.DataPort)
+-
+-		pipeR, pipeW := io.Pipe()
+-
+-		s.mu.Lock()
+-		s.mirror = mirror
+-		s.pipeW = pipeW
+-		s.sessionStart = time.Now()
+-		s.airplay1Stored = false
+-		s.firstSendLog = false
+-		s.mu.Unlock()
+-
+ 		go func() {
++			defer pipeR.Close()
+ 			var streamErr error
+-			if airplay.AirPlay1Mode {
++			if airplay1 {
+ 				streamErr = mirror.StreamFramesAirPlay1(ctx, pipeR)
+ 			} else {
+ 				streamErr = mirror.StreamFrames(ctx, pipeR, 0)
+ 			}
+-			if streamErr != nil {
+-				s.logf("[AIRPLAY] frame forwarder ended: %v", streamErr)
+-			}
+-			s.handler.OnDisconnected(fmt.Sprintf("%v", streamErr))
++			if s.current(ctx, epoch) {
++				s.handler.OnDisconnected(fmt.Sprintf("%v", streamErr))
++			}
+ 		}()
+-
+-		// StreamAudio reads only after first video frame, so this pipe backpressures until then
+-		if mirror.HasAudio() {
+-			capture, audioW := airplay.NewPipeAudioCapture()
+-			s.mu.Lock()
+-			s.audioCapture = capture
+-			s.audioW = audioW
+-			s.mu.Unlock()
++		if audioW != nil {
+ 			go func() {
+ 				if err := mirror.StreamAudio(ctx, capture, mirror.AudioStream()); err != nil && ctx.Err() == nil {
+ 					s.logf("[AIRPLAY] audio forwarder ended: %v", err)
+ 				}
+-				// forwarder no longer reads: close pipe or SendAudio blocks forever in unbuffered write
++				// An old forwarder must never clear or close a new session's audio pipe.
+ 				s.mu.Lock()
+-				w, c := s.audioW, s.audioCapture
+-				s.audioW, s.audioCapture = nil, nil
++				owned := s.audioW == audioW
++				if owned {
++					s.audioW, s.audioCapture = nil, nil
++				}
+ 				s.mu.Unlock()
+-				if w != nil {
+-					airplay.StopPipeAudioCapture(c, w)
++				if owned {
++					airplay.StopPipeAudioCapture(capture, audioW)
+ 				}
+ 			}()
+-			s.logf("[AIRPLAY] audio stream negotiated")
+-		} else {
+-			s.logf("[AIRPLAY] receiver negotiated no audio stream")
+-		}
+-
+-		s.handler.OnConnected()
++		}
++		if s.current(ctx, epoch) {
++			s.handler.OnConnected()
++		}
+ 	}()
+ }
+ 
+@@ -240,11 +267,7 @@
+ 		return
+ 	}
+ 	if firstLog {
+-		dumpN := len(annexBData)
+-		if dumpN > 32 {
+-			dumpN = 32
+-		}
+-		s.logf("[AIRPLAY] first SendFrame: %d bytes, keyframe=%v, leading hex=%x", len(annexBData), isKeyframe, annexBData[:dumpN])
++		s.logf("[AIRPLAY] first SendFrame: %d bytes, keyframe=%v", len(annexBData), isKeyframe)
+ 	}
+ 
+ 	if airplay.AirPlay1Mode {
+@@ -278,28 +301,30 @@
+ }
+ 
+ func (s *Session) Disconnect() {
+-	s.mu.Lock()
+-	defer s.mu.Unlock()
+-
+-	if s.pipeW != nil {
+-		s.pipeW.Close()
+-		s.pipeW = nil
+-	}
+-	if s.audioW != nil {
+-		airplay.StopPipeAudioCapture(s.audioCapture, s.audioW)
+-		s.audioW = nil
+-		s.audioCapture = nil
+-	}
+-	if s.cancel != nil {
+-		s.cancel()
+-		s.cancel = nil
+-	}
+-	if s.mirror != nil {
+-		s.mirror.Close()
+-		s.mirror = nil
+-	}
+-	if s.client != nil {
+-		s.client.Close()
+-		s.client = nil
+-	}
+-}
++	s.lifecycle.Lock()
++	defer s.lifecycle.Unlock()
++	s.disconnect()
++}
++
++func (s *Session) disconnect() {
++	s.mu.Lock()
++	s.epoch++
++	cancel, video, audio, capture, mirror := s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror
++	s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror, s.client = nil, nil, nil, nil, nil, nil
++	s.streamWidth, s.streamHeight = 0, 0
++	s.mu.Unlock()
++	// Cancel first: each control connection closes via its context callback, unblocking
++	// a handshake or TEARDOWN without reading a concurrently replaced client.conn.
++	if cancel != nil {
++		cancel()
++	}
++	if video != nil {
++		video.Close()
++	}
++	if audio != nil {
++		airplay.StopPipeAudioCapture(capture, audio)
++	}
++	if mirror != nil {
++		mirror.Close()
++	}
++}
+--- a/airplaylib/airplay2.go
++++ b/airplaylib/airplay2.go
+@@ -25,7 +25,7 @@
+ func (s *Session) setupAirPlay2(ctx context.Context, client *airplay.AirPlayClient, pin string) (*airplay.ReceiverInfo, error) {
+ 	info, err := client.GetInfo()
+ 	if err != nil {
+-		return nil, s._setupFailed(client, "getinfo: ", err)
++		return nil, s._setupFailed(ctx, client, "getinfo: ", err)
+ 	}
+ 	s.logf("[AIRPLAY2] connected to: %s (model: %s)", info.Name, info.Model)
+ 	s.logf("[AIRPLAY2] features %#016x, statusFlags %#x", info.Features, info.StatusFlags)
+@@ -38,7 +38,7 @@
+ 	switch {
+ 	case pin != "":
+ 		if err := client.Pair(ctx, pin); err != nil {
+-			return nil, s._setupFailed(client, "pairing failed: ", err)
++			return nil, s._setupFailed(ctx, client, "pairing failed: ", err)
+ 		}
+ 		s._saveCredentials(info.DeviceID, client)
+ 
+@@ -52,19 +52,19 @@
+ 			// the failed pair-verify may have closed the connection
+ 			client.Close()
+ 			if err := client.Connect(ctx); err != nil {
+-				return nil, s._setupFailed(client, "reconnect: ", err)
++				return nil, s._setupFailed(ctx, client, "reconnect: ", err)
+ 			}
+ 			if _, err := client.GetInfo(); err != nil {
+-				return nil, s._setupFailed(client, "getinfo after reconnect: ", err)
++				return nil, s._setupFailed(ctx, client, "getinfo after reconnect: ", err)
+ 			}
+ 			if err := client.PairTransientAuto(ctx); err != nil {
+-				return nil, s._requestPIN(client, err)
++				return nil, s._requestPIN(ctx, client, err)
+ 			}
+ 		}
+ 
+ 	default:
+ 		if err := client.PairTransientAuto(ctx); err != nil {
+-			return nil, s._requestPIN(client, err)
++			return nil, s._requestPIN(ctx, client, err)
+ 		}
+ 	}
+ 	s.logf("[AIRPLAY2] pairing complete")
+@@ -73,7 +73,7 @@
+ 	if client.FpEkey == nil {
+ 		if err := client.FairPlaySetup(ctx); err != nil {
+ 			if !errors.Is(err, airplay.ErrFairPlayUnsupported) {
+-				return nil, s._setupFailed(client, "fairplay setup: ", err)
++				return nil, s._setupFailed(ctx, client, "fairplay setup: ", err)
+ 			}
+ 			s.logf("[AIRPLAY2] FairPlay SAP unsupported (%v); continuing with pair-verify DataStream setup", err)
+ 		} else {
+@@ -95,18 +95,26 @@
+ }
+ 
+ // upstream reconnects before pair-setup; here the UI hands the PIN to the next Connect
+-func (s *Session) _requestPIN(client *airplay.AirPlayClient, cause error) error {
++func (s *Session) _requestPIN(ctx context.Context, client *airplay.AirPlayClient, cause error) error {
++	if ctx.Err() != nil {
++		client.Close()
++		return ctx.Err()
++	}
+ 	s.logf("[AIRPLAY2] transient pairing failed: %v, prompting for PIN", cause)
+ 	if err := client.StartPINDisplay(); err != nil {
+ 		s.logf("[AIRPLAY2] StartPINDisplay failed: %v", err)
+ 	}
+ 	client.Close()
+-	s.handler.OnPinRequired()
++	if ctx.Err() == nil {
++		s.handler.OnPinRequired()
++	}
+ 	return cause
+ }
+ 
+-func (s *Session) _setupFailed(client *airplay.AirPlayClient, prefix string, err error) error {
+-	s.handler.OnError(prefix + err.Error())
++func (s *Session) _setupFailed(ctx context.Context, client *airplay.AirPlayClient, prefix string, err error) error {
++	if ctx.Err() == nil {
++		s.handler.OnError(prefix + err.Error())
++	}
+ 	client.Close()
+ 	return err
+ }
+--- a/internal/airplay/client.go
++++ b/internal/airplay/client.go
+@@ -129,6 +129,10 @@
+ 		return fmt.Errorf("dial %s: %w", addr, err)
+ 	}
+ 	c.conn = conn
++	// The Android wrapper cancels while an RTSP request may be blocked. Closing this
++	// specific connection avoids a race with a replacement connection during retry.
++	context.AfterFunc(ctx, func() { conn.Close() })
++	if ctx.Err() != nil { conn.Close(); return ctx.Err() }
+ 	return nil
+ }
+ 

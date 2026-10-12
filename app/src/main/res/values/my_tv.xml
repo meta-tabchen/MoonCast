@@ -1,0 +1,24 @@
+<resources>
+    <string name="my_tv_title">My TV</string>
+    <string name="my_tv_apk_hint">Choose a TV with APK receiving open in MoonCast.</string>
+    <string name="my_tv_airplay_hint">Choose an AirPlay TV on the same Wi-Fi.</string>
+    <string name="my_tv_searching">Looking for TVs on your network…</string>
+    <string name="my_tv_discovery_limited">Discovery is limited. You can enter the TV’s IP below.</string>
+    <string name="my_tv_empty">No TVs yet. Keep the TV awake and on the same network.</string>
+    <string name="my_tv_manual">Enter TV IP</string>
+    <string name="my_tv_ip_hint">TV IP, e.g. 192.168.1.20</string>
+    <string name="my_tv_manual_explain">Enter the IP once for both features. APK receiving is checked automatically.</string>
+    <string name="my_tv_check">Check TV</string>
+    <string name="my_tv_checking">Checking this TV…</string>
+    <string name="my_tv_bad_ip">Enter a private IPv4 address without a port.</string>
+    <string name="my_tv_apk_unavailable">APK unavailable. Open Receive APK in MoonCast on the TV.</string>
+    <string name="my_tv_airplay_unavailable">AirPlay has not been found on this TV.</string>
+    <string name="my_tv_unverified_hint">Manual AirPlay uses port 7000. Support is not verified.</string>
+    <string name="my_tv_choose">Choose your TV below.</string>
+    <string name="my_tv_last">Last TV</string>
+    <string name="my_tv_airplay">AirPlay</string>
+    <string name="my_tv_airplay_manual">AirPlay · manual, unverified</string>
+    <string name="my_tv_apk">APK receiving</string>
+    <string name="my_tv_refresh">Search again</string>
+    <string name="my_tv_last_address">%1$s · Last TV</string>
+</resources>

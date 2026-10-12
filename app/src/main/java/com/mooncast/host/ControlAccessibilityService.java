@@ -7,6 +7,10 @@ import android.view.accessibility.AccessibilityEvent;
 
 /** Explicit opt-in service. No accessibility tree contents are collected or logged. */
 public final class ControlAccessibilityService extends AccessibilityService implements RemoteInputController.Backend {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     private static volatile ControlAccessibilityService instance;
     private Path path;
     private int pointer=-1;
@@ -24,7 +28,7 @@ public final class ControlAccessibilityService extends AccessibilityService impl
             if(type==2){
                 long duration=Math.max(30,Math.min(2000,SystemClock.uptimeMillis()-started));
                 GestureDescription gesture=new GestureDescription.Builder().addStroke(new GestureDescription.StrokeDescription(path,0,duration)).build();
-                cancel();if(!dispatchGesture(gesture,null,null))throw new IllegalStateException("无障碍服务拒绝手势");
+                cancel();if(!dispatchGesture(gesture,null,null))throw new IllegalStateException(PhoneMessages.message(R.string.phone_gesture_rejected));
             }
         }
     }

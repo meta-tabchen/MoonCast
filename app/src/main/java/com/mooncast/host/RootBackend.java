@@ -19,7 +19,7 @@ final class RootBackend {
     private volatile boolean stopping;
     RootBackend(Context c,Events e) { context=c; events=e; }
     synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit,boolean watchParty,boolean panelOff) throws Exception {
-        if(stopping) throw new IOException("Root 发射端已停止");
+        if(stopping) throw new IOException(PhoneMessages.message(R.string.phone_root_stopped));
         String endpoint="mooncast-"+UUID.randomUUID();
         server=new LocalServerSocket(endpoint);
         String command="CLASSPATH="+quote(context.getApplicationInfo().sourceDir)
@@ -31,13 +31,13 @@ final class RootBackend {
             try (BufferedReader reader=new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                 String line; while ((line=reader.readLine())!=null) android.util.Log.i("MoonCastRoot",line);
                 int code=process.waitFor();
-                if (!stopping) events.event("error","Root 进程结束 ("+code+")；检查 Root 授权与 ROM 支持");
+                if (!stopping) events.event("error",PhoneMessages.message(R.string.phone_root_exited , code));
             } catch (Exception e) { if (!stopping) events.event("error",e.getMessage()); }
         },"RootOutput").start();
         new Thread(() -> {
             try {
                 LocalSocket accepted=server.accept();
-                if (accepted.getPeerCredentials().getUid()!=0) { accepted.close(); throw new IOException("拒绝非 Root 的本地连接"); }
+                if (accepted.getPeerCredentials().getUid()!=0) { accepted.close(); throw new IOException(PhoneMessages.message(R.string.phone_root_connection_rejected)); }
                 socket=accepted;
                 synchronized (this) { commands=new DataOutputStream(socket.getOutputStream()); }
                 DataInputStream input=new DataInputStream(socket.getInputStream());
@@ -45,7 +45,7 @@ final class RootBackend {
                     JSONObject event=new JSONObject(input.readUTF());
                     events.event(event.getString("kind"),event.optString("text"));
                 }
-            } catch (Exception e) { if (!stopping) events.event("error","Root 通道断开: "+e.getMessage()); }
+            } catch (Exception e) { if (!stopping) events.event("error",PhoneMessages.message(R.string.phone_root_channel_lost , e.getMessage())); }
         },"RootEvents").start();
     }
     synchronized void disconnect(long id){send("DISCONNECT "+id);}

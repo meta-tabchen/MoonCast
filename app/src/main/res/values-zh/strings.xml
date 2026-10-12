@@ -101,7 +101,7 @@
     <string name="ui_casting_root" formatted="false">"正在投屏（Root）"</string>
     <string name="ui_waiting_for_receiver_root" formatted="false">"等待电视连接（Root）"</string>
     <string name="ui_root_session_ended_waiting_for_reconnection" formatted="false">"Root 会话结束，等待重连"</string>
-    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"恢复手机媒体音量失败，下次打开会重试: "</string>
+    <string name="ui_volume_restoration_failed_retrying_on_next_launch" formatted="false">"恢复手机媒体音量失败，下次开始投屏时会重试: "</string>
     <string name="ui_no_lan_connection" formatted="false">"尚未连接局域网"</string>
     <string name="ui_aa_text_clarity_0123456789" formatted="false">"Aa 文本清晰度 0123456789"</string>
     <string name="ui_compare_timers_to_estimate_latency_back_to_exit" formatted="false">"对比计时器可估算延迟 · 返回退出"</string>
@@ -175,4 +175,60 @@
     <string name="ui_waiting_for_reconnection">接收端已断开 · 等待重新连接</string>
     <string name="ui_preparing_reconnection">接收端已断开 · 正在准备重连…</string>
     <string name="ui_replacing_receiver">用新连接替换上一次接收端会话</string>
+    <string name="ui_phone_dual_lan" formatted="false">"手机 → AirPlay / Moonlight · 局域网"</string>
+    <string name="ui_tab_airplay" formatted="false">"AirPlay投屏"</string>
+    <string name="ui_tab_moonlight" formatted="false">"Moonlight·Sunshine"</string>
+    <string name="ui_airplay_intro" formatted="false">"向同一可信局域网中的 AirPlay 接收端投屏。"</string>
+    <string name="ui_airplay_start_hint" formatted="false">"与电视连接同一 Wi-Fi"</string>
+    <string name="ui_airplay_no_selection" formatted="false">"尚未选择接收设备"</string>
+    <string name="ui_airplay_selected" formatted="false">"接收设备："</string>
+    <string name="ui_airplay_start" formatted="false">"开始投屏"</string>
+    <string name="ui_airplay_receivers" formatted="false">"AirPlay 接收设备"</string>
+    <string name="ui_airplay_receivers_hint" formatted="false">"请打开接收端，并将两台设备连接到同一 Wi-Fi。"</string>
+    <string name="ui_airplay_searching" formatted="false">"正在搜索附近设备…"</string>
+    <string name="ui_airplay_choose_receiver" formatted="false">"可用设备"</string>
+    <string name="ui_airplay_rescan" formatted="false">"刷新"</string>
+    <string name="ui_airplay_manual_address" formatted="false">"接收端局域网 IP:端口（默认 7000）"</string>
+    <string name="ui_airplay_address_invalid" formatted="false">"请输入局域网 IPv4 地址和 1–65535 之间的端口。"</string>
+    <string name="ui_airplay_discovery_failed" formatted="false">"请检查 Wi-Fi 后重试，或在下方手动输入接收端 IP 地址。"</string>
+    <string name="ui_airplay_pin_hint" formatted="false">"请输入此 AirPlay 接收端显示的 PIN 码，仅用于本次连接。"</string>
+    <string name="ui_airplay_pin_invalid" formatted="false">"请输入接收端显示的 4–8 位数字 PIN 码。"</string>
+    <string name="ui_airplay_capture_hint" formatted="false">"支持整个屏幕或 Android 14+ 单个应用。AirPlay 使用 H.264，不使用 Root、远程控制、独立显示或熄屏模式。下方画面和声音偏好共用。"</string>
+    <string name="ui_airplay_quality" formatted="false">"AirPlay 画质 · H.264"</string>
+    <string name="ui_airplay_legacy" formatted="false">"AirPlay 1 兼容模式 · 720p 仅视频"</string>
+    <string name="ui_airplay_legacy_hint" formatted="false">"仅在旧接收端需要时开启。本次使用 720p30 且不传声音，共用偏好不会被更改。"</string>
+    <string name="ui_airplay_diagnostics_hint" formatted="false">"当前 AirPlay 接收端的连接与串流状态。"</string>
+    <string name="ui_airplay_protocol_hint" formatted="false">"AirPlay 设备和 PIN 与 Moonlight 配对相互独立。切换页面会先停止当前投屏。"</string>
+    <string name="ui_moonlight_protocol_hint" formatted="false">"使用现有 Moonlight 客户端连接此手机。切换页面会先停止当前投屏。"</string>
+    <string name="ui_protocol_switch_wait" formatted="false">"正在停止当前投屏后切换… 切换完成后，请在另一页面点击启动。"</string>
+    <string name="ui_cancel_start" formatted="false">"取消启动"</string>
+    <string name="ui_cast_failed" formatted="false">"连接已结束"</string>
+    <string name="ui_cast_start_failed" formatted="false">"无法启动投屏服务。请重新点击启动，并再次授权屏幕共享。"</string>
+    <string name="ui_airplay_password_invalid" formatted="false">"请输入接收端密码（最多 128 个字符）。"</string>
+    <string name="ui_airplay_password_hint" formatted="false">"请输入此旧版 AirPlay 接收端要求的密码。支持字母和数字，仅用于本次连接。"</string>
+    <string name="ui_airplay_ready" formatted="false">"轻松投到大屏"</string>
+    <string name="ui_airplay_picker_title" formatted="false">"选择接收设备"</string>
+    <string name="ui_airplay_picker_hint" formatted="false">"选择同一 Wi-Fi 下的 AirPlay 接收端。"</string>
+    <string name="ui_airplay_picker_no_selection" formatted="false">"请选择设备后继续"</string>
+    <string name="ui_airplay_searching_title" formatted="false">"正在查找接收设备"</string>
+    <string name="ui_airplay_empty_title" formatted="false">"暂未发现设备"</string>
+    <string name="ui_airplay_empty_status" formatted="false">"未发现附近设备"</string>
+    <string name="ui_airplay_discovery_error" formatted="false">"无法搜索设备"</string>
+    <string name="ui_airplay_retry" formatted="false">"重试"</string>
+    <string name="ui_airplay_manual_action" formatted="false">"手动输入 IP 地址"</string>
+    <string name="ui_airplay_manual_hide" formatted="false">"收起手动输入"</string>
+    <string name="ui_airplay_manual_receiver" formatted="false">"AirPlay 接收端"</string>
+    <string name="ui_airplay_recent" formatted="false">"上次选择"</string>
+    <string name="ui_airplay_device_selected" formatted="false">"已选择"</string>
+    <string name="ui_airplay_cast_screen" formatted="false">"投屏到此设备"</string>
+    <string name="ui_airplay_consent_hint" formatted="false">"Android 会在共享屏幕前征求你的同意。"</string>
+    <string name="ui_airplay_connected" formatted="false">"已连接到"</string>
+    <string name="ui_airplay_change_device" formatted="false">"更换设备"</string>
+    <string name="ui_airplay_change_hint" formatted="false">"当前投屏将先停止，然后选择新设备。再次投屏时需要重新允许共享屏幕。"</string>
+    <string name="ui_airplay_stop_choose" formatted="false">"停止并选择"</string>
+    <string name="ui_airplay_retry_cast" formatted="false">"重新投屏"</string>
+    <string name="ui_airplay_permission_title" formatted="false">"允许共享屏幕"</string>
+    <string name="ui_airplay_permission_hint" formatted="false">"请在 Android 提示中确认后继续，你也可以随时取消。"</string>
+    <string name="ui_airplay_permission_denied" formatted="false">"已取消共享屏幕"</string>
+    <string name="ui_airplay_permission_retry" formatted="false">"目前没有共享任何内容，准备好后可重新投屏。"</string>
 </resources>

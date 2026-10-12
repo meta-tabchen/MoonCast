@@ -1,0 +1,56 @@
+{
+  "upstream": "https://github.com/jqssun/android-airplay-server/releases/download/v0.0.31/app-release.apk",
+  "commit": "c8defdd70d7e6a04f4f1b71d353653682d594106",
+  "apkSha256": "c5dce5c29ab52157bdaa406e485f9bfaab7d8d59c523d93622a33b253a28f410",
+  "libraries": {
+    "armeabi-v7a/libairplay_native.so": "2a0937ccf9f99617e4dd5103b94f28f70dcce94a2e89bf9994274a5c83346adf",
+    "armeabi-v7a/liboboe.so": "6c8d5ff46d0e83812ffa514898ac0bcd2b3537694cc0679e474c6686af8c9544",
+    "armeabi-v7a/libcrypto.so": "ba3cb8794f659e32f6b48a6eb9bb045ebf2ee6c5ce9dd16fbd9bb9c20b7ec3de",
+    "armeabi-v7a/libc++_shared.so": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7",
+    "arm64-v8a/libairplay_native.so": "f120b8ce290102add9806c34affb8ad472cb2a26a2881805544caf87aabb1fad",
+    "arm64-v8a/liboboe.so": "626cf39154bb4f09d6ecd4cd7e029b3c61265464318be7252e5fb697a61c4810",
+    "arm64-v8a/libcrypto.so": "464347a1ddc808d077802ce490270f25a8f0a4cb962bf2f4b48dc8f2590c53c6",
+    "arm64-v8a/libc++_shared.so": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839",
+    "x86_64/libairplay_native.so": "2dd0ccf86a6cea8316ec99a8a9dac938d1e3165ccc9e7fc8a1b9c4b7117858f0",
+    "x86_64/liboboe.so": "7f3f4dbb58f1d9a5e1b14d8233207fc55e257e8fd4c63d78e0bd870e1aead73d",
+    "x86_64/libcrypto.so": "b087080d265ab54ca67c5cc06a5fe99b2a8d6068a9d01ea2569fe062cf427cec",
+    "x86_64/libc++_shared.so": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2"
+  },
+  "sources": {
+    "upstream-source.tar.gz": "108c33e8cd096167e85ffeb1fddf1a6122944ff13b7c4509a3768da7d66698ef",
+    "oboe-source.tar.gz": "8e5385c82d8f2b5bf87024a02b769d5a413025816879c202fce2f6a31ad974ce",
+    "openssl-3.4.4.tar.gz": "7bdf55ac20f2779e99e5eca306f824fad2b37dee5a06cc35ed5a8b85a6060010"
+  },
+  "sourceCommits": {
+    "android-airplay-server": "c8defdd70d7e6a04f4f1b71d353653682d594106",
+    "oboe": "b15f5e39c01a7ada306d959e5129620b145fb8b4",
+    "app/src/main/cpp/third_party/UxPlay": "462153392f2e30937424922039ff9f0cda5e7b1a",
+    "app/src/main/cpp/third_party/ffmpeg": "38b88335f99e76ed89ff3c93f877fdefce736c13",
+    "app/src/main/cpp/third_party/libplist": "f41b1ea67045e0c09339974d83e389972d84f166",
+    "app/src/main/cpp/third_party/openssl-cmake": "4edd36a8dab5f85a8f92650b5bdf6e0cab13aab8"
+  },
+  "upstreamLibraries": {
+    "arm64-v8a/libairplay_native.so": "7ba7916a57d3a444ca9056ba55e8a526b1da1f70ae99205f4aa2ad597a03b09a",
+    "arm64-v8a/libcrypto.so": "4dac710631af83b6f995b0d85c212138d83086742e3946c01e049765351fc1f4",
+    "arm64-v8a/liboboe.so": "979d14353e7e95de1047fbe7321da6c07bc47e30ee2b2cb8b57a1a58ef026587",
+    "arm64-v8a/libc++_shared.so": "92ee8da641b969254cc8723f64aa115d36c8ffa87115e38bc9cb89e3eefee839",
+    "armeabi-v7a/libairplay_native.so": "cd0f5f1a85de362aeac27d7caafb3627303ee4de6bed42dc81481d7bb9489716",
+    "armeabi-v7a/libcrypto.so": "307b4a36602a65cf65d123024b0e75986cf8a0aae52a24c3d1d21497b8b6a9ad",
+    "armeabi-v7a/liboboe.so": "599f988dfbc3793d7c6bc2621c02f179eac3b091a9181f65ead1cf30bb570e11",
+    "armeabi-v7a/libc++_shared.so": "37d4ffc8c166bd8e670971985bc888e89279c771fcbf90ec70a592ad9645c9d7",
+    "x86_64/libairplay_native.so": "c0036d6eb7d9d30213e451daae3359f28f8ccefa0ed63d4f2ede69fb4f729525",
+    "x86_64/libcrypto.so": "c0c066eab8d83e4c0f82f8c7c4ccd406f2bed7ce6b4031cb2f2a1883b6b644e5",
+    "x86_64/liboboe.so": "d6a207245a61531f17209721bf4168264c176af0c6d10d37ca778119d4833c5e",
+    "x86_64/libc++_shared.so": "128bb6e63a08bbd21fba7128223fb6e1016afd76dab9cbc09d9aaf4b0400f4e2"
+  },
+  "localBuild": {
+    "recipe": "scripts/build_airplay_patched.py",
+    "recipeSha256": "c3b30761ecbf8d06fb80511a062a8ba1b696b66c31fa7922cac8879caa772842",
+    "record": "native/airplay/audiofix-build-record.json",
+    "recordSha256": "9396e9b5d2a75c10e835f628bc2c32798b3a0898638d044f85e65cb16c49892c",
+    "patches": {
+      "native/airplay/patches/0001-preserve-no-audio-rtp-sequence-slots.patch": "cf773cb62dc06ae6799293f8dde4ec51952ef92de88bb1b0312c9dd64a22d21f",
+      "native/airplay/patches/0002-apply-explicit-rtp-flush-boundary.patch": "8bc2fe54a3b6cb8eac2b209b96216bfec403eddd3e5535847c57036261cef255"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <queries><intent><action android:name="android.intent.action.INSTALL_PACKAGE" /><data android:mimeType="application/vnd.android.package-archive" /></intent><intent><action android:name="android.settings.MANAGE_UNKNOWN_APP_SOURCES" /><data android:scheme="package" /></intent></queries>
+    <application android:usesCleartextTraffic="true">
+        <provider android:name="com.mooncast.tv.apk.ApkFileProvider" android:authorities="${applicationId}.apkfiles" android:exported="false" android:grantUriPermissions="true" android:process=":receiver">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/apk_file_paths" />
+        </provider>
+        <activity android:theme="@style/TvAppTheme" android:name="com.mooncast.tv.TvActivity" android:launchMode="singleTask" android:exported="false" android:screenOrientation="landscape" android:configChanges="orientation|screenSize|keyboardHidden|uiMode" android:process=":receiver">
+            </activity>
+    </application>
+</manifest>

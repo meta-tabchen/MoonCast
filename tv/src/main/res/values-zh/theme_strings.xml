@@ -1,0 +1,10 @@
+<resources>
+    <string name="theme_title">背景主题</string>
+    <string name="theme_hint">移动焦点预览 · 按确定应用。背景仅在待机时显示。</string>
+    <string name="theme_moonlake">月光湖畔</string>
+    <string name="theme_aurora">静谧极光</string>
+    <string name="theme_mist">远山薄雾</string>
+    <string name="theme_midnight">午夜纯境</string>
+    <string name="theme_selected">✓ %1$s</string>
+    <string name="theme_preview">预览 · %1$s</string>
+</resources>

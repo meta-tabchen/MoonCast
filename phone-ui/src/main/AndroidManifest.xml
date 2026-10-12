@@ -1,0 +1,30 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
+    <application android:usesCleartextTraffic="true">
+        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:enabled="true" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <activity android:name="com.mooncast.host.MainActivity" android:exported="false">
+            </activity>
+        <activity android:name="com.mooncast.host.TestPatternActivity" android:exported="false" android:allowEmbedded="true" />
+        <activity android:name="com.mooncast.host.ApkSendActivity" android:exported="false" />
+        <service android:name="com.mooncast.host.HostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection|connectedDevice" />
+        <service android:name="com.mooncast.host.AirPlayHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name="com.mooncast.host.BrowserHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name="com.mooncast.host.NativeHostService" android:process=":stream" android:exported="false" />
+        <service android:name="com.mooncast.host.FileCinemaService" android:process=":files" android:exported="false" android:foregroundServiceType="connectedDevice" />
+        <service android:name="com.mooncast.host.ControlAccessibilityService" android:process=":host" android:exported="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/control_accessibility_label">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/control_accessibility" />
+        </service>
+    <service android:name="com.mooncast.host.RoleCleanupService" android:process=":host" android:exported="false"/><service android:name="com.mooncast.host.FileRoleCleanupService" android:process=":files" android:exported="false"/></application>
+</manifest>

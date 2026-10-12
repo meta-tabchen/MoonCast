@@ -1,4 +1,43 @@
+# 0.6.0 browser preview.3 (code 54, development branch)
+
+- Add an independent Android-to-browser WebRTC mode using the existing MediaProjection/GLES capture pipeline.
+- Serve a temporary LAN receiver page and bounded HTTP signaling, with one viewer, full ICE negotiation and reconnection leases.
+- Forward only Android-permitted playback PCM through an open-source WebRTC audio callback; microphone recording remains disabled.
+- Add bilingual browser controls for explicit playback/sound, fullscreen, Fit/Fill, zoom, pan and reset.
+- Replace the phone's large protocol buttons with one lightweight selection strip, including Browser.
+- Read installed versionName/versionCode in phone and TV About; show an optional recorded build ID.
+- Keep role-menu cancel, Back and same-role selection in the active page without tearing down its sender or receiver.
+- Preserve JNI Zero classes required by the native WebRTC SDK in shrunk release APKs.
+- Move device/language/About into a compact title-bar Settings entry, center the phone layout on tablets, and show receiver links only while sharing.
+- Show unexpected browser sender exits as failures, preserving bounded diagnostics instead of silently reporting a normal Stop.
+- Preserve existing protocols and fixed community signing identity. See docs/browser-validation.md for measured and untested scope.
+
+# 0.5.0 unified preview (code 50)
+
+- One application with automatic phone/TV role selection and remembered manual override.
+- Transactional role switching waits for private process/resource cleanup before committing.
+- Unified My TV / APK transfer and all 0.4.6 phone + 0.4.5 TV audio fixes retained.
+- Receiver OpenSSL has a distinct ELF identity and runs separately from sender runtimes.
+- Four standby themes with remote-focus preview, explicit apply and persistent selection.
+- Updated bilingual setup, security, migration, native build and validation documentation.
+- Experimental separate package; no automatic migration or production-signature continuity.
+
+# 0.4.5 AirPlay audio transition candidate
+
+- Consume known empty RTP sequence slots instead of waiting for impossible resends; apply explicit FLUSH boundaries.
+- Preserve decoded audio/video clocks and normal loss recovery; rebuild native runtimes for three ABIs.
+- Authorized independent audio-test package, versionCode9. Launcher label MoonCast; version and package appear in About.
+- Host regressions do not establish Hongguo/iPhone/physical-TV interoperability; see docs/tv-airplay-audio-transitions.md.
+
 # Changelog
+
+## TV 0.4.4 — 2026-10-11 (APK validation fix preview)
+
+- Accept ordinary APKs with explicitly false Play split-required metadata or optional split inventory. Continue rejecting actual split APKs, required flags, uses-split and unresolved required metadata.
+- Refresh install-source permission and revalidate on actual foreground return, including OEM early/missing result callbacks. Retain a narrow ten-minute review lease across Settings recreation, with explicit next-click installation and actionable expiry messages.
+- Restyle the review action with clear waiting/checking/permission/install states and focused remote navigation; rename the home action Receive APK.
+- Preserve local review and user-controlled Android installation; no package-name whitelist or self-update restriction is introduced.
+- Generated unsigned APK regression reproduces old rejection/new acceptance; previously delivered signed MoonCast APKs also pass structural checks. This does not establish the cause of an unprovided user APK or physical TV installer compatibility.
 
 ## 0.3.1 — 2026-10-08 (preview)
 

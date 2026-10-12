@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">MoonCast Miracast Lab</string>
+    <string name="title">Miracast · device check</string>
+    <string name="intro">A separate diagnostic experiment. This build checks the TV’s actual Android capabilities and can open its system Cast page. It does not yet receive or advertise a Miracast video stream.</string>
+    <string name="run_probe">1. Run Wi-Fi Direct checks</string>
+    <string name="refresh">Refresh device report</string>
+    <string name="open_cast">2. Open system Cast</string>
+    <string name="open_wifi">Open Wi-Fi settings</string>
+    <string name="copy">Copy report</string>
+    <string name="save">Save report</string>
+    <string name="details">Device results · scroll for details</string>
+    <string name="not_receiver">App receiver: not implemented · OEM receiver: unverified</string>
+    <string name="summary_no_p2p">This system does not report Wi-Fi Direct hardware support. A built-in TV casting app may still use its own implementation.</string>
+    <string name="summary_old_api">Android %1$s has no public WFD configuration API (requires Android 14+). Check the system receiver separately.</string>
+    <string name="summary_permission">Public WFD configuration is listed for this Android version, but this app does not have CONFIGURE_WIFI_DISPLAY. See the device’s permission protection level below.</string>
+    <string name="summary_available">WFD API and permission are present. This is a prerequisite only; Miracast negotiation, streaming and playback still need implementation.</string>
+    <string name="summary_service">Wi-Fi Direct feature is reported, but the framework service is unavailable to this app.</string>
+    <string name="permission_title">Allow a read-only Wi-Fi Direct check?</string>
+    <string name="permission_nearby">Android asks for Nearby devices access to read the current Wi-Fi Direct connection and device information. This check does not connect, advertise, or start a scan.</string>
+    <string name="permission_location">This Android version requires location permission to read Wi-Fi Direct information. Android 12 may also ask for precise location. This app does not read geographic coordinates, scan peers or upload data.</string>
+    <string name="continue_label">Continue</string>
+    <string name="cancel">Cancel</string>
+    <string name="permission_denied">Permission was not granted. No connection or device-information request was made. You can still inspect the basic report and system settings.</string>
+    <string name="cast_note">The system Cast page may be for sending to another display. Opening it does not prove the TV can receive Miracast. If the TV has a built-in Wireless display, Screen mirroring, or Multi Visual app, open its receiving mode with the remote.</string>
+    <string name="cast_confirm_title">Open the TV’s system Cast page?</string>
+    <string name="open_label">Open</string>
+    <string name="settings_unavailable">No accessible system page was found for this action. Look for the TV’s built-in screen-mirroring app with the remote.</string>
+    <string name="copied">Report copied. It omits device serials, addresses, SSIDs and peer names.</string>
+    <string name="save_unavailable">This TV has no document-saving screen. Take photos of the report, or use Copy report.</string>
+    <string name="saved">Report saved to the location you selected.</string>
+    <string name="save_failed">The report could not be saved. The error is shown in the report.</string>
+    <string name="not_requested">NOT_REQUESTED — press Run Wi-Fi Direct checks</string>
+    <string name="waiting">WAITING_FOR_CALLBACK</string>
+    <string name="timed_out">NO_CALLBACK_WITHIN_6_SECONDS — inconclusive</string>
+    <string name="cancelled">CANCELLED — app left foreground</string>
+</resources>

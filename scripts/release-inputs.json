@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "repository": "meta-tabchen/MoonCast",
+  "tag": "unified-v0.5.0-preview",
+  "asset": "MoonCast-0.5.0-unified-complete-source.zip",
+  "archiveSha256": "bb6e87885d43b2b7e73762b9a9e45da66e94ab59447a7e6457379e6869c2b330",
+  "archiveBytes": 349222337,
+  "shards": [
+    {
+      "path": "scripts/release-inputs/01.json",
+      "sha256": "decfb357ffbcba02f543f149a5ad57667a06ee8b13905a528d65ba20fe034466",
+      "bytes": 81830,
+      "entries": 534
+    },
+    {
+      "path": "scripts/release-inputs/02.json",
+      "sha256": "93e0f27454232622fc09872225f27363a5ffc68cc677bc172604c14b5c70aa2f",
+      "bytes": 81900,
+      "entries": 530
+    },
+    {
+      "path": "scripts/release-inputs/03.json",
+      "sha256": "67900a9b657be8190649cd99c034d7fdb4a67331fbe8f9a9e51c43efe316966f",
+      "bytes": 81851,
+      "entries": 528
+    },
+    {
+      "path": "scripts/release-inputs/04.json",
+      "sha256": "c3eb65ba3f437fdfbc04097f530713e317091d7b0fdbaeb15f45250a32270086",
+      "bytes": 81871,
+      "entries": 509
+    },
+    {
+      "path": "scripts/release-inputs/05.json",
+      "sha256": "8c738b2042e7313d8831f4f1e6e9a7a0da0115fc46c9e516a7827533b3be0133",
+      "bytes": 81803,
+      "entries": 503
+    },
+    {
+      "path": "scripts/release-inputs/06.json",
+      "sha256": "3d2bf802639c5ef9307c2cacdcdfb00f66b9cdec35c29542f444c5105607dcca",
+      "bytes": 81811,
+      "entries": 517
+    },
+    {
+      "path": "scripts/release-inputs/07.json",
+      "sha256": "c3a94612efabea9ac1f057e5d18d6000f6130ae93b51d7eeb7892f3d0ddbdd64",
+      "bytes": 81885,
+      "entries": 474
+    },
+    {
+      "path": "scripts/release-inputs/08.json",
+      "sha256": "dd9413efc3d4c152b30f3feb90b56eec4fe90f93b9aff516da0a66dba9fcaee3",
+      "bytes": 81786,
+      "entries": 504
+    },
+    {
+      "path": "scripts/release-inputs/09.json",
+      "sha256": "a078d1b3c584507d2cd4cff08642591b6024fddcd70439093af65fdf67fa7d56",
+      "bytes": 81895,
+      "entries": 521
+    },
+    {
+      "path": "scripts/release-inputs/10.json",
+      "sha256": "d38b5cc0a6dde1a74058fbb936dfc4999b65b22df34005e2d49adb901c16c432",
+      "bytes": 81780,
+      "entries": 447
+    },
+    {
+      "path": "scripts/release-inputs/11.json",
+      "sha256": "0c77da9b1ef02b866fb773299ff05a7ce8a68a6233fd5284a854f1123db5c6a6",
+      "bytes": 81889,
+      "entries": 466
+    },
+    {
+      "path": "scripts/release-inputs/12.json",
+      "sha256": "e134a2d9ac66cd3dd00ee720ff7e8d4d583e2a216acf2ff488a71c0f05572e02",
+      "bytes": 81811,
+      "entries": 487
+    },
+    {
+      "path": "scripts/release-inputs/13.json",
+      "sha256": "404b1b018b26eb1acc6236cb3d06256587e7bc62942f9ccc15eca576449b7749",
+      "bytes": 81906,
+      "entries": 524
+    },
+    {
+      "path": "scripts/release-inputs/14.json",
+      "sha256": "9e3ca8d90b545275f01dc3caaa59f3eeb72044af470d78d8dfcead560f6a7470",
+      "bytes": 81813,
+      "entries": 507
+    },
+    {
+      "path": "scripts/release-inputs/15.json",
+      "sha256": "c3886194c2c899ee3d41e8cb44e7d5b2ae76d6fc10b8b9015a919bdc79db1769",
+      "bytes": 81917,
+      "entries": 474
+    },
+    {
+      "path": "scripts/release-inputs/16.json",
+      "sha256": "c082d3a3a50b4b36d38a16dbe08edb0378dd247a1cdc903430282b61709b2fd9",
+      "bytes": 3934,
+      "entries": 29
+    }
+  ],
+  "inputCount": 7554
+}

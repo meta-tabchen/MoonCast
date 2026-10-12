@@ -16,11 +16,15 @@ import java.util.*;
 
 /** Dedicated process owns all native resources. Stopping terminates that process, not the UI. */
 public class HostService extends Service implements SunshineServer.Listener {
+    @Override protected void attachBaseContext(android.content.Context base) {
+        super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));
+    }
+
     static final int STATUS=1, PIN=2, STOP=3, SCALE=4, CONTROL=5, CROP_RESET=6, LAUNCH_APP=7, DISCONNECT=8, RESTORE_DISPLAY=9;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final HandlerThread commands = new HandlerThread("MoonCastCommands");
     private Messenger binder;
-    private boolean cleanupStarted;
+    private boolean cleanupStarted, ownsCapture;
     private boolean handleCommand(Message msg) {
         // Stop must be delivered even if capture, Binder or a driver stalls the main looper.
         if (msg.what == STOP) { stopHost(); return true; }
@@ -112,12 +116,13 @@ public class HostService extends Service implements SunshineServer.Listener {
     @Override public IBinder onBind(Intent intent) { return binder.getBinder(); }
     @Override public void onCreate(){
         super.onCreate();commands.start();binder=new Messenger(new Handler(commands.getLooper(),this::handleCommand));state=getString(R.string.ui_starting);rootControlStatus=getString(R.string.ui_waiting_for_root_connection);localAudioMute=new LocalAudioMute(this);
-        restoreLocalAudio();
     }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
         if ("stop".equals(intent.getAction())) { stopHost(); return START_NOT_STICKY; }
         if (started) return START_NOT_STICKY;
+        if (!SenderOwnership.acquire(this)) { stopSelf(); return START_NOT_STICKY; }
+        ownsCapture=true;restoreLocalAudio();
         started=true;
         captureSource=intent.getIntExtra("source",0);
         boolean isRoot=captureSource==0 && intent.getBooleanExtra("root", false);rootCapture=isRoot;
@@ -177,7 +182,7 @@ public class HostService extends Service implements SunshineServer.Listener {
                     waitForServer();if(panelWanted)main.post(panelHeartbeat);
                 } catch (Exception | LinkageError e) { error(getString(R.string.ui_start_failed)+e.getMessage()); }
             },"HostInit").start();
-        } catch (Exception e) { error(e.getMessage()); }
+        } catch (Exception e) { error(PhoneMessages.message(R.string.phone_capture_failed, e.getMessage())); }
         return START_NOT_STICKY;
     }
     private void waitForServer() throws Exception {
@@ -262,7 +267,7 @@ public class HostService extends Service implements SunshineServer.Listener {
                 });
                 startAudio(packetMs, captureAudio);
                 updateReceivers();
-                log(getString(R.string.ui_video_surface_connected)+w+" × "+h+" · "+fps+" FPS");
+                log(getString(R.string.phone_video_surface,w,h,fps));
             } catch (Exception e) { error(getString(R.string.ui_capture_creation_failed)+e.getMessage()); }
         });
     }
@@ -300,8 +305,8 @@ public class HostService extends Service implements SunshineServer.Listener {
         if(current!=null){
             java.util.concurrent.CountDownLatch removed=new java.util.concurrent.CountDownLatch(1);
             current.removeOutput(s,removed::countDown);
-            try { if(!removed.await(2,java.util.concurrent.TimeUnit.SECONDS)){error("Encoder output detach timed out; restart casting");return;} }
-            catch(InterruptedException e){Thread.currentThread().interrupt();error("Encoder output detach interrupted");return;}
+            try { if(!removed.await(2,java.util.concurrent.TimeUnit.SECONDS)){error(PhoneMessages.message(R.string.phone_encoder_detach_timeout));return;} }
+            catch(InterruptedException e){Thread.currentThread().interrupt();error(PhoneMessages.message(R.string.phone_encoder_detach_interrupted));return;}
         }
         main.post(()->{
             if(stopping || receivers.remove(s)==null)return;
@@ -315,19 +320,19 @@ public class HostService extends Service implements SunshineServer.Listener {
             }else{if(session==s){session=receivers.keySet().iterator().next();if(remoteInput!=null)remoteInput.begin(session);}updateReceivers();}
         });
     }
-    @Override public void error(String text) { if(!stopping){error=text;log(text);stopHost();} }
+    @Override public void error(String text) { if(!stopping){error=PhoneMessages.render(this,text);log(error);stopHost();} }
     private void rootEvent(String kind,String text) {
         main.post(() -> {
             if(stopping)return;
             switch (kind) {
-                case "panel" -> {panelState=text;log(text);}
+                case "panel" -> {panelState=PhoneMessages.render(this,text);log(text);}
                 case "pin" -> pinRequested();
-                case "receivers" -> {try{var items=new org.json.JSONArray(text);receivers.clear();for(int i=0;i<items.length();i++){var r=items.getJSONObject(i);receivers.put(r.getLong("id"),new Receiver(r.getInt("ordinal"),r.getInt("width"),r.getInt("height"),r.getInt("fps")));}if(!receivers.isEmpty())updateReceivers();}catch(org.json.JSONException e){log("Invalid receiver inventory");}}
-                case "stream" -> { state=getString(R.string.ui_casting_root); detail=text; log(text); }
+                case "receivers" -> {try{var items=new org.json.JSONArray(text);receivers.clear();for(int i=0;i<items.length();i++){var r=items.getJSONObject(i);receivers.put(r.getLong("id"),new Receiver(r.getInt("ordinal"),r.getInt("width"),r.getInt("height"),r.getInt("fps")));}if(!receivers.isEmpty())updateReceivers();}catch(org.json.JSONException e){log(PhoneMessages.message(R.string.phone_receiver_inventory_invalid));}}
+                case "stream" -> { state=getString(R.string.ui_casting_root); detail=PhoneMessages.render(this,text); log(text); }
                 case "end" -> { state=getString(R.string.ui_waiting_for_receiver_root); detail=""; log(getString(R.string.ui_root_session_ended_waiting_for_reconnection)); }
                 case "error" -> error(text);
-                case "control" -> {rootControlStatus=text;log(text);}
-                case "controlOff" -> {controlEnabled=false;rootControlStatus=text;log(text);}
+                case "control" -> {rootControlStatus=PhoneMessages.render(this,text);log(text);}
+                case "controlOff" -> {controlEnabled=false;rootControlStatus=PhoneMessages.render(this,text);log(text);}
                 default -> log(text);
             }
         });
@@ -359,6 +364,7 @@ public class HostService extends Service implements SunshineServer.Listener {
     }
     private synchronized void stopHost() {
         if (stopping) return;
+        if (!ownsCapture) { stopSelf(); return; }
         stopping=true;
         // Armed before any resource cleanup and independent of every Android looper.
         new Thread(() -> { SystemClock.sleep(4000); android.os.Process.killProcess(android.os.Process.myPid()); },"HostStopDeadline").start();
@@ -377,16 +383,16 @@ public class HostService extends Service implements SunshineServer.Listener {
             new Thread(()->{SystemClock.sleep(250);android.os.Process.killProcess(android.os.Process.myPid());},"HostExit").start();
         }
     }
-    @Override public void onDestroy() { stopHost(); super.onDestroy(); }
+    @Override public void onDestroy() { if(ownsCapture)stopHost(); else commands.quitSafely(); super.onDestroy(); }
     private void log(String text) {
         if (Looper.myLooper()!=Looper.getMainLooper()) { main.post(() -> log(text)); return; }
         android.util.Log.i("MoonCast",text);
-        logs.add(java.time.LocalTime.now().withNano(0)+"  "+text);
+        logs.add(java.time.LocalTime.now().withNano(0)+"  "+PhoneMessages.render(this,text));
         if (logs.size()>80) logs.remove(0);
     }
     private Bundle snapshot() {
         Bundle b=new Bundle(); b.putBoolean("stopping",stopping);b.putInt("pid",android.os.Process.myPid()); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
-        long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.ui_receiver_label,r.ordinal())+" · "+r.width()+"×"+r.height()+" · "+r.fps()+" FPS";}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
+        long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.phone_receiver_format,r.ordinal(),r.width(),r.height(),r.fps());}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
         b.putString("panelState",panelState);b.putBoolean("panelOff",panelOff);b.putInt("displayId",independentDisplayId);b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
         b.putBoolean("control",remoteInput!=null?remoteInput.enabled():controlEnabled);
         b.putString("metrics",metrics());

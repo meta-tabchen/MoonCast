@@ -1,0 +1,12 @@
+--- a/lib/raop_rtp.c
++++ b/lib/raop_rtp.c
+@@ -331,6 +331,9 @@
+ 
+     /* Handle flush if requested */
+     if (flush != NO_FLUSH) {
++        /* The buffer API defines flush as the next accepted sequence, inclusive.
++         * Reset packet staging on its owning thread; keep NTP and PCM clocks. */
++        raop_buffer_flush(raop_rtp->buffer, flush);
+         if (raop_rtp->callbacks.audio_flush) {
+             raop_rtp->callbacks.audio_flush(raop_rtp->callbacks.cls);
+         }

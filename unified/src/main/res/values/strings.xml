@@ -1,0 +1,14 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="unified_role_title">Device mode</string>
+  <string name="unified_role_auto">Automatic (device type)</string>
+  <string name="unified_role_phone">Phone · Send</string>
+  <string name="unified_role_tv">TV · Receive</string>
+  <string name="unified_stopping">Stopping the previous session…</string>
+  <string name="unified_stop_failed">The previous session is still stopping. Nothing was changed. Please retry shortly.</string>
+  <string name="unified_language_title">Language / 语言</string>
+  <string name="unified_language_system">Follow system</string>
+  <string name="unified_language_notice">Changing language stops the current casting or APK-transfer session. English is used when the system language is not supported.</string>
+  <string name="unified_language_failed">Language could not be saved. Please retry.</string>
+<string name="unified_app_label">MoonCast Community</string>
+</resources>

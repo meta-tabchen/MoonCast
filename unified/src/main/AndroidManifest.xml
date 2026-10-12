@@ -1,0 +1,13 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+ <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+ <uses-feature android:name="android.software.leanback" android:required="false"/>
+ <uses-feature android:name="android.hardware.wifi" android:required="false"/>
+ <application android:name="com.mooncast.host.MoonCastApplication" android:label="@string/unified_app_label" android:icon="@drawable/ic_launcher" android:banner="@drawable/tv_banner" android:theme="@style/AppTheme" android:localeConfig="@xml/locales_config" android:fullBackupContent="false" android:dataExtractionRules="@xml/backup_rules" android:allowBackup="false" android:usesCleartextTraffic="true" android:supportsRtl="true">
+  <meta-data android:name="com.mooncast.BUILD_ID" android:value="${mooncastBuildId}"/>
+  <activity android:name=".RoleActivity" android:exported="true" android:launchMode="singleTask">
+   <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/><category android:name="android.intent.category.LEANBACK_LAUNCHER"/></intent-filter>
+  </activity>
+ <activity android:name=".RoleSettingsActivity" android:exported="false" android:launchMode="singleTask"/>
+ <activity android:name=".LanguageSettingsActivity" android:exported="false" android:launchMode="singleTask"/>
+ </application>
+</manifest>

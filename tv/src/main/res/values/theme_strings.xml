@@ -1,0 +1,10 @@
+<resources>
+    <string name="theme_title">Background theme</string>
+    <string name="theme_hint">Arrows: preview · OK: apply · Standby only</string>
+    <string name="theme_moonlake">Moonlit lake</string>
+    <string name="theme_aurora">Northern lights</string>
+    <string name="theme_mist">Misty mountains</string>
+    <string name="theme_midnight">Midnight</string>
+    <string name="theme_selected">✓ %1$s</string>
+    <string name="theme_preview">Preview · %1$s</string>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_version_name">Version: %1$s</string>
+    <string name="about_version_code">Version code: %1$s</string>
+    <string name="about_package_name">Package: %1$s</string>
+    <string name="about_build_id">Build: %1$s</string>
+    <string name="about_unavailable">Unavailable</string>
+</resources>

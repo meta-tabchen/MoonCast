@@ -1,7 +1,18 @@
 pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories { google(); mavenCentral(); flatDir { dirs rootDir.toPath().resolve("app/libs").toFile() } }
 }
 rootProject.name = 'MoonCast'
 include ':app'
+
+include ':tv'
+
+include ':moonlight-core'
+
+include ':miracast-lab'
+
+include ':phone-ui', ':tv-ui', ':unified'
+include ':transfer-core'
+
+include ':locale-core'

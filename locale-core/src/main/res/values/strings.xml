@@ -1,0 +1,5 @@
+<resources>
+ <string name="locale_picker_title">Language / 语言</string>
+ <string name="locale_follow_system">Follow system</string>
+ <string name="locale_stop_notice">Changing language stops the current casting or APK-transfer session. Continue?</string>
+</resources>

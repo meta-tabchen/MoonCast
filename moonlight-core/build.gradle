@@ -1,0 +1,44 @@
+plugins { id 'com.android.library' }
+android {
+    namespace 'com.limelight'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+    defaultConfig { minSdk 26; targetSdk 35; consumerProguardFiles 'consumer-rules.pro' }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    packaging { resources { excludes += '/META-INF/*.md' } }
+    lint { abortOnError true }
+}
+dependencies {
+    implementation 'org.bouncycastle:bcprov-jdk18on:1.85.2'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    testImplementation 'junit:junit:4.13.2'
+}
+// Never let an unprepared checkout silently emit a Java-only receiver APK.
+// This uses only the JVM so ordinary prepared builds do not require Python/readelf.
+def verifyNative = tasks.register('verifyMoonlightNativePrepared') {
+    doLast {
+        def manifestFile = file('native-build-manifest.json')
+        if (!manifestFile.exists()) throw new GradleException('Run scripts/prepare_moonlight_core.py --build --ndk <NDK29> --cmake <CMake3.31.10> first')
+        def manifest = new groovy.json.JsonSlurper().parse(manifestFile)
+        def digest = { File f -> java.security.MessageDigest.getInstance('SHA-256').digest(f.bytes).encodeHex().toString() }
+        if (manifest.source_lock_sha256 != digest(file('SOURCE_LOCK.json'))) throw new GradleException('Native manifest/source lock mismatch; rebuild native inputs')
+        if (manifest.binaries.collect { it.abi }.toSet() != ['arm64-v8a','armeabi-v7a','x86_64'].toSet()) throw new GradleException('Missing native ABI')
+        manifest.binaries.each { row ->
+            def f = file(row.path)
+            if (!f.exists() || f.length() != row.bytes || digest(f) != row.sha256) throw new GradleException('Native bytes do not match this build manifest: ' + row.abi)
+        }
+    }
+}
+// CI normally prepares before Gradle. Explicit source mode uses the same verified
+// prepare script, including the actual-build manifest, rather than bypassing it.
+if (project.hasProperty('moonlightNativeFromSource')) {
+    def prepare = tasks.register('prepareMoonlightNative', Exec) {
+        def args = ['python3', file('scripts/prepare_moonlight_core.py'), '--build']
+        if (project.hasProperty('moonlightNdkPath')) args += ['--ndk', project.property('moonlightNdkPath')]
+        if (project.hasProperty('moonlightCmakePath')) args += ['--cmake', project.property('moonlightCmakePath')]
+        commandLine args
+    }
+    verifyNative.configure { dependsOn prepare }
+}
+tasks.named('preBuild').configure { dependsOn verifyNative }

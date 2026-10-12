@@ -1,8 +1,7 @@
-name: Android CI
+name: Historical sender Android CI (manual)
+# Main now builds the full unified app through unified.yml. This retained
+# sender-only maintenance job is opt-in; skipped is not a validation pass.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 permissions:
   contents: read

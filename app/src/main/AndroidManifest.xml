@@ -11,7 +11,7 @@
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <queries><intent><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent></queries>
-    <application android:name=".MoonCastApplication" android:label="MoonCast" android:icon="@drawable/ic_launcher" android:theme="@style/AppTheme"
+    <application android:name=".MoonCastApplication" android:label="@string/app_name" android:icon="@drawable/ic_launcher" android:theme="@style/AppTheme"
         android:localeConfig="@xml/locales_config" android:fullBackupContent="false" android:allowBackup="false" android:dataExtractionRules="@xml/backup_rules" android:usesCleartextTraffic="true">
         <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:multiprocess="false" android:enabled="true" android:exported="true" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
         <activity android:name=".MainActivity" android:exported="true">
@@ -21,9 +21,13 @@
             </intent-filter>
         </activity>
         <activity android:name=".TestPatternActivity" android:exported="true" android:allowEmbedded="true" />
+        <activity android:name=".ApkSendActivity" android:exported="false" />
         <service android:name=".HostService" android:process=":host" android:exported="false"
             android:foregroundServiceType="mediaProjection|connectedDevice" />
+        <service android:name=".AirPlayHostService" android:process=":host" android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
         <service android:name=".NativeHostService" android:process=":stream" android:exported="false" />
+        <service android:name=".BrowserHostService" android:process=":host" android:exported="false" android:foregroundServiceType="mediaProjection" />
         <service android:name=".FileCinemaService" android:process=":files" android:exported="false" android:foregroundServiceType="connectedDevice" />
         <service android:name=".ControlAccessibilityService" android:process=":host" android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:label="@string/control_accessibility_label">

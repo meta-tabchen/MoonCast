@@ -1,0 +1,29 @@
+// Resolve external inputs only. Never create a key or fall back to a debug identity.
+// Kept separate so the validation can be tested without Android or key material.
+ext.resolveTvReleaseSigning = { Closure propertyValue, Closure environmentValue, Closure resolveFile ->
+    def inputs = [
+        storeFile: ['mooncastTvKeystorePath', 'MOONCAST_TV_KEYSTORE_PATH'],
+        storePassword: ['mooncastTvStorePassword', 'MOONCAST_TV_STORE_PASSWORD'],
+        keyAlias: ['mooncastTvKeyAlias', 'MOONCAST_TV_KEY_ALIAS'],
+        keyPassword: ['mooncastTvKeyPassword', 'MOONCAST_TV_KEY_PASSWORD']
+    ]
+    def values = inputs.collectEntries { key, names ->
+        def value = environmentValue(names[1])
+        if (value == null) value = propertyValue(names[0])
+        [(key): value == null ? null : value.toString()]
+    }
+    if (values.values().every { it == null }) return null
+    def missing = inputs.findAll { key, names ->
+        values[key] == null || values[key].trim().isEmpty()
+    }.collect { key, names -> "${names[1]} (or ${names[0]})" }
+    if (!missing.isEmpty()) {
+        throw new GradleException('Incomplete external TV signing configuration. Missing: ' + missing.join(', '))
+    }
+    def keystore = resolveFile(values.storeFile)
+    if (!keystore.isFile()) {
+        // Do not include paths or credential values in diagnostics.
+        throw new GradleException('MOONCAST_TV_KEYSTORE_PATH must reference an existing external keystore file.')
+    }
+    values.storeFile = keystore
+    return values
+}
