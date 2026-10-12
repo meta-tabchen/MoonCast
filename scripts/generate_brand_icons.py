@@ -49,7 +49,7 @@ uri = 'data:image/png;base64,' + base64.b64encode(data.getvalue()).decode('ascii
 html = root / 'app/src/main/assets/browser/index.html'
 text = html.read_text()
 import re
-text = re.sub(r'<link rel="icon" href="[^"]*">', f'<link rel="icon" type="image/png" href="{uri}">', text)
+text = re.sub(r'<link rel="icon"[^>]*>', f'<link rel="icon" type="image/png" href="{uri}">', text)
 text = re.sub(r'<span class="moon" aria-hidden="true"></span>|<img class="brand-icon"[^>]*>',
               f'<img class="brand-icon" src="{uri}" width="32" height="32" alt="">', text)
 html.write_text(text)
