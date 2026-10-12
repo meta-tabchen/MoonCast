@@ -1,3 +1,5 @@
+> **Historical 0.5.0 record / 0.5.0 历史记录.** These results apply only to that recorded build, not the 0.5.1 community source or APKs. For current evidence see [community validation](community-validation.md). 下述结果不能作为社区版构建或实机验收结果。
+
 # Unified MoonCast 0.5 architecture and acceptance matrix
 
 ## Input boundary

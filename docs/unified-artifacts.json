@@ -1,4 +1,7 @@
 {
+  "recordStatus": "historical",
+  "recordScope": "0.5.0 unified preview only; not community 0.5.1 artifacts",
+  "currentValidation": "docs/community-validation.md",
   "applicationId": "com.mooncast.unified.preview",
   "versionName": "0.5.0-unified-preview",
   "versionCode": 50,

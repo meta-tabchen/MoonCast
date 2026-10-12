@@ -50,10 +50,20 @@ Phone panel-off/root input features remain experimental and opt-in.
 
 ## Downloads and platform limits / 下载与协议边界
 
-Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. The current release's final signing-compatibility fix and replacement certificate were not executed on Android; see [exact validation boundaries](unified-validation.md).
+Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. For the exact community build, signature and device-test results, see [community validation](community-validation.md); historical 0.5.0 results describe that older package only.
 
 Miracast, Google Cast/Chromecast, OEM system casting and AirPlay 2 multiroom are not implemented. A manual AirPlay IP is a fallback attempt, not verified evidence that the address supports AirPlay or APK installation. APK receiving must be explicitly enabled on a capable MoonCast TV and confirmed there; GameStream still requires its protocol PIN.
 
 请从 README 下载已签名的 ARM64 或 ARMv7 附件，按安卓系统 ABI 选择，不按手机/电视区分。自动发现失败可在 My TV 手动输入 IP；这不代表已经验证对方支持 AirPlay，更不代表支持 APK。APK 须在支持该功能的 MoonCast 电视端开启、核对并确认。GameStream 的协议 PIN 配对仍须完成。Miracast、Chromecast、厂商系统投屏和 AirPlay 2 多房间未实现。
 
 主题设置中，遥控器左右移动只预览；确认键应用并保存，返回或关闭会放弃未应用的预览。四种背景只用于待机，播放中的半透明设置不会替换视频画面。实际声画质量、实体设备互通和系统安装仍以验证文档的未测试边界为准。
+
+## Language / 语言
+
+Choose Follow system, English or 简体中文 in the phone settings or TV advanced settings. Changing language inside MoonCast asks to stop the active session before applying it. Cancel or reselect the current language leaves the session unchanged. Android 13 and later also exposes the app language in system Settings; older supported versions use MoonCast's saved choice. Unsupported system languages fall back to English.
+
+Changing language directly in Android Settings may leave an already-running casting or file-sharing notification in its previous language until that session stops and its service is recreated. Stop and start a new session to refresh it. Live external-switch notification refresh has not been validated.
+
+在手机设置或电视高级设置选择「跟随系统」、English 或简体中文。应用内切换语言会先确认停止当前会话；取消或重新选择当前语言不会停止。Android 13 及以上也可在系统设置中选择应用语言；较早版本使用 MoonCast 保存的选择。其他系统语言回退为英文。
+
+直接在安卓系统设置中更换语言时，已经运行的投屏或文件分享通知可能暂时保留原语言，直到停止会话并重新启动服务。可停止后重新开始以刷新通知；系统外部切换时通知即时刷新的行为尚未验证。
