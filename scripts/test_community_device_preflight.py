@@ -2,6 +2,9 @@
 """Host-only metadata fixtures for the device test harness; no Android pass implied."""
 import copy
 import re
+import io
+import tarfile
+import tempfile
 import importlib.util
 from pathlib import Path
 import unittest
@@ -44,6 +47,33 @@ class Metadata(unittest.TestCase):
     with self.subTest(name=name,value=value):
      bad=copy.deepcopy(rows);bad[name]['versionCode']=value
      with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
+ def test_all_install_routes(self):
+  # Baseline, release and debug share the same exact app target and flags.
+  for name in ('baseline', 'candidate', 'debug'):
+   with self.subTest(name=name):self.assertEqual(m.installation_flags(m.PACKAGE), ['-r'])
+  self.assertEqual(m.installation_flags(m.TEST_PACKAGE), ['-r','-t'])
+  with self.assertRaises(ValueError):m.installation_flags('unrelated.package')
+ def test_stream_retry_does_not_bypass_install_rejection(self):
+  self.assertTrue(m.retry_stream_error(1,'','cmd: Failure calling service package: Broken pipe (32)'))
+  self.assertFalse(m.retry_stream_error(0,'Success','Broken pipe'))
+  for message in ('INSTALL_FAILED_UPDATE_INCOMPATIBLE Broken pipe', 'INSTALL_FAILED_VERSION_DOWNGRADE', 'INSTALL_FAILED_INSUFFICIENT_STORAGE', 'different error'):
+   with self.subTest(message=message):self.assertFalse(m.retry_stream_error(1,'',message))
+ def archive(self,name='phase-en-report.json',kind=tarfile.REGTYPE):
+  data=io.BytesIO()
+  with tarfile.open(fileobj=data,mode='w') as archive:
+   entry=tarfile.TarInfo(name);entry.type=kind
+   if kind==tarfile.REGTYPE:entry.size=2;archive.addfile(entry,io.BytesIO(b'{}'))
+   else:entry.linkname='/tmp/unrelated';archive.addfile(entry)
+  return data.getvalue()
+ def test_private_evidence_flat_extract(self):
+  with tempfile.TemporaryDirectory() as d:
+   m.extract_evidence(self.archive('./phase-en-report.json'),Path(d))
+   self.assertEqual((Path(d)/'phase-en-report.json').read_bytes(),b'{}')
+ def test_evidence_path_and_link_rejection(self):
+  with tempfile.TemporaryDirectory() as d:
+   for name in ('../outside.json','/outside.json','nested/out.json'):
+    with self.subTest(name=name),self.assertRaises(RuntimeError):m.extract_evidence(self.archive(name),Path(d))
+   with self.assertRaises(RuntimeError):m.extract_evidence(self.archive(kind=tarfile.SYMTYPE),Path(d))
  def test_debug_flags(self):
   rows,cert=self.fixture()
   for name in ('baseline','candidate','debug'):

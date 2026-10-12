@@ -45,7 +45,7 @@ final class CommunityLocaleTest {
         phase=arguments.getString("phase","resources");language=arguments.getString("language","en");
         String runId=arguments.getString("run_id","");
         if(!runId.matches("[a-f0-9]{32}")||!language.matches("system|en|zh"))throw new IllegalArgumentException("Invalid test parameters");
-        directory=new File(target.getExternalFilesDir(null),"community-locale/"+runId);
+        directory=new File(target.getFilesDir(),"community-locale/"+runId);
         if(!directory.isDirectory()&&!directory.mkdirs())throw new IllegalStateException("Cannot create evidence directory");
         report.put("scope","Actual debug APK UI on an Android emulator. No screen-capture permission, sent stream, decoded media, physical-TV or AirPlay interoperability is tested.")
             .put("phase",phase).put("language",language).put("sdk",Build.VERSION.SDK_INT).put("checks",checks).put("screenshots",screenshots);

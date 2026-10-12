@@ -84,7 +84,7 @@ jobs:
     name: Bilingual UI and community upgrade (API ${{ matrix.api }})
     needs: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -177,3 +177,18 @@ jobs:
         with:
           name: community-api${{ matrix.api }}-device-evidence
           path: ${{ runner.temp }}/mooncast-device/evidence
+
+      - name: Optional authentic UI demo (after saved verification evidence)
+        if: success() && matrix.api == 35
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          python3 scripts/record_community_demo.py --serial emulator-5554 \
+            --verification-manifest "$RUNNER_TEMP/mooncast-device/evidence/ui/manifest.json" \
+            --output "$RUNNER_TEMP/mooncast-demo" --language zh
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.api == 35
+        with:
+          name: community-api35-ui-demo
+          path: ${{ runner.temp }}/mooncast-demo
+          if-no-files-found: warn

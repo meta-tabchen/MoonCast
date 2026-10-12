@@ -11,11 +11,14 @@ and no remote cast/decoder interoperability is claimed.
 from __future__ import annotations
 import argparse
 import hashlib
+import io
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import struct
 import subprocess
+import time
+import tarfile
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +80,50 @@ def validate_fixtures(artifacts: dict, certificate: str) -> None:
         raise RuntimeError('androidTest package/signature must match the community debug target')
 
 
+def installation_flags(package: str) -> list[str]:
+    if package not in (PACKAGE, TEST_PACKAGE):
+        raise ValueError('Unexpected install target')
+    return ['-r', *(['-t'] if package == TEST_PACKAGE else [])]
+
+
+def retry_stream_error(return_code: int, stdout: str, stderr: str) -> bool:
+    message = stdout + stderr
+    return bool(return_code and 'Broken pipe' in message and 'INSTALL_FAILED' not in message)
+
+
+def extract_evidence(data: bytes, destination: Path) -> None:
+    # run-as reads only this run's private debug-test files; never extract arbitrary
+    # paths, links, device entries, modes or a general app-data backup.
+    if len(data) > 128 * 1024 * 1024:
+        raise RuntimeError('Evidence archive exceeds 128 MiB')
+    with tarfile.open(fileobj=io.BytesIO(data), mode='r:') as archive:
+        members = archive.getmembers()
+        if len(members) > 128:
+            raise RuntimeError('Too many evidence entries')
+        seen = set()
+        total = 0
+        for member in members:
+            if member.isdir() and member.name in ('.', './'):
+                continue
+            path = PurePosixPath(member.name)
+            if not member.isreg() or len(path.parts) != 1 or not re.fullmatch(r'[A-Za-z0-9_.-]{1,160}', path.name) or path.name in ('.', '..') or path.name in seen:
+                raise RuntimeError('Unsafe evidence archive entry: ' + member.name)
+            total += member.size
+            if member.size > 32 * 1024 * 1024 or total > 128 * 1024 * 1024:
+                raise RuntimeError('Evidence payload exceeds size limit')
+            seen.add(path.name)
+        destination.mkdir(parents=True, exist_ok=True)
+        for member in members:
+            if member.isreg():
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise RuntimeError('Evidence entry could not be read')
+                content = stream.read()
+                if len(content) != member.size:
+                    raise RuntimeError('Truncated evidence entry')
+                (destination / PurePosixPath(member.name).name).write_bytes(content)
+
+
 def png_info(path: Path) -> dict:
     data = path.read_bytes()
     if len(data) < 24 or data[:8] != b'\x89PNG\r\n\x1a\n' or data[12:16] != b'IHDR':
@@ -124,12 +171,41 @@ def main() -> None:
                 'runId': marker, 'runner': RUNNER, 'pinnedCertificateSha256': certificate, 'sdk': adb('shell', 'getprop', 'ro.build.version.sdk').stdout.strip(),
                 'emulatorFingerprint': adb('shell', 'getprop', 'ro.build.fingerprint').stdout.strip(),
                 'upgrade': {'baselineScope': 'Generated versionCode-50 compatibility baseline, not a claim about an earlier published release'}, 'phases': [], 'screenshots': [], 'passed': False}
-    remote = f'/sdcard/Android/data/{PACKAGE}/files/community-locale/{marker}'
+    remote = f'files/community-locale/{marker}'
 
     def install(apk: Path, package: str):
         print(f"Installing {apk.name} on disposable {args.serial}", flush=True)
-        result = adb('install', '-r', *(['-t'] if package == TEST_PACKAGE else []), apk, timeout=240)
-        if 'Success' not in result.stdout:
+        flags = installation_flags(package)
+        deadline = time.monotonic() + 90
+        ready = 0
+        readiness = []
+        while time.monotonic() < deadline and ready < 2:
+            try:
+                probe = adb('shell', 'cmd', 'package', 'list', 'packages', '--user', '0', 'android', timeout=min(10, max(1, deadline-time.monotonic())), check=False)
+                ok = probe.returncode == 0 and 'package:android' in probe.stdout.splitlines()
+                readiness.append({'ok': ok, 'stdout': probe.stdout, 'stderr': probe.stderr})
+            except subprocess.TimeoutExpired:
+                ok = False
+                readiness.append({'ok': False, 'error': 'Package-service readiness probe timed out'})
+            ready = ready + 1 if ok else 0
+            if ready < 2:
+                time.sleep(min(3, max(0, deadline-time.monotonic())))
+        (args.output / f'{apk.stem}-package-readiness.json').write_text(json.dumps(readiness, indent=2), encoding='utf-8')
+        if ready < 2:
+            raise RuntimeError('Emulator package service did not respond consistently within 90 seconds; application installation was not attempted')
+        result = adb('install', *flags, apk, timeout=240, check=False)
+        attempts = [{'mode': 'streamed-default', 'returnCode': result.returncode,
+                     'stdout': result.stdout, 'stderr': result.stderr}]
+        if retry_stream_error(result.returncode, result.stdout, result.stderr):
+            # One standard file-transfer retry for the exact same validated APK.
+            # Android's installer/signature checks remain intact; no downgrade,
+            # permission grants, verification bypass, uninstall or data clearing.
+            print(f'Stream transport broke; retrying {apk.name} once with --no-streaming', flush=True)
+            result = adb('install', '--no-streaming', *flags, apk, timeout=240, check=False)
+            attempts.append({'mode': 'no-streaming', 'returnCode': result.returncode,
+                             'stdout': result.stdout, 'stderr': result.stderr})
+        (args.output / f'{apk.stem}-install.json').write_text(json.dumps(attempts, indent=2), encoding='utf-8')
+        if result.returncode or 'Success' not in result.stdout:
             raise RuntimeError(f'install -r did not succeed: {apk}\n{result.stdout}\n{result.stderr}')
         paths = adb('shell', 'pm', 'path', package).stdout.strip().splitlines()
         if len(paths) != 1 or not paths[0].startswith('package:'):
@@ -164,14 +240,27 @@ def main() -> None:
                     return json.loads(line[line.index('{'):])
             raise RuntimeError('Upgrade marker was not returned as structured data')
         manifest['phases'].append({'phase': phase, 'language': language, 'passed': True})
+        (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+        pull_evidence(required=False)
         return None
 
     def pull_evidence(required: bool):
-        (args.output / 'screens').mkdir(exist_ok=True)
-        result = adb('pull', remote + '/.', args.output / 'screens', timeout=180, check=False)
-        (args.output / 'pull.txt').write_text(result.stdout + '\n' + result.stderr, encoding='utf-8')
-        if required and result.returncode:
-            raise RuntimeError('Device evidence could not be downloaded')
+        # Android's run-as is available only for the installed debug variant. All
+        # emulator/identity checks above still apply; no chmod or storage grant.
+        try:
+            result = subprocess.run([*adb_command, 'exec-out', 'run-as', PACKAGE,
+                                     'tar', '-C', remote, '-cf', '-', '.'],
+                                    capture_output=True, timeout=180)
+            (args.output / 'pull.txt').write_text(result.stderr.decode('utf-8', errors='replace'), encoding='utf-8')
+            if result.returncode:
+                if required:
+                    raise RuntimeError('Private debug-test evidence could not be downloaded with run-as')
+                return
+            extract_evidence(result.stdout, args.output / 'screens')
+        except Exception as error:
+            (args.output / 'pull.txt').write_text(str(error), encoding='utf-8')
+            if required:
+                raise
 
     try:
         artifacts = {name: inspect_apk(getattr(args, name), args.aapt, args.apksigner)
@@ -192,6 +281,7 @@ def main() -> None:
             raise RuntimeError('On-device signing identity does not match the pinned community certificate')
         manifest['upgrade']['passed'] = True
         manifest['upgrade']['uninstallUsed'] = False
+        (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
         manifest['debugInstall'] = install(args.debug, PACKAGE)
         # Restore a regular phone-sized display after TV runs even when a test fails.
         adb('shell', 'wm', 'size', '1080x1920')
@@ -235,6 +325,15 @@ def main() -> None:
         print('PASS: release 50 -> 51 install -r preserved private data and signing identity; actual English/Chinese debug-emulator phone/TV screenshots and locale tests passed.')
     except BaseException as failure:
         manifest['failure'] = str(failure)
+        for label, arguments in (
+            ('android-errors', ('logcat', '-d', '-t', '300', 'AndroidRuntime:E', 'ActivityManager:E', '*:S')),
+            ('package-service', ('shell', 'service', 'check', 'package')),
+            ('device-space', ('shell', 'df', '/data'))):
+            try:
+                diagnostic = adb(*arguments, timeout=20, check=False)
+                (args.output / f'{label}.txt').write_text(diagnostic.stdout + '\n' + diagnostic.stderr, encoding='utf-8')
+            except Exception as diagnostic_error:
+                (args.output / f'{label}.txt').write_text(str(diagnostic_error), encoding='utf-8')
         pull_evidence(required=False)
         raise
     finally:
