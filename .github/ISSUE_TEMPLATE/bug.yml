@@ -1,11 +1,11 @@
 name: Bug report / 错误报告
-description: Report a reproducible problem in phone sending, TV receiving or APK transfer. 中英文均可。
+description: Report a reproducible problem in phone sending, TV/browser receiving or APK transfer. 中英文均可。
 title: "[Bug] "
 labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: "For vulnerabilities see [SECURITY.md](https://github.com/meta-tabchen/MoonCast/blob/unified/community/SECURITY.md). Remove private network addresses, keys, pairing files, account details, serial numbers and personal content from logs/screenshots. 安全问题请按安全说明报告；日志与截图先脱敏，不提交密钥、配对文件、账号或个人资料。"
+      value: "For vulnerabilities see [SECURITY.md](https://github.com/meta-tabchen/MoonCast/blob/main/SECURITY.md). Remove temporary viewer links/QR codes, private network addresses, keys, pairing files, account details, serial numbers and personal content from logs/screenshots. 安全问题请按安全说明报告；日志与截图先脱敏，不提交临时接收链接／二维码、密钥、配对文件、账号或个人资料。"
   - type: input
     id: version
     attributes:
@@ -21,6 +21,7 @@ body:
         - AirPlay
         - DLNA
         - GameStream / Moonlight
+        - Browser / WebRTC / 浏览器接收
         - APK transfer / APK 推送
         - App UI, language or role switch / 界面、语言或角色切换
         - Other or unknown / 其他或不知道
@@ -35,10 +36,15 @@ body:
     validations:
       required: true
   - type: input
+    id: browser
+    attributes:
+      label: Browser name/version and OS — Browser mode only, optional / 浏览器名称、版本与系统，仅浏览器模式适用，可选
+      description: Do not paste the temporary viewer link or QR code. Unknown is fine. 不要粘贴临时接收链接或二维码；不知道可注明。
+  - type: input
     id: moonlight
     attributes:
       label: Moonlight version — GameStream only, optional / 仅 GameStream 适用，可选
-      description: Leave blank for AirPlay, DLNA, APK transfer or a UI-only issue. 其他场景留空。
+      description: Leave blank for AirPlay, DLNA, Browser, APK transfer or a UI-only issue. 其他场景留空。
   - type: textarea
     id: settings
     attributes:
@@ -46,6 +52,11 @@ body:
       description: "Only what applies: network type (no addresses), codec/resolution/FPS/bitrate, framing, audio/mute, input mode, or APK size and install stage. 不适用填 N/A；仅填写相关网络类型、画质、裁剪、声音、输入或 APK 大小及安装阶段，不必改权限或开启 Root。"
     validations:
       required: true
+  - type: textarea
+    id: browser_observation
+    attributes:
+      label: Browser connection and reception (optional) / 浏览器连接与接收情况（可选）
+      description: "For Browser mode: note where it stops (page, Connect, picture or sound), quality preset, and any displayed received size/FPS/bitrate. Separate configured targets from observed values; note fullscreen fallback if relevant. Do not change permissions or attach live links/QR codes. 浏览器模式可说明卡在打开页面、连接、画面或声音哪一步，以及画质档位和已显示的实际接收尺寸／帧率／码率；区分目标与实测，相关时注明全屏降级表现。不必改权限，不附活动链接／二维码。"
   - type: textarea
     id: steps
     attributes:
