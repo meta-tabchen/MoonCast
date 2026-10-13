@@ -1,4 +1,8 @@
-# Getting started
+# Getting started — historical sender guide
+
+> **Historical scope:** This page preserves the earlier sender-only workflow and its original local-debug signing notes. It is not the current unified-app installation or upgrade guide. For MoonCast 0.7 phone/TV installation and current download/upgrade instructions, use the [unified guide](unified-guide.md) and [README](../README.md). Current community releases use a fixed public test signing identity; do not apply the historical uninstall advice as a routine upgrade step.
+>
+> **历史说明：** 本页保留早期独立发送端流程及当时的本地 debug 签名说明，不是当前合并版的安装或升级指南。MoonCast 0.7 手机／电视安装请看[合并版指南](unified-guide.md)，当前下载与升级说明见[中文 README](../README.zh-CN.md)。当前社区版使用固定公开测试签名，不要把下方历史卸载说明当成日常升级步骤。
 
 ## Requirements
 
