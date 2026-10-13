@@ -2,6 +2,27 @@
 
 See both README language versions for roles, protocols and installation.
 
+## First installation / 首次安装
+
+Use the [current 0.7 Release](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7). Each APK contains both phone and TV roles; choose by the **Android system ABI**, not the device's role or CPU marketing name. `arm64-v8a` is the 64-bit ARM build; `armeabi-v7a` is the 32-bit ARM build. An ARM64 processor can run a 32-bit Android system. Check the manufacturer's system information if unsure; do not assume every TV needs ARMv7. Minimum Android version is 8.0.
+
+**On a phone:** download the matching APK, open it from your browser's downloads or file manager, and review Android's installation prompt. If Android offers an install-source permission, it applies to the app opening the APK. Review and decide yourself; MoonCast does not grant it.
+
+**On a TV without MoonCast yet:** use a browser/file manager already available on that TV to open the Release and downloaded APK, if it supports this; alternatively copy the matching APK to a USB drive and open it with the TV's available file manager. Availability of browsers, USB storage, package installers and install permissions depends on the television and its administrator. These are possible first-install routes, not newly tested OEM compatibility. If your TV does not expose an allowed route, follow its manufacturer's instructions rather than disabling protections.
+
+**After MoonCast is installed on the TV:** later ordinary APK transfers can use MoonCast's phone-to-TV flow below. This feature cannot bootstrap an empty TV: MoonCast must already be present and running on the receiving device.
+
+**If installation fails:** keep the existing installation and note the exact system message. Check Android version, system ABI, complete download and available storage; a same-package update must also satisfy Android's signature and version checks. Do not uninstall or clear data as the first troubleshooting step: that removes private settings and pairing records. Current community upgrades retain the package/signature; older standalone/0.5.0 packages have different identities, as explained in the [README migration section](../README.md#community-updates-and-one-time-migration). A public test signature supports upgrade continuity, not publisher authentication. Download only from the intended Release and compare its checksum.
+
+请使用[当前 0.7 Release](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7)。每个 APK 都含手机和电视模式，按**安卓系统 ABI**选包：`arm64-v8a` 为 64 位 ARM，`armeabi-v7a` 为 32 位 ARM。64 位处理器也可能运行 32 位系统；不确定时查厂商系统信息，不要默认电视都选 ARMv7。最低 Android 8.0。
+
+- **手机首次安装：** 下载匹配的 APK，从浏览器下载列表或文件管理器打开，核对系统安装提示。如系统提供安装来源授权，由你自行审阅决定；授权对象是打开 APK 的应用，MoonCast 不会自动授予。
+- **电视还没有 MoonCast：** 若电视已有的浏览器／文件管理器支持，可直接打开 Release 下载并打开 APK；也可将 APK 拷到 U 盘，用电视已有文件管理器打开。浏览器、U 盘、安装器和权限入口因电视／管理策略而异，这些是可选路径，不是新增厂商实测。没有允许的入口时遵循厂商说明，不要求关闭安全保护。
+- **电视已安装 MoonCast：** 后续可用手机向电视传普通 APK，再由电视确认。接收端必须已安装并运行 MoonCast，不能靠这个功能完成空白电视的首次安装。
+- **安装失败：** 先保留旧应用，记录系统原话，检查 Android 版本、系统 ABI、下载完整性及空间；同包升级还要满足签名和版本要求。不要先卸载或清数据，以免丢失设置和配对。当前社区版保持包名／签名，历史独立版及 0.5.0 有不同身份，见 [README 迁移说明](../README.zh-CN.md#社区版升级与旧版迁移)。公开测试签名只保证升级身份连续性，不认证发布者；只从预期 Release 下载并核对校验和。
+
+[Android ABI reference / ABI 官方说明](https://developer.android.com/ndk/guides/abis) · [Current validation limits / 当前验证范围](release-0.7-validation.md)
+
 ## Device mode / 设备模式
 
 Phone header: Device mode · About → Switch phone / TV mode.

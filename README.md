@@ -144,6 +144,8 @@ Advanced sender features retain their [per-feature implementation and historical
 
 ## Download 0.7
 
+[First phone/TV installation and troubleshooting](docs/unified-guide.md): the TV must already have MoonCast before it can receive APKs from the phone.
+
 [Release notes](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [Application source](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [Notices](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
 
 Minimum Android 8.0. Choose one APK for the system ABI; each includes phone and TV roles. Version `0.7`, versionCode `57`; the fixed `com.mooncast.community` package and existing public test certificate are unchanged. Use the Release inventory for final provenance, artifact hashes and check results. The public test signer provides upgrade continuity, not publisher authentication.

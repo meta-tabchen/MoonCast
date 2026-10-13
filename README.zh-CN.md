@@ -144,6 +144,8 @@ GameStream 和 DLNA 的连接方式见下文。
 
 ## 下载 0.7
 
+[手机／电视首次安装与排障](docs/unified-guide.md)：电视须先安装 MoonCast，之后才能接收手机推送的 APK。
+
 [版本说明](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [应用源码](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [许可证清单](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
 
 最低Android 8.0。每台设备按系统ABI选择一个APK，每个均含手机与电视角色。版本 `0.7`，versionCode `57`；固定 `com.mooncast.community` 包名与现有公开测试证书不变。最终来源、产物哈希与检查结果以Release清单为准。公开测试签名保证升级身份连续性，不证明发布者身份。
