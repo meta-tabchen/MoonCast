@@ -27,6 +27,13 @@ public final class AirPlayDiagnosticsTest {
             if (AirPlayDiagnostics.progress(value) != null) throw new AssertionError("Unsafe progress forwarded");
             checks++;
         }
+        equal("stage=GET/stream.xml; status=403; HTTP/1.1", AirPlayDiagnostics.failure("legacy GET/stream.xml: HTTP 403 (body: PRIVATE)", "CONNECT"));
+        equal("stage=POST/stream; status=501; HTTP/1.1", AirPlayDiagnostics.failure("legacy POST/stream: HTTP 501 (body: GET/info SECRET)", "GET/info"));
+        equal("stage=HTTP/fp-setup; connection-closed; HTTP/1.1", AirPlayDiagnostics.failure("legacy POST/fp-setup: EOF", "PAIR"));
+        equal("HTTP/STREAM", AirPlayDiagnostics.progress("[LEGACYHTTP] STREAM"));
+        equal("GET/stream.xml", AirPlayDiagnostics.progress("[LEGACYHTTP] GET/stream.xml"));
+        equal("GET/info", AirPlayDiagnostics.progress("[AIRPLAY2] GET/info"));
+        equal("CONNECT", AirPlayDiagnostics.safeStage("GET/streamXxml"));
         // Retention covers the short-lived host/UI polling race and rejects stale sessions.
         try {
             java.nio.file.Path path = java.nio.file.Files.createTempDirectory("airplay-result-");

@@ -1,3 +1,18 @@
+## Local-only MoonCast 0.7.3 follow-up
+
+The independent patch0003 adds validated legacy HTTP mirroring at the selected
+numeric LAN receiver's port7100: GET /stream.xml, optional HTTP FairPlay,
+binary POST /stream and continuous video on the same socket, with AVCC config,
+4-byte NAL lengths, 128-byte headers, 32.32 timestamps and peer-filtered UDP7010
+clock responses. Digest challenges are honored; required encryption and crypto
+failures never fall back to plaintext. Only explicitly unsupported FairPlay
+endpoints allow the documented optional-parameter stream format. Probe failure
+keeps the modern path. This follow-up is local only; no uploads or publication.
+
+The original snapshot and historical0.7.2 notes below are retained. Current
+native hashes and toolchain are in prebuilt-manifest.json. The local build uses
+/tmp/mooncast-airplay-073/source. Real TV acceptance remains untested.
+
 ## MoonCast 0.7.2 native rebuild
 
 The upstream snapshot below remains v0.0.33. MoonCast patch 0002 makes only the

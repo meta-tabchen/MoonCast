@@ -38,6 +38,7 @@ public final class AirPlayHostService extends Service {
     private volatile long connectedFrames;
     private long statusToken;
     private String protocolStage = "CONNECT";
+    private boolean legacyHttpTransport;
 
     @Override public void onCreate() {
         super.onCreate(); commands.start();
@@ -115,7 +116,8 @@ public final class AirPlayHostService extends Service {
     }
     private void connect(String pin) {
         int token = generation.incrementAndGet(); Session old = session; session = null;
-        protocolStage = "GET/info";
+        protocolStage = "GET/stream.xml";
+        legacyHttpTransport = false;
         state = getString(R.string.ap_service_connecting); detail = host + ":" + port; publish();
         new Thread(() -> {
             try {
@@ -130,7 +132,7 @@ public final class AirPlayHostService extends Service {
                 public void onError(String message) { deliver(() -> failProtocol(message)); }
                 public void onLog(String message) {
                     String stage = AirPlayDiagnostics.progress(message);
-                    if (stage != null) deliver(() -> { protocolStage = stage; log("AirPlay stage=" + stage); publish(); });
+                    if (stage != null) deliver(() -> { if (message.equals("[LEGACYHTTP] STREAM")) legacyHttpTransport = true; protocolStage = stage; log("AirPlay stage=" + stage); publish(); });
                 }
             });
             // Claim the session on the command owner before starting an asynchronous Go handshake.
@@ -167,7 +169,9 @@ public final class AirPlayHostService extends Service {
                 public void error(String message) { main.post(() -> { if (token == generation.get()) fail(message); }); }
                 public void log(String message) { main.post(() -> AirPlayHostService.this.log(message)); }
             });
-            video.start(projection, width, height, fps, legacy ? Math.min(bitrate, 4_000_000) : bitrate, legacy, scaleMode, wholeScreen);
+            boolean compatibility = legacy || legacyHttpTransport;
+            int captureFps = legacyHttpTransport ? Math.min(fps, 30) : fps;
+            video.start(projection, width, height, captureFps, compatibility ? Math.min(bitrate, 4_000_000) : bitrate, compatibility, scaleMode, wholeScreen);
             connected = true; pinPending = false;
             state = getString(R.string.ap_service_casting); detail = getString(R.string.phone_airplay_stream,host,width,height,fps);
             if (wantsAudio && active.hasAudio()) startAudio(active, token);

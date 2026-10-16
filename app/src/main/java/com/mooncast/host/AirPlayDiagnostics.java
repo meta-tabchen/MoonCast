@@ -23,10 +23,18 @@ final class AirPlayDiagnostics {
         else if (text.contains("timeout") || text.contains("deadline")) reason = "timeout";
         else if (text.contains("EOF") || text.contains("reset by peer")) reason = "connection-closed";
         else reason = "protocol-error";
-        return "stage=" + stage + "; " + reason + "; RTSP/1.0";
+        String protocol = stage.startsWith("HTTP/") || stage.equals("GET/stream.xml") || stage.equals("POST/stream") ? "HTTP/1.1" : "RTSP/1.0";
+        return "stage=" + stage + "; " + reason + "; " + protocol;
     }
 
     private static String stage(String text, String fallback) {
+        if (text.startsWith("legacy ")) {
+            if (text.contains("GET/stream.xml")) return "GET/stream.xml";
+            if (text.contains("POST/fp-setup") || text.contains("encryption")) return "HTTP/fp-setup";
+            if (text.contains("POST/stream")) return "POST/stream";
+            if (text.contains("timing")) return "HTTP/timing";
+            return "HTTP/STREAM";
+        }
         if (text.startsWith("getinfo")) return "GET/info";
         if (text.startsWith("connect:") || text.startsWith("reconnect:")) return "CONNECT";
         if (text.startsWith("pairing failed:")) return "PAIR";
@@ -43,12 +51,15 @@ final class AirPlayDiagnostics {
     }
 
     static String safeStage(String stage) {
-        return stage != null && stage.matches("CONNECT|GET/info|PAIR|POST/fp-setup|SETUP(?:/session|/audio|/video|/legacy-video)?|RECORD|STREAM") ? stage : "CONNECT";
+        return stage != null && stage.matches("GET/stream\\.xml|POST/stream|HTTP/(?:fp-setup|timing|STREAM)|CONNECT|GET/info|PAIR|POST/fp-setup|SETUP(?:/session|/audio|/video|/legacy-video)?|RECORD|STREAM") ? stage : "CONNECT";
     }
 
     /** Only recognize fixed wrapper messages; full native debug logging stays off. */
     static String progress(String message) {
         if (message == null) return null;
+        if (message.equals("[LEGACYHTTP] GET/stream.xml")) return "GET/stream.xml";
+        if (message.equals("[LEGACYHTTP] STREAM")) return "HTTP/STREAM";
+        if (message.equals("[AIRPLAY2] GET/info")) return "GET/info";
         if (message.startsWith("[AIRPLAY2] connected to:")) return "PAIR";
         if (message.equals("[AIRPLAY2] pairing complete")) return "POST/fp-setup";
         if (message.equals("[AIRPLAY2] FairPlay setup complete") || message.startsWith("[AIRPLAY2] FairPlay SAP unsupported")) return "SETUP";

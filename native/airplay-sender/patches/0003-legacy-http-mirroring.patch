@@ -1,0 +1,1233 @@
+--- a/internal/airplay/client.go
++++ b/internal/airplay/client.go
+@@ -82,17 +82,18 @@
+ 
+ // AirPlayClient manages the connection to an AirPlay receiver.
+ type AirPlayClient struct {
+-	host string
+-	port int
+-
+-	conn      net.Conn
+-	mu        sync.Mutex
+-	cseq      atomic.Int64
++	requestOverride func(string, string, string, []byte, ...map[string]string) ([]byte, error)
++	host            string
++	port            int
++
++	conn            net.Conn
++	mu              sync.Mutex
++	cseq            atomic.Int64
+ 	infoUnavailable bool // /info explicitly unsupported; feature bits are unknown
+-	info      *ReceiverInfo
+-	PairKeys  *PairKeys
+-	sessionID string // X-Apple-Session-ID, set once per connection
+-	PairingID string // Our pairing identifier (UUID)
++	info            *ReceiverInfo
++	PairKeys        *PairKeys
++	sessionID       string // X-Apple-Session-ID, set once per connection
++	PairingID       string // Our pairing identifier (UUID)
+ 
+ 	// Encryption state after pair-verify
+ 	encrypted     bool
+@@ -134,7 +135,10 @@
+ 	// The Android wrapper cancels while an RTSP request may be blocked. Closing this
+ 	// specific connection avoids a race with a replacement connection during retry.
+ 	context.AfterFunc(ctx, func() { conn.Close() })
+-	if ctx.Err() != nil { conn.Close(); return ctx.Err() }
++	if ctx.Err() != nil {
++		conn.Close()
++		return ctx.Err()
++	}
+ 	return nil
+ }
+ 
+@@ -208,6 +212,9 @@
+ // Does NOT send X-Apple-Session-ID (UxPlay classifies CSeq connections as RAOP and
+ // crashes with an assert if both CSeq and X-Apple-Session-ID are present).
+ func (c *AirPlayClient) httpRequest(method, path, contentType string, body []byte, extraHeaders ...map[string]string) ([]byte, error) {
++	if c.requestOverride != nil {
++		return c.requestOverride(method, path, contentType, body, extraHeaders...)
++	}
+ 	c.mu.Lock()
+ 	defer c.mu.Unlock()
+ 
+--- a/airplaylib/airplaylib.go
++++ b/airplaylib/airplaylib.go
+@@ -30,13 +30,14 @@
+ }
+ 
+ type Session struct {
+-	lifecycle sync.Mutex
+-	epoch     uint64
+-	mu        sync.Mutex
+-	client    *airplay.AirPlayClient
+-	mirror    *airplay.MirrorSession
+-	handler   EventHandler
+-	cancel    context.CancelFunc
++	legacyHTTP *airplay.LegacyHTTPMirror
++	lifecycle  sync.Mutex
++	epoch      uint64
++	mu         sync.Mutex
++	client     *airplay.AirPlayClient
++	mirror     *airplay.MirrorSession
++	handler    EventHandler
++	cancel     context.CancelFunc
+ 
+ 	pipeW        *io.PipeWriter
+ 	firstSendLog bool
+@@ -138,6 +139,42 @@
+ 		if !s.current(ctx, epoch) {
+ 			return
+ 		}
++		s.logf("[LEGACYHTTP] GET/stream.xml")
++		legacy, legacyErr := airplay.TryLegacyHTTP(ctx, host, pin, width, height, fps)
++		if legacyErr == nil {
++			s.mu.Lock()
++			if ctx.Err() != nil || s.epoch != epoch {
++				s.mu.Unlock()
++				legacy.Close()
++				return
++			}
++			s.legacyHTTP = legacy
++			s.streamWidth, s.streamHeight = legacy.Width, legacy.Height
++			s.mu.Unlock()
++			report := func(err error) {
++				if s.current(ctx, epoch) {
++					s.handler.OnError(err.Error())
++				}
++			}
++			go legacy.Watch(ctx, report)
++			go legacy.Heartbeats(ctx, report)
++			s.logf("[LEGACYHTTP] STREAM")
++			if s.current(ctx, epoch) {
++				s.handler.OnConnected()
++			}
++			return
++		}
++		if !errors.Is(legacyErr, airplay.ErrLegacyHTTPUnavailable) {
++			if s.current(ctx, epoch) {
++				if errors.Is(legacyErr, airplay.ErrAirPlay1PasswordRequired) {
++					s.handler.OnPinRequired()
++				} else {
++					s.handler.OnError(legacyErr.Error())
++				}
++			}
++			return
++		}
++		s.logf("[AIRPLAY2] GET/info")
+ 		client := airplay.NewAirPlayClient(host, port)
+ 		if err := client.Connect(ctx); err != nil {
+ 			if s.current(ctx, epoch) {
+@@ -251,6 +288,22 @@
+ 
+ func (s *Session) SendFrame(annexBData []byte, isKeyframe bool) {
+ 	s.mu.Lock()
++	legacy, legacyEpoch := s.legacyHTTP, s.epoch
++	s.mu.Unlock()
++	if legacy != nil {
++		if err := legacy.SendFrame(annexBData, isKeyframe); err != nil {
++			legacy.Close()
++			s.mu.Lock()
++			current := s.epoch == legacyEpoch
++			s.mu.Unlock()
++			if current {
++				s.handler.OnError(err.Error())
++			}
++		}
++		return
++	}
++
++	s.mu.Lock()
+ 	w := s.pipeW
+ 	firstLog := !s.firstSendLog
+ 	if firstLog {
+@@ -309,6 +362,8 @@
+ func (s *Session) disconnect() {
+ 	s.mu.Lock()
+ 	s.epoch++
++	legacy := s.legacyHTTP
++	s.legacyHTTP = nil
+ 	cancel, video, audio, capture, mirror := s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror
+ 	s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror, s.client = nil, nil, nil, nil, nil, nil
+ 	s.streamWidth, s.streamHeight = 0, 0
+@@ -318,6 +373,9 @@
+ 	if cancel != nil {
+ 		cancel()
+ 	}
++	if legacy != nil {
++		legacy.Close()
++	}
+ 	if video != nil {
+ 		video.Close()
+ 	}
+--- /dev/null
++++ b/internal/airplay/legacy_http.go
+@@ -0,0 +1,574 @@
++package airplay
++
++// Independent implementation of the public legacy HTTP mirroring wire format.
++// Protocol reference: https://nto.github.io/AirPlay.html#screenmirroring
++// No proprietary sender implementation or credentials are incorporated.
++import (
++	"bufio"
++	"bytes"
++	"context"
++	"crypto/aes"
++	"crypto/cipher"
++	"crypto/rand"
++	"encoding/binary"
++	"errors"
++	"fmt"
++	"howett.net/plist"
++	"io"
++	"net"
++	"net/http"
++	"strconv"
++	"strings"
++	"sync"
++	"time"
++)
++
++var ErrLegacyHTTPUnavailable = errors.New("legacy HTTP mirroring not advertised by stream.xml")
++
++type LegacyHTTPMirror struct {
++	client           *AirPlayClient
++	reader           *bufio.Reader
++	password         string
++	deviceID         uint64
++	started          time.Time
++	mu               sync.Mutex
++	closeOnce        sync.Once
++	closed           chan struct{}
++	timing           *net.UDPConn
++	crypt            cipher.Stream
++	sps, pps, config []byte
++	awaitingIDR      bool
++	lastClose        bool
++	Width, Height    int
++}
++
++// TryLegacyHTTP probes only the explicitly selected numeric LAN receiver, at
++// its single documented legacy port. It never scans hosts or follows redirects.
++func TryLegacyHTTP(ctx context.Context, host, pin string, width, height, fps int) (*LegacyHTTPMirror, error) {
++	return tryLegacyHTTPPort(ctx, host, 7100, pin, width, height, fps, 7010)
++}
++
++func tryLegacyHTTPPort(ctx context.Context, host string, port int, pin string, width, height, fps, timingPort int) (*LegacyHTTPMirror, error) {
++	ip := net.ParseIP(strings.Split(host, "%")[0])
++	if ip == nil || !(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()) {
++		return nil, ErrLegacyHTTPUnavailable
++	}
++	probeCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
++	defer cancel()
++	// A short dial timeout bounds the extra probe for modern-only receivers.
++	conn, err := (&net.Dialer{Timeout: 600 * time.Millisecond}).DialContext(probeCtx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
++	if err != nil {
++		if ctx.Err() != nil {
++			return nil, ctx.Err()
++		}
++		return nil, ErrLegacyHTTPUnavailable
++	}
++	client := NewAirPlayClient(host, port)
++	client.conn = conn
++	closeConn := conn
++	context.AfterFunc(ctx, func() { closeConn.Close() })
++	m := &LegacyHTTPMirror{client: client, reader: bufio.NewReaderSize(conn, 4096), password: pin, started: time.Now(), closed: make(chan struct{})}
++	keep := false
++	defer func() {
++		if !keep {
++			m.Close()
++		}
++	}()
++	conn.SetDeadline(time.Now().Add(2 * time.Second))
++	var id [8]byte
++	if _, err = rand.Read(id[:]); err != nil {
++		return nil, err
++	}
++	m.deviceID = binary.BigEndian.Uint64(id[:])&0x0000ffffffffffff | 0x020000000000
++	body, headers, err := m.request("GET", "/stream.xml", "", nil, nil)
++	if err != nil {
++		if errors.Is(err, ErrAirPlay1PasswordRequired) {
++			return nil, err
++		}
++		var status *HTTPStatusError
++		if errors.As(err, &status) && (status.StatusCode == 401 || status.StatusCode == 403 || status.StatusCode == 470) {
++			return nil, fmt.Errorf("legacy GET/stream.xml: %w", err)
++		}
++		if ctx.Err() != nil {
++			return nil, ctx.Err()
++		}
++		return nil, ErrLegacyHTTPUnavailable
++	}
++	var caps map[string]interface{}
++	if _, err = plist.Unmarshal(body, &caps); err != nil {
++		return nil, ErrLegacyHTTPUnavailable
++	}
++	w, h := plistInt(caps["width"]), plistInt(caps["height"])
++	version, ok := caps["version"].(string)
++	if !ok || !validLegacyVersion(version) || len(version) > 64 || w < 16 || h < 16 || w > 8192 || h > 8192 {
++		return nil, ErrLegacyHTTPUnavailable
++	}
++	for _, k := range []string{"passwordRequired", "requiresAuthentication", "pw"} {
++		if caps[k] == true && pin == "" {
++			return nil, ErrAirPlay1PasswordRequired
++		}
++	}
++	if strings.EqualFold(headers["connection"], "close") {
++		conn.Close()
++		conn, err = (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
++		if err != nil {
++			return nil, fmt.Errorf("legacy reconnect: %w", err)
++		}
++		client.conn = conn
++		m.reader = bufio.NewReaderSize(conn, 4096)
++		nextConn := conn
++		context.AfterFunc(ctx, func() { nextConn.Close() })
++	}
++	// Reuse the existing reviewed FairPlay primitive with HTTP transport. Only
++	// an explicitly unsupported endpoint permits optional plaintext mirroring.
++	client.requestOverride = func(method, path, ct string, b []byte, extra ...map[string]string) ([]byte, error) {
++		hdr := map[string]string{}
++		for _, x := range extra {
++			for k, v := range x {
++				hdr[k] = v
++			}
++		}
++		data, _, e := m.request(method, path, ct, b, hdr)
++		return data, e
++	}
++	client.infoUnavailable = true
++	err = client.FairPlaySetup(ctx)
++	if err != nil {
++		var status *HTTPStatusError
++		unsupported := errors.Is(err, ErrFairPlayUnsupported) || (errors.As(err, &status) && (status.StatusCode == 404 || status.StatusCode == 405 || status.StatusCode == 501))
++		if !unsupported {
++			return nil, fmt.Errorf("legacy POST/fp-setup: %w", err)
++		}
++		if caps["requiresEncryption"] == true || caps["encryptionRequired"] == true {
++			return nil, fmt.Errorf("legacy POST/fp-setup: required encryption unavailable")
++		}
++	}
++	if m.lastClose {
++		if client.FpEkey != nil {
++			return nil, fmt.Errorf("legacy encrypted control connection closed")
++		}
++		client.Close()
++		next, e := (&net.Dialer{Timeout: time.Second}).DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
++		if e != nil {
++			return nil, fmt.Errorf("legacy reconnect: %w", e)
++		}
++		client.conn = next
++		m.reader = bufio.NewReaderSize(next, 4096)
++		context.AfterFunc(ctx, func() { next.Close() })
++	}
++	width, height = legacySize(width, height, w, h)
++	m.Width, m.Height = width, height
++	localIP := client.conn.LocalAddr().(*net.TCPAddr).IP
++	m.timing, err = net.ListenUDP("udp", &net.UDPAddr{IP: localIP, Port: timingPort})
++	if err != nil {
++		return nil, fmt.Errorf("legacy timing bind: %w", err)
++	}
++	go m.serveTiming(ctx, ip)
++	fps = max(1, min(fps, 30))
++	names := func(values ...string) []interface{} {
++		out := []interface{}{}
++		for _, v := range values {
++			out = append(out, map[string]interface{}{"name": v})
++		}
++		return out
++	}
++	var sid [4]byte
++	if _, err = rand.Read(sid[:]); err != nil {
++		return nil, err
++	}
++	setup := map[string]interface{}{"deviceID": m.deviceID, "sessionID": int64(int32(binary.BigEndian.Uint32(sid[:]))), "latencyMs": int64(50), "version": "150.33", "fpsInfo": names("SubS", "B4En", "EnDp", "IdEn", "IdDp", "EQDp", "QueF", "Sent"), "timestampInfo": names("SubSu", "BePxT", "AfPxT", "BefEn", "EmEnc", "QueFr", "SndFr")}
++	if client.FpEkey != nil {
++		if len(client.fpAesKey) != 16 || len(client.fpIV) != 16 {
++			return nil, fmt.Errorf("legacy encryption parameters invalid")
++		}
++		setup["param1"] = client.FpEkey
++		setup["param2"] = client.fpIV
++		block, e := aes.NewCipher(client.fpAesKey)
++		if e != nil {
++			return nil, e
++		}
++		m.crypt = cipher.NewCTR(block, client.fpIV)
++	}
++	payload, err := plist.Marshal(setup, plist.BinaryFormat)
++	if err != nil {
++		return nil, err
++	}
++	// The public protocol upgrades here with no mandatory HTTP response. Capture
++	// remote rejections in Watch; never parse an HTTP error as media success.
++	if err = m.startStream(payload); err != nil {
++		return nil, fmt.Errorf("legacy POST/stream: %w", err)
++	}
++	client.conn.SetDeadline(time.Time{})
++	context.AfterFunc(ctx, m.Close)
++	keep = true
++	return m, nil
++}
++
++func legacySize(w, h, rw, rh int) (int, int) {
++	if w <= 0 || h <= 0 {
++		w, h = rw, rh
++	}
++	if h > w {
++		w, h = h, w
++	}
++	if w > 1280 {
++		h = h * 1280 / w
++		w = 1280
++	}
++	if h > 720 {
++		w = w * 720 / h
++		h = 720
++	}
++	return max(16, w&^1), max(16, h&^1)
++}
++
++func (m *LegacyHTTPMirror) writeRequest(method, path, ct string, body []byte, headers map[string]string) error {
++	var b bytes.Buffer
++	fmt.Fprintf(&b, "%s %s HTTP/1.1\r\nHost: %s\r\nUser-Agent: AirPlay/150.33\r\nX-Apple-Device-ID: 0x%012x\r\nContent-Length: %d\r\n", method, path, net.JoinHostPort(m.client.host, strconv.Itoa(m.client.port)), m.deviceID, len(body))
++	if ct != "" {
++		fmt.Fprintf(&b, "Content-Type: %s\r\n", ct)
++	}
++	for k, v := range headers {
++		if strings.ContainsAny(k+v, "\r\n") {
++			return fmt.Errorf("invalid legacy request header")
++		}
++		fmt.Fprintf(&b, "%s: %s\r\n", k, v)
++	}
++	b.WriteString("\r\n")
++	b.Write(body)
++	m.client.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
++	return writeLegacyAll(m.client.conn, b.Bytes())
++}
++
++func (m *LegacyHTTPMirror) request(method, path, ct string, body []byte, headers map[string]string) ([]byte, map[string]string, error) {
++	if err := m.writeRequest(method, path, ct, body, headers); err != nil {
++		return nil, nil, err
++	}
++	m.client.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
++	response, err := http.ReadResponse(m.reader, &http.Request{Method: method})
++	if err != nil {
++		return nil, nil, err
++	}
++	defer response.Body.Close()
++	if response.ContentLength > 65536 {
++		return nil, nil, fmt.Errorf("legacy response too large")
++	}
++	data, err := io.ReadAll(io.LimitReader(response.Body, 65537))
++	if err != nil {
++		return nil, nil, err
++	}
++	if len(data) > 65536 {
++		return nil, nil, fmt.Errorf("legacy response too large")
++	}
++	m.lastClose = response.Close
++	hdr := map[string]string{}
++	if response.Close {
++		hdr["connection"] = "close"
++	}
++	for k, v := range response.Header {
++		hdr[strings.ToLower(k)] = strings.Join(v, ",")
++	}
++	if response.StatusCode == 401 && headers["Authorization"] == "" {
++		if m.password == "" {
++			return nil, hdr, ErrAirPlay1PasswordRequired
++		}
++		challenge := hdr["www-authenticate"]
++		params := parseDigestParams(challenge)
++		if a := params["algorithm"]; a != "" && !strings.EqualFold(a, "MD5") {
++			return nil, hdr, fmt.Errorf("legacy unsupported digest algorithm")
++		}
++		if q := params["qop"]; q != "" {
++			found := false
++			for _, x := range strings.Split(q, ",") {
++				if strings.TrimSpace(x) == "auth" {
++					found = true
++				}
++			}
++			if !found {
++				return nil, hdr, fmt.Errorf("legacy unsupported digest qop")
++			}
++			challenge = strings.Replace(challenge, q, "auth", 1)
++		}
++		auth, e := buildDigestAuth(challenge, method, path, m.password)
++		if e != nil {
++			return nil, hdr, fmt.Errorf("legacy digest challenge invalid")
++		}
++		retry := map[string]string{"Authorization": auth}
++		for k, v := range headers {
++			retry[k] = v
++		}
++		return m.request(method, path, ct, body, retry)
++	}
++	if response.StatusCode < 200 || response.StatusCode >= 300 {
++		return nil, hdr, &HTTPStatusError{StatusCode: response.StatusCode}
++	}
++	return data, hdr, nil
++}
++
++func (m *LegacyHTTPMirror) Watch(ctx context.Context, report func(error)) {
++	for {
++		response, err := http.ReadResponse(m.reader, &http.Request{Method: "POST"})
++		if err == nil {
++			io.Copy(io.Discard, io.LimitReader(response.Body, 65537))
++			response.Body.Close()
++			if response.StatusCode < 200 || response.StatusCode >= 300 {
++				err = fmt.Errorf("legacy POST/stream: HTTP %d", response.StatusCode)
++			}
++		}
++		if err != nil {
++			select {
++			case <-ctx.Done():
++				return
++			case <-m.closed:
++				return
++			default:
++			}
++			m.Close()
++			report(fmt.Errorf("legacy POST/stream: %w", err))
++			return
++		}
++	}
++}
++
++func writeLegacyAll(w io.Writer, b []byte) error {
++	for len(b) > 0 {
++		n, err := w.Write(b)
++		if err != nil {
++			return err
++		}
++		if n <= 0 {
++			return io.ErrShortWrite
++		}
++		b = b[n:]
++	}
++	return nil
++}
++
++// Many legacy receivers switch straight to media without replying. A bounded
++// peek preserves that behavior while handling an actual HTTP challenge/error
++// before the encoder is allowed to send any frame.
++func (m *LegacyHTTPMirror) startStream(payload []byte) error {
++	var auth map[string]string
++	for attempt := 0; attempt < 2; attempt++ {
++		if err := m.writeRequest("POST", "/stream", "application/x-apple-binary-plist", payload, auth); err != nil {
++			return err
++		}
++		m.client.conn.SetReadDeadline(time.Now().Add(250 * time.Millisecond))
++		prefix, err := m.reader.Peek(5)
++		if err != nil {
++			var timeout net.Error
++			if errors.As(err, &timeout) && timeout.Timeout() && m.reader.Buffered() == 0 {
++				m.client.conn.SetReadDeadline(time.Time{})
++				return nil
++			}
++			return err
++		}
++		if string(prefix) != "HTTP/" {
++			return fmt.Errorf("invalid legacy stream response")
++		}
++		m.client.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
++		response, err := http.ReadResponse(m.reader, &http.Request{Method: "POST"})
++		if err != nil {
++			return err
++		}
++		io.Copy(io.Discard, io.LimitReader(response.Body, 65537))
++		response.Body.Close()
++		if response.StatusCode == 401 && attempt == 0 {
++			if m.password == "" {
++				return ErrAirPlay1PasswordRequired
++			}
++			challenge := response.Header.Get("WWW-Authenticate")
++			params := parseDigestParams(challenge)
++			if a := params["algorithm"]; a != "" && !strings.EqualFold(a, "MD5") {
++				return fmt.Errorf("unsupported legacy stream authentication")
++			}
++			if q := params["qop"]; q != "" {
++				found := false
++				for _, x := range strings.Split(q, ",") {
++					found = found || strings.TrimSpace(x) == "auth"
++				}
++				if !found {
++					return fmt.Errorf("unsupported legacy stream authentication")
++				}
++				challenge = strings.Replace(challenge, q, "auth", 1)
++			}
++			value, e := buildDigestAuth(challenge, "POST", "/stream", m.password)
++			if e != nil {
++				return fmt.Errorf("invalid legacy stream authentication")
++			}
++			auth = map[string]string{"Authorization": value}
++			continue
++		}
++		if response.StatusCode < 200 || response.StatusCode >= 300 {
++			return &HTTPStatusError{StatusCode: response.StatusCode}
++		}
++		m.client.conn.SetReadDeadline(time.Time{})
++		return nil
++	}
++	return ErrAirPlay1PasswordRequired
++}
++func legacyTimestamp(d time.Duration) uint64 {
++	return uint64(d/time.Second)<<32 | (uint64(d%time.Second)<<32)/uint64(time.Second)
++}
++func (m *LegacyHTTPMirror) packet(kind uint16, payload []byte) error {
++	var header [128]byte
++	binary.LittleEndian.PutUint32(header[:4], uint32(len(payload)))
++	binary.LittleEndian.PutUint16(header[4:6], kind)
++	flags := uint16(6)
++	if kind == 2 {
++		flags = 0x1e
++	}
++	binary.LittleEndian.PutUint16(header[6:8], flags)
++	binary.LittleEndian.PutUint64(header[8:16], legacyTimestamp(time.Since(m.started)))
++	m.client.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
++	if err := writeLegacyAll(m.client.conn, header[:]); err != nil {
++		return err
++	}
++	return writeLegacyAll(m.client.conn, payload)
++}
++
++// Each JNI call is a complete encoder access unit, including the final NAL.
++func (m *LegacyHTTPMirror) SendFrame(frame []byte, keyframe bool) error {
++	m.mu.Lock()
++	defer m.mu.Unlock()
++	if len(frame) == 0 {
++		return nil
++	}
++	if len(frame) > 16*1024*1024 {
++		return fmt.Errorf("legacy frame too large")
++	}
++	var nalus [][]byte
++	start := findStartCode(frame, 0)
++	if start != 0 {
++		return fmt.Errorf("legacy expects complete Annex B access unit")
++	}
++	for start >= 0 {
++		offset := 3
++		if start+3 < len(frame) && frame[start+2] == 0 {
++			offset = 4
++		}
++		next := findStartCode(frame, start+offset)
++		end := len(frame)
++		if next >= 0 {
++			end = next
++		}
++		if end > start+offset {
++			nalus = append(nalus, frame[start+offset:end])
++		}
++		start = next
++	}
++	var video []byte
++	hasIDR := false
++	for _, n := range nalus {
++		switch n[0] & 31 {
++		case 7:
++			if len(n) < 4 || len(n) > 65535 {
++				return fmt.Errorf("legacy invalid SPS")
++			}
++			m.sps = append([]byte(nil), n...)
++		case 8:
++			if len(n) > 65535 {
++				return fmt.Errorf("legacy invalid PPS")
++			}
++			m.pps = append([]byte(nil), n...)
++		case 1, 5:
++			video = append(video, avccWrap(n)...)
++			hasIDR = hasIDR || n[0]&31 == 5
++		case 6:
++			video = append(video, avccWrap(n)...)
++		}
++	}
++	if len(m.sps) == 0 || len(m.pps) == 0 {
++		return nil
++	}
++	config := buildAVCCConfig(m.sps, m.pps)
++	config = config[:len(config)-4]
++	if !bytes.Equal(config, m.config) {
++		if err := m.packet(1, config); err != nil {
++			return err
++		}
++		m.config = append([]byte(nil), config...)
++		m.awaitingIDR = true
++	}
++	if len(video) == 0 || (m.awaitingIDR && !hasIDR) {
++		return nil
++	}
++	m.awaitingIDR = false
++	if m.crypt != nil {
++		m.crypt.XORKeyStream(video, video)
++	}
++	if err := m.packet(0, video); err != nil {
++		return fmt.Errorf("legacy video write: %w", err)
++	}
++	return nil
++}
++func (m *LegacyHTTPMirror) Heartbeats(ctx context.Context, report func(error)) {
++	ticker := time.NewTicker(time.Second)
++	defer ticker.Stop()
++	for {
++		select {
++		case <-ctx.Done():
++			return
++		case <-m.closed:
++			return
++		case <-ticker.C:
++			m.mu.Lock()
++			err := m.packet(2, nil)
++			m.mu.Unlock()
++			if err != nil {
++				m.Close()
++				report(fmt.Errorf("legacy heartbeat: %w", err))
++				return
++			}
++		}
++	}
++}
++func (m *LegacyHTTPMirror) serveTiming(ctx context.Context, peer net.IP) {
++	var b [512]byte
++	for {
++		n, addr, err := m.timing.ReadFromUDP(b[:])
++		if err != nil {
++			return
++		}
++		if n < 48 || !addr.IP.Equal(peer) || b[0]&7 != 3 {
++			continue
++		}
++		var reply [48]byte
++		reply[0] = 0x24
++		reply[1] = 1
++		reply[2] = 2
++		reply[3] = 0xec
++		copy(reply[12:16], "AIRP")
++		copy(reply[24:32], b[40:48])
++		now := legacyTimestamp(time.Since(m.started))
++		binary.BigEndian.PutUint64(reply[32:40], now)
++		binary.BigEndian.PutUint64(reply[40:48], now)
++		m.timing.WriteToUDP(reply[:], addr)
++	}
++}
++func (m *LegacyHTTPMirror) Close() {
++	m.closeOnce.Do(func() {
++		close(m.closed)
++		m.client.Close()
++		if m.timing != nil {
++			m.timing.Close()
++		}
++	})
++}
++
++func validLegacyVersion(v string) bool {
++	p := strings.Split(v, ".")
++	if len(p) < 2 || len(p) > 3 {
++		return false
++	}
++	for _, x := range p {
++		if len(x) == 0 || len(x) > 4 {
++			return false
++		}
++		n, e := strconv.Atoi(x)
++		if e != nil || n < 0 {
++			return false
++		}
++	}
++	return true
++}
+--- /dev/null
++++ b/internal/airplay/legacy_http_test.go
+@@ -0,0 +1,491 @@
++package airplay
++
++import (
++	"bufio"
++	"bytes"
++	"context"
++	"crypto/aes"
++	"crypto/cipher"
++	"encoding/binary"
++	"errors"
++	"fmt"
++	"howett.net/plist"
++	"io"
++	"net"
++	"net/http"
++	"os"
++	"strings"
++	"testing"
++	"time"
++)
++
++func legacyTestReply(c net.Conn, status int, body []byte, headers string) {
++	fmt.Fprintf(c, "HTTP/1.1 %d Response\r\nContent-Length: %d\r\n%s\r\n", status, len(body), headers)
++	c.Write(body)
++}
++func legacyCaps() []byte {
++	b, _ := plist.Marshal(map[string]interface{}{"width": int64(1280), "height": int64(720), "version": "150.33"}, plist.XMLFormat)
++	return b
++}
++func legacyReadRequest(r *bufio.Reader) (*http.Request, []byte, error) {
++	req, e := http.ReadRequest(r)
++	if e != nil {
++		return nil, nil, e
++	}
++	b, e := io.ReadAll(io.LimitReader(req.Body, 65537))
++	req.Body.Close()
++	return req, b, e
++}
++
++func TestLegacyProbeValidationAndAuthentication(t *testing.T) {
++	for _, scenario := range []string{"html", "redirect", "unsupported", "auth", "required-encryption", "post-denied"} {
++		t.Run(scenario, func(t *testing.T) {
++			l, e := net.Listen("tcp", "127.0.0.1:0")
++			if e != nil {
++				t.Fatal(e)
++			}
++			defer l.Close()
++			done := make(chan error, 1)
++			go func() {
++				c, e := l.Accept()
++				if e != nil {
++					done <- e
++					return
++				}
++				defer c.Close()
++				c.SetDeadline(time.Now().Add(4 * time.Second))
++				r := bufio.NewReader(c)
++				req, _, e := legacyReadRequest(r)
++				if e != nil {
++					done <- e
++					return
++				}
++				if req.Method != "GET" || req.URL.Path != "/stream.xml" || req.Proto != "HTTP/1.1" {
++					done <- fmt.Errorf("bad probe")
++					return
++				}
++				switch scenario {
++				case "html":
++					legacyTestReply(c, 200, []byte("<html>not a receiver</html>"), "")
++					done <- nil
++					return
++				case "redirect":
++					legacyTestReply(c, 302, nil, "Location: http://127.0.0.2/stream.xml\r\n")
++					done <- nil
++					return
++				case "unsupported":
++					legacyTestReply(c, 501, nil, "")
++					done <- nil
++					return
++				case "auth":
++					legacyTestReply(c, 401, nil, "WWW-Authenticate: Digest realm=\"receiver\", nonce=\"fixture\"\r\n")
++					done <- nil
++					return
++				}
++				caps := legacyCaps()
++				if scenario == "required-encryption" {
++					caps, _ = plist.Marshal(map[string]interface{}{"width": int64(1280), "height": int64(720), "version": "150.33", "requiresEncryption": true}, plist.XMLFormat)
++				}
++				legacyTestReply(c, 200, caps, "")
++				req, _, e = legacyReadRequest(r)
++				if e != nil {
++					done <- e
++					return
++				}
++				if req.URL.Path != "/fp-setup" || req.Proto != "HTTP/1.1" {
++					done <- fmt.Errorf("missing HTTP FairPlay negotiation")
++					return
++				}
++				legacyTestReply(c, 501, nil, "")
++				if scenario == "post-denied" {
++					req, _, e = legacyReadRequest(r)
++					if e != nil {
++						done <- e
++						return
++					}
++					if req.URL.Path != "/stream" {
++						done <- fmt.Errorf("missing stream POST")
++						return
++					}
++					legacyTestReply(c, 403, nil, "")
++				}
++				done <- nil
++			}()
++			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
++			defer cancel()
++			m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 30, 0)
++			if m != nil {
++				m.Close()
++				t.Fatal("invalid/auth-denied receiver was selected")
++			}
++			switch scenario {
++			case "auth":
++				if !errors.Is(e, ErrAirPlay1PasswordRequired) {
++					t.Fatalf("PIN challenge lost: %v", e)
++				}
++			case "required-encryption", "post-denied":
++				if e == nil || errors.Is(e, ErrLegacyHTTPUnavailable) {
++					t.Fatalf("required security/error was downgraded: %v", e)
++				}
++			default:
++				if !errors.Is(e, ErrLegacyHTTPUnavailable) {
++					t.Fatalf("bad probe should preserve modern path: %v", e)
++				}
++			}
++			if e := <-done; e != nil {
++				t.Fatal(e)
++			}
++		})
++	}
++}
++
++func legacyFixtureAUs(data []byte) [][]byte {
++	var units [][]byte
++	var current []byte
++	for start := findStartCode(data, 0); start >= 0; {
++		n := 3
++		if start+3 < len(data) && data[start+2] == 0 {
++			n = 4
++		}
++		next := findStartCode(data, start+n)
++		end := len(data)
++		if next >= 0 {
++			end = next
++		}
++		if end > start+n {
++			if data[start+n]&31 == 9 && len(current) > 0 {
++				units = append(units, current)
++				current = nil
++			}
++			current = append(current, data[start:end]...)
++		}
++		start = next
++	}
++	if len(current) > 0 {
++		units = append(units, current)
++	}
++	return units
++}
++
++func TestLegacyHTTPRealVideoAndTiming(t *testing.T) {
++	fixture := os.Getenv("MOONCAST_LEGACY_FIXTURE")
++	if fixture == "" {
++		t.Skip("local generated H264 fixture required; no TV acceptance implied")
++	}
++	data, e := os.ReadFile(fixture)
++	if e != nil {
++		t.Fatal(e)
++	}
++	units := legacyFixtureAUs(data)
++	if len(units) != 20 {
++		t.Fatalf("fixture AU count %d", len(units))
++	}
++	l, e := net.Listen("tcp", "127.0.0.1:0")
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer l.Close()
++	done := make(chan error, 1)
++	output := make(chan []byte, 1)
++	go func() {
++		c, e := l.Accept()
++		if e != nil {
++			done <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(6 * time.Second))
++		r := bufio.NewReader(c)
++		req, _, e := legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		if req.URL.Path != "/stream.xml" || req.Proto != "HTTP/1.1" {
++			done <- fmt.Errorf("invalid capability request")
++			return
++		}
++		legacyTestReply(c, 200, legacyCaps(), "")
++		req, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		if req.URL.Path != "/fp-setup" {
++			done <- fmt.Errorf("missing encryption negotiation")
++			return
++		}
++		legacyTestReply(c, 501, nil, "")
++		req, body, e := legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		if req.Method != "POST" || req.URL.Path != "/stream" || req.Proto != "HTTP/1.1" || req.Header.Get("Content-Type") != "application/x-apple-binary-plist" || !bytes.HasPrefix(body, []byte("bplist00")) {
++			done <- fmt.Errorf("bad stream preamble")
++			return
++		}
++		var setup map[string]interface{}
++		if _, e = plist.Unmarshal(body, &setup); e != nil {
++			done <- e
++			return
++		}
++		for _, key := range []string{"deviceID", "sessionID", "latencyMs", "version", "fpsInfo", "timestampInfo"} {
++			if _, ok := setup[key]; !ok {
++				done <- fmt.Errorf("missing %s", key)
++				return
++			}
++		}
++		if setup["param1"] != nil || setup["param2"] != nil {
++			done <- fmt.Errorf("unexpected fabricated encryption key")
++			return
++		}
++		// No HTTP response: verify immediate stream upgrade on this same socket.
++		var decoded []byte
++		videos, configs, beats := 0, 0, 0
++		var last uint64
++		for videos < 20 || beats == 0 {
++			var header [128]byte
++			if _, e = io.ReadFull(r, header[:]); e != nil {
++				done <- e
++				return
++			}
++			n := binary.LittleEndian.Uint32(header[:4])
++			kind := binary.LittleEndian.Uint16(header[4:6])
++			stamp := binary.LittleEndian.Uint64(header[8:16])
++			if n > 2*1024*1024 || stamp < last || stamp>>32 > 10 {
++				done <- fmt.Errorf("invalid packet bound/timestamp")
++				return
++			}
++			last = stamp
++			payload := make([]byte, n)
++			if _, e = io.ReadFull(r, payload); e != nil {
++				done <- e
++				return
++			}
++			switch kind {
++			case 1:
++				if len(payload) < 11 || payload[0] != 1 || payload[4]&3 != 3 {
++					done <- fmt.Errorf("invalid AVCDecoderConfigurationRecord")
++					return
++				}
++				off := 6
++				count := int(payload[5] & 31)
++				for group := 0; group < 2; group++ {
++					for i := 0; i < count; i++ {
++						if off+2 > len(payload) {
++							done <- io.ErrUnexpectedEOF
++							return
++						}
++						size := int(binary.BigEndian.Uint16(payload[off : off+2]))
++						off += 2
++						if off+size > len(payload) {
++							done <- io.ErrUnexpectedEOF
++							return
++						}
++						decoded = append(decoded, 0, 0, 0, 1)
++						decoded = append(decoded, payload[off:off+size]...)
++						off += size
++					}
++					if group == 0 {
++						if off >= len(payload) {
++							done <- io.ErrUnexpectedEOF
++							return
++						}
++						count = int(payload[off])
++						off++
++					}
++				}
++				configs++
++			case 0:
++				if configs == 0 {
++					done <- fmt.Errorf("video before AVC config")
++					return
++				}
++				for off := 0; off < len(payload); {
++					if off+4 > len(payload) {
++						done <- io.ErrUnexpectedEOF
++						return
++					}
++					size := int(binary.BigEndian.Uint32(payload[off : off+4]))
++					off += 4
++					if size <= 0 || off+size > len(payload) {
++						done <- fmt.Errorf("invalid AVCC NAL length")
++						return
++					}
++					decoded = append(decoded, 0, 0, 0, 1)
++					decoded = append(decoded, payload[off:off+size]...)
++					off += size
++				}
++				videos++
++			case 2:
++				if n != 0 || binary.LittleEndian.Uint16(header[6:8]) != 0x1e {
++					done <- fmt.Errorf("bad heartbeat")
++					return
++				}
++				beats++
++			default:
++				done <- fmt.Errorf("unexpected packet type %d", kind)
++				return
++			}
++		}
++		output <- decoded
++		done <- nil
++	}()
++	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
++	defer cancel()
++	m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 30, 0)
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer m.Close()
++	timing, e := net.DialUDP("udp", nil, m.timing.LocalAddr().(*net.UDPAddr))
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer timing.Close()
++	timing.SetDeadline(time.Now().Add(time.Second))
++	request := make([]byte, 48)
++	request[0] = 0x23
++	copy(request[40:], []byte("fixture!"))
++	timing.Write(request)
++	reply := make([]byte, 48)
++	if n, e := timing.Read(reply); e != nil || n != 48 || reply[0] != 0x24 || !bytes.Equal(reply[24:32], request[40:48]) {
++		t.Fatalf("timing reply invalid n=%d err=%v", n, e)
++	}
++	go m.Heartbeats(ctx, func(e error) {})
++	for _, au := range units {
++		if e = m.SendFrame(au, true); e != nil {
++			t.Fatal(e)
++		}
++	}
++	if e := <-done; e != nil {
++		t.Fatal(e)
++	}
++	decoded := <-output
++	if path := os.Getenv("MOONCAST_LEGACY_OUTPUT"); path != "" {
++		if e = os.WriteFile(path, decoded, 0600); e != nil {
++			t.Fatal(e)
++		}
++	}
++}
++
++func TestLegacyContinuousCTRAndCancellation(t *testing.T) {
++	key, iv := bytes.Repeat([]byte{0x21}, 16), bytes.Repeat([]byte{0x42}, 16)
++	block, _ := aes.NewCipher(key)
++	c, s := net.Pipe()
++	defer s.Close()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: c}, started: time.Now(), closed: make(chan struct{}), crypt: cipher.NewCTR(block, iv)}
++	frame := []byte{0, 0, 0, 1, 0x67, 0x42, 0, 0x1e, 0, 0, 0, 1, 0x68, 1, 0, 0, 0, 1, 0x65, 0x88}
++	done := make(chan error, 1)
++	go func() {
++		decoder := cipher.NewCTR(block, iv)
++		frames := 0
++		for frames < 2 {
++			var h [128]byte
++			if _, e := io.ReadFull(s, h[:]); e != nil {
++				done <- e
++				return
++			}
++			b := make([]byte, binary.LittleEndian.Uint32(h[:4]))
++			if _, e := io.ReadFull(s, b); e != nil {
++				done <- e
++				return
++			}
++			if binary.LittleEndian.Uint16(h[4:6]) == 0 {
++				decoder.XORKeyStream(b, b)
++				if !bytes.Equal(b, avccWrap([]byte{0x65, 0x88})) {
++					done <- fmt.Errorf("CTR resets or payload corrupt")
++					return
++				}
++				frames++
++			}
++		}
++		done <- nil
++	}()
++	if e := m.SendFrame(frame, true); e != nil {
++		t.Fatal(e)
++	}
++	if e := m.SendFrame(frame, true); e != nil {
++		t.Fatal(e)
++	}
++	if e := <-done; e != nil {
++		t.Fatal(e)
++	}
++	blocked := make(chan error, 1)
++	go func() { blocked <- m.SendFrame(frame, true) }()
++	time.AfterFunc(30*time.Millisecond, m.Close)
++	select {
++	case e := <-blocked:
++		if e == nil {
++			t.Fatal("blocked writer not canceled")
++		}
++	case <-time.After(time.Second):
++		t.Fatal("close did not unblock writer")
++	}
++	if !strings.Contains(ErrLegacyHTTPUnavailable.Error(), "stream.xml") {
++		t.Fatal(ctx)
++	}
++}
++
++func TestLegacyDigestOnStream(t *testing.T) {
++	l, e := net.Listen("tcp", "127.0.0.1:0")
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer l.Close()
++	done := make(chan error, 1)
++	go func() {
++		c, e := l.Accept()
++		if e != nil {
++			done <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(4 * time.Second))
++		r := bufio.NewReader(c)
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		legacyTestReply(c, 200, legacyCaps(), "")
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		legacyTestReply(c, 501, nil, "")
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		legacyTestReply(c, 401, nil, "WWW-Authenticate: Digest realm=\"fixture\", nonce=\"nonce\", qop=\"auth,auth-int\"\r\n")
++		req, _, e := legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		p := parseDigestParams(req.Header.Get("Authorization"))
++		expected := md5Hex(md5Hex("AirPlay:fixture:fixture-pin") + ":nonce:" + p["nc"] + ":" + p["cnonce"] + ":auth:" + md5Hex("POST:/stream"))
++		if p["response"] != expected || p["uri"] != "/stream" || p["qop"] != "auth" {
++			done <- fmt.Errorf("digest was not validated for actual method/URI")
++			return
++		}
++		legacyTestReply(c, 200, nil, "")
++		done <- nil
++	}()
++	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
++	defer cancel()
++	m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "fixture-pin", 1280, 720, 30, 0)
++	if e != nil {
++		t.Fatal(e)
++	}
++	m.Close()
++	if e := <-done; e != nil {
++		t.Fatal(e)
++	}
++}
