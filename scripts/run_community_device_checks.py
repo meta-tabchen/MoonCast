@@ -25,9 +25,9 @@ ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = 'com.mooncast.community'
 TEST_PACKAGE = PACKAGE + '.test'
 RUNNER = TEST_PACKAGE + '/com.mooncast.unified.CommunityLocaleInstrumentation'
-BASELINE_VERSION_CODE = 56
-CANDIDATE_VERSION_CODE = 57
-VERSION_NAME = '0.7'
+BASELINE_VERSION_CODE = 58
+CANDIDATE_VERSION_CODE = 59
+VERSION_NAME = '0.7.2'
 
 
 def digest(path: Path) -> str:

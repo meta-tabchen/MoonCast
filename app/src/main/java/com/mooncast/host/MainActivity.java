@@ -181,6 +181,11 @@ public final class MainActivity extends Activity {
         if(oldMode==CastSessionCoordinator.BROWSER && lastFailure.isEmpty()
                 && !stopPending && session.phase()!=CastSessionCoordinator.STOPPING)
             lastFailure=getString(R.string.browser_service_unexpected_exit);
+        if(oldMode==CastSessionCoordinator.AIRPLAY && lastFailure.isEmpty()){
+            HostFailureStore.Failure result=HostFailureStore.read(getFilesDir(),hostStatusToken);
+            if(result!=null && !result.error().isEmpty())lastFailure=result.error();
+            else if(unexpected)lastFailure=getString(R.string.ap_service_disconnected);
+        }
         detachHost();stopPending=false;senderPid=-1;session.hostGone();
         getPreferences(0).edit().putBoolean("hostExpected",false).remove("activeHostPid").remove("activeHostStatusToken").putInt("selectedProtocol",session.selected()).apply();
         running(false);applyProtocol();
@@ -584,7 +589,7 @@ public final class MainActivity extends Activity {
         buildAirPicker();
         airPinBox=new LinearLayout(this);airPinBox.setOrientation(LinearLayout.VERTICAL);section(airPinBox,getString(R.string.ui_pair_receiver),getString(R.string.ui_airplay_pin_hint));airPinHint=(TextView)airPinBox.getChildAt(1);
         airPin=new EditText(this);airPin.setSaveEnabled(false);airPin.setSingleLine(true);airPin.setInputType(InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD);airPin.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(8)});airPinBox.addView(airPin);
-        airSubmit=button(getString(R.string.ui_pair),BLUE);airSubmit.setOnClickListener(v->{String code=airPin.getText().toString();if(airLegacy.isChecked()?code.isEmpty() || code.length()>128:!code.matches("[0-9]{4,8}")){toast(getString(airLegacy.isChecked()?R.string.ui_airplay_password_invalid:R.string.ui_airplay_pin_invalid));return;}Bundle data=new Bundle();data.putString("pin",code);send(HostService.PIN,data);airPin.setText("");airSubmit.setEnabled(false);});airPinBox.addView(airSubmit);hero.addView(airPinBox);airPinBox.setVisibility(View.GONE);
+        airSubmit=button(getString(R.string.ui_pair),BLUE);airSubmit.setOnClickListener(v->{String code=airPin.getText().toString();if(!code.matches("[0-9]{4,8}")){toast(getString(R.string.ui_airplay_pin_invalid));return;}Bundle data=new Bundle();data.putString("pin",code);send(HostService.PIN,data);airPin.setText("");airSubmit.setEnabled(false);});airPinBox.addView(airSubmit);hero.addView(airPinBox);airPinBox.setVisibility(View.GONE);
         airAdvanced=new LinearLayout(this);airAdvanced.setOrientation(LinearLayout.VERTICAL);airPanel.addView(airAdvanced);
         LinearLayout capture=card(airAdvanced);section(capture,getString(R.string.ui_capture_source),getString(R.string.ui_airplay_capture_hint));
         airSource=spinner(new String[]{getString(R.string.ui_source_screen),getString(R.string.ui_source_app)});int initial=settings().getInt("source",0);if(initial>1)initial=0;airSource.setSelection(initial);airSource.setTag(initial);capture.addView(airSource);
@@ -652,7 +657,7 @@ public final class MainActivity extends Activity {
         boolean busy=session.busy(),hasHost=session.hasHost(),stopping=session.phase()==CastSessionCoordinator.STOPPING;
         int pinInput=airLegacy.isChecked()?InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_CLASS_NUMBER|InputType.TYPE_NUMBER_VARIATION_PASSWORD;
         if(airPin.getInputType()!=pinInput){airPin.setText("");airPin.setInputType(pinInput);airPin.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(airLegacy.isChecked()?128:8)});}
-        airPinHint.setText(airLegacy.isChecked()?R.string.ui_airplay_password_hint:R.string.ui_airplay_pin_hint);
+        airPinHint.setText(R.string.ui_airplay_pin_hint);
         airTab.setEnabled(!stopping);moonlightTab.setEnabled(!stopping);browserTab.setEnabled(!stopping);
         if(busy && airPicker.isShowing())dismissAirPicker();
         airStart.setVisibility(busy?View.GONE:View.VISIBLE);airStart.setEnabled(!busy);airStart.setText(lastFailure.isEmpty()?R.string.ui_airplay_start:R.string.ui_airplay_retry_cast);

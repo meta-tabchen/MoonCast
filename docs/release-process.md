@@ -1,3 +1,7 @@
+> Current follow-up: **0.7.2 / code59 / v0.7.2**. `/info` optional-capability repair; see [details](airplay-0.7.2.md). Earlier 0.7.1 instructions remain historical.
+
+> Current AirPlay repair: **0.7.1 / code58 / v0.7.1**. Apply this release procedure with `0.7.1` filenames. The 0.7 examples below describe the previous request and must not overwrite its published assets. See [AirPlay correction](airplay-0.7.1.md).
+
 # Release procedure / 发布流程
 
 This is the project workflow for an explicitly authorized release. It does not authorize a new release by itself. Continue independently within the user's approved scope; if an action is denied or outside that scope, stop that action, report the blocker and use an authorized next step. Never evade a denial or bypass a security check. A newer user version/scope decision supersedes an older pending release plan.

@@ -8,9 +8,9 @@
   "shards": [
     {
       "path": "scripts/release-inputs/01.json",
-      "sha256": "decfb357ffbcba02f543f149a5ad57667a06ee8b13905a528d65ba20fe034466",
-      "bytes": 81830,
-      "entries": 534
+      "sha256": "ad52423fcfe4f1df1a9453adb9d21a95eb05f15066dd425db76bd2dd22fb622c",
+      "bytes": 81717,
+      "entries": 533
     },
     {
       "path": "scripts/release-inputs/02.json",
@@ -103,5 +103,5 @@
       "entries": 29
     }
   ],
-  "inputCount": 7554
+  "inputCount": 7553
 }

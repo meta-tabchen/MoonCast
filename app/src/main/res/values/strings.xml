@@ -195,8 +195,8 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_airplay_pin_invalid" formatted="false">"Enter the receiver’s 4–8 digit PIN."</string>
     <string name="ui_airplay_capture_hint" formatted="false">"Screen or Android 14+ app capture. AirPlay uses H.264 and does not use Root, remote input, independent displays or panel-off mode. Picture and audio preferences below are shared."</string>
     <string name="ui_airplay_quality" formatted="false">"AirPlay quality · H.264"</string>
-    <string name="ui_airplay_legacy" formatted="false">"AirPlay 1 compatibility · 720p video only"</string>
-    <string name="ui_airplay_legacy_hint" formatted="false">"Enable only for older receivers. Audio and higher quality are disabled for this session; your shared preferences are kept."</string>
+    <string name="ui_airplay_legacy" formatted="false">"Compatibility quality · 720p video only"</string>
+    <string name="ui_airplay_legacy_hint" formatted="false">"Limits this session to 720p30 video. Receiver capabilities still choose the full AirPlay handshake; shared preferences are kept."</string>
     <string name="ui_airplay_diagnostics_hint" formatted="false">"Connection and stream statistics for the AirPlay receiver."</string>
     <string name="ui_airplay_protocol_hint" formatted="false">"AirPlay receiver and PIN are separate from Moonlight pairing. Switching tabs stops the current stream first."</string>
     <string name="ui_moonlight_protocol_hint" formatted="false">"Use an existing Moonlight client to connect to this phone. Switching tabs stops the current stream first."</string>

@@ -18,8 +18,8 @@ android {
         testInstrumentationRunner 'com.mooncast.tv.TvUiInstrumentation'
         minSdk 26
         targetSdk 35
-        versionCode 57
-        versionName '0.7'
+        versionCode 59
+        versionName '0.7.2'
         ndk { if (tvAbi != null) abiFilters tvAbi else abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64' }
     }
     buildFeatures { buildConfig true }

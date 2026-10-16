@@ -195,8 +195,8 @@
     <string name="ui_airplay_pin_invalid" formatted="false">"请输入接收端显示的 4–8 位数字 PIN 码。"</string>
     <string name="ui_airplay_capture_hint" formatted="false">"支持整个屏幕或 Android 14+ 单个应用。AirPlay 使用 H.264，不使用 Root、远程控制、独立显示或熄屏模式。下方画面和声音偏好共用。"</string>
     <string name="ui_airplay_quality" formatted="false">"AirPlay 画质 · H.264"</string>
-    <string name="ui_airplay_legacy" formatted="false">"AirPlay 1 兼容模式 · 720p 仅视频"</string>
-    <string name="ui_airplay_legacy_hint" formatted="false">"仅在旧接收端需要时开启。本次使用 720p30 且不传声音，共用偏好不会被更改。"</string>
+    <string name="ui_airplay_legacy" formatted="false">"兼容画质 · 720p 仅视频"</string>
+    <string name="ui_airplay_legacy_hint" formatted="false">"本次限制为 720p30 画面，仍按接收端能力进行完整 AirPlay 握手，共用偏好不会被更改。"</string>
     <string name="ui_airplay_diagnostics_hint" formatted="false">"当前 AirPlay 接收端的连接与串流状态。"</string>
     <string name="ui_airplay_protocol_hint" formatted="false">"AirPlay 设备和 PIN 与 Moonlight 配对相互独立。切换页面会先停止当前投屏。"</string>
     <string name="ui_moonlight_protocol_hint" formatted="false">"使用现有 Moonlight 客户端连接此手机。切换页面会先停止当前投屏。"</string>

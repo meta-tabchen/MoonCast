@@ -48,6 +48,7 @@ jobs:
           node --check app/src/main/assets/browser/receiver.js
           node tests/browser_android_receiver.cjs --self-test
           python3 scripts/run_unit_tests.py
+          python3 scripts/run_airplay_sender_tests.py
           python3 scripts/run_unified_policy_tests.py
           python3 scripts/run_my_tv_discovery_tests.py
           python3 scripts/run_apk_transfer_tests.py
@@ -58,6 +59,11 @@ jobs:
           python3 scripts/run_airplay_decoder_tests.py
           python3 scripts/run_tv_audio_tests.py
           python3 scripts/run_airplay_rtp_transition_tests.py
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.10'
+      - name: AirPlay sender loopback wire regressions (not TV acceptance)
+        run: python3 scripts/run_airplay_wire_tests.py
       - name: Community identity fail-closed build guards
         run: bash scripts/test_community_build_guards.sh
       - name: Build fixed-signature community ARM64 app and lint
@@ -75,15 +81,15 @@ jobs:
       - name: Build and verify community ARMv7
         run: |
           mkdir -p "$RUNNER_TEMP/community-release"
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7-arm64-v8a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7.2-arm64-v8a.apk"
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=armeabi-v7a
           python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi armeabi-v7a
           python3 scripts/verify_bouncycastle_apk.py unified/build/outputs/apk/release/unified-release.apk
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7-armeabi-v7a.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.7.2-armeabi-v7a.apk"
       - name: Application source and pinned dependency source map (no app signing key)
-        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.7-source.zip"
+        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.7.2-source.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: community-release-candidates
@@ -131,18 +137,18 @@ jobs:
           python3 scripts/prepare_unified_native.py
           mkdir -p "$RUNNER_TEMP/mooncast-device"
           gradle --no-daemon :unified:assembleRelease :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate57.apk"
-          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug57.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate59.apk"
+          cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug59.apk"
           cp unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk "$RUNNER_TEMP/mooncast-device/test.apk"
           # Synthetic lower-version fixture only; never publish this as a past release.
           python3 - <<'PY'
           from pathlib import Path
           p=Path('unified/build.gradle');s=p.read_text()
-          if s.count('versionCode 57')!=1 or s.count("versionName '0.7'")!=1:raise SystemExit('Unexpected version fixture baseline')
-          p.write_text(s.replace('versionCode 57','versionCode 56'))
+          if s.count('versionCode 59')!=1 or s.count("versionName '0.7.2'")!=1:raise SystemExit('Unexpected version fixture baseline')
+          p.write_text(s.replace('versionCode 59','versionCode 58'))
           PY
           gradle --no-daemon :unified:assembleRelease -PmooncastAbi=x86_64
-          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline56.apk"
+          cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline58.apk"
           git restore -- unified/build.gradle
       - name: Start disposable emulator without changing host permissions
         timeout-minutes: 17
@@ -184,9 +190,9 @@ jobs:
         run: |
           python3 scripts/run_community_device_checks.py \
             --serial emulator-5554 \
-            --baseline "$RUNNER_TEMP/mooncast-device/baseline56.apk" \
-            --candidate "$RUNNER_TEMP/mooncast-device/candidate57.apk" \
-            --debug "$RUNNER_TEMP/mooncast-device/debug57.apk" \
+            --baseline "$RUNNER_TEMP/mooncast-device/baseline58.apk" \
+            --candidate "$RUNNER_TEMP/mooncast-device/candidate59.apk" \
+            --debug "$RUNNER_TEMP/mooncast-device/debug59.apk" \
             --test "$RUNNER_TEMP/mooncast-device/test.apk" \
             --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \

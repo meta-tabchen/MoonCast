@@ -5,13 +5,13 @@
   <string name="ap_service_disconnected">AirPlay 接收端已断开。请重新启动投屏。</string>
   <string name="ap_service_pin">接收端需要 PIN</string>
   <string name="ap_service_pin_hint">请输入 AirPlay 接收端显示的 PIN 或密码。</string>
-  <string name="ap_service_timeout">AirPlay 接收端未完成连接。请检查模式和 PIN 后重试。</string>
+  <string name="ap_service_timeout">AirPlay 在 %1$s 阶段连接超时，请重新启动投屏重试。</string>
   <string name="ap_service_casting">正在通过 AirPlay 投屏</string>
-  <string name="ap_service_legacy_video">旧版 AirPlay 1 仅传画面，最高 720p30。</string>
+  <string name="ap_service_legacy_video">兼容画质仅传画面，最高 720p30；仍使用完整 AirPlay 协商。</string>
   <string name="ap_service_receiver_no_audio">接收端未协商音频流，画面继续。</string>
   <string name="ap_service_audio">播放音频：44.1 kHz 双声道 ALAC。来源应用必须允许捕获。</string>
   <string name="ap_service_failed">AirPlay 已停止</string>
   <string name="ap_service_notification">MoonCast AirPlay 正在运行</string>
   <string name="ap_service_audio_ended">接收端音频已结束，已恢复手机声音，画面继续。</string>
-  <string name="ap_service_protocol_failed">AirPlay 连接失败。请检查接收端模式、PIN 和局域网连接，然后重新启动。</string>
+  <string name="ap_service_protocol_failed">AirPlay 连接失败：%1$s。若尚未开始传输，则未发送媒体。</string>
 </resources>

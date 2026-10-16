@@ -1,0 +1,232 @@
+--- a/internal/airplay/client.go
++++ b/internal/airplay/client.go
+@@ -8,6 +8,7 @@
+ 	"crypto/rand"
+ 	"encoding/binary"
+ 	"encoding/hex"
++	"errors"
+ 	"fmt"
+ 	"io"
+ 	"net"
+@@ -87,6 +88,7 @@
+ 	conn      net.Conn
+ 	mu        sync.Mutex
+ 	cseq      atomic.Int64
++	infoUnavailable bool // /info explicitly unsupported; feature bits are unknown
+ 	info      *ReceiverInfo
+ 	PairKeys  *PairKeys
+ 	sessionID string // X-Apple-Session-ID, set once per connection
+@@ -152,6 +154,15 @@
+ func (c *AirPlayClient) GetInfo() (*ReceiverInfo, error) {
+ 	resp, err := c.httpRequest("GET", "/info", "application/x-apple-binary-plist", nil)
+ 	if err != nil {
++		var status *HTTPStatusError
++		if errors.As(err, &status) && (status.StatusCode == 404 || status.StatusCode == 405 || status.StatusCode == 501) {
++			// Capability discovery is optional on older receivers. Keep the
++			// normal authenticated pairing and media negotiation below; never
++			// treat authentication failures or transport errors as support.
++			c.infoUnavailable = true
++			c.info = &ReceiverInfo{}
++			return c.info, nil
++		}
+ 		return nil, err
+ 	}
+ 
+@@ -176,6 +187,7 @@
+ 	if _, err := plist.Unmarshal(resp, &info); err != nil {
+ 		return nil, fmt.Errorf("decode info plist: %w", err)
+ 	}
++	c.infoUnavailable = false
+ 	c.info = &info
+ 	return &info, nil
+ }
+--- a/internal/airplay/fairplay.go
++++ b/internal/airplay/fairplay.go
+@@ -21,7 +21,7 @@
+ 
+ // FairPlaySetup performs the complete FairPlay SAP handshake.
+ func (c *AirPlayClient) FairPlaySetup(ctx context.Context) error {
+-	if c.info != nil && !c.info.SupportsFairPlaySAP() {
++	if c.info != nil && !c.infoUnavailable && !c.info.SupportsFairPlaySAP() {
+ 		return fmt.Errorf("%w: FPSAP feature bit is not advertised (features=0x%x)", ErrFairPlayUnsupported, c.info.Features)
+ 	}
+ 
+--- /dev/null
++++ b/internal/airplay/info_optional_test.go
+@@ -0,0 +1,176 @@
++package airplay
++
++import (
++	"bufio"
++	"context"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"strings"
++	"testing"
++	"time"
++)
++
++// A missing optional capability endpoint must not bypass receiver authentication.
++func TestOptionalInfoStillRequiresPairing(t *testing.T) {
++	for _, code := range []int{404, 405, 501} {
++		t.Run(fmt.Sprint(code), func(t *testing.T) {
++			clientConn, serverConn := net.Pipe()
++			defer clientConn.Close()
++			defer serverConn.Close()
++			clientConn.SetDeadline(time.Now().Add(3 * time.Second))
++			serverConn.SetDeadline(time.Now().Add(3 * time.Second))
++			client := NewAirPlayClient("127.0.0.1", 1)
++			client.conn = clientConn
++			serverDone := make(chan error, 1)
++			go func() {
++				r := bufio.NewReader(serverConn)
++				for phase, expected := range []string{"GET /info RTSP/1.0", "POST /pair-setup RTSP/1.0"} {
++					line, err := r.ReadString('\n')
++					if err != nil {
++						serverDone <- err
++						return
++					}
++					if strings.TrimSpace(line) != expected {
++						serverDone <- fmt.Errorf("got %q, want %q", line, expected)
++						return
++					}
++					var n int
++					for {
++						line, err = r.ReadString('\n')
++						if err != nil {
++							serverDone <- err
++							return
++						}
++						if line == "\r\n" {
++							break
++						}
++						fmt.Sscanf(line, "Content-Length: %d", &n)
++					}
++					if _, err := io.CopyN(io.Discard, r, int64(n)); err != nil {
++						serverDone <- err
++						return
++					}
++					status := code
++					if phase == 1 {
++						status = 403
++					}
++					if _, err := fmt.Fprintf(serverConn, "RTSP/1.0 %d Error\r\nContent-Length: 7\r\n\r\nprivate", status); err != nil {
++						serverDone <- err
++						return
++					}
++				}
++				serverDone <- nil
++			}()
++			info, err := client.GetInfo()
++			if err != nil || info == nil || info.Features != 0 {
++				t.Fatalf("optional info: info=%v err=%v", info, err)
++			}
++			err = client.PairTransientAuto(context.Background())
++			var status *HTTPStatusError
++			if !errors.As(err, &status) || status.StatusCode != 403 {
++				t.Fatalf("receiver auth denial lost: %v", err)
++			}
++			if err := <-serverDone; err != nil {
++				t.Fatal(err)
++			}
++		})
++	}
++}
++
++func TestInfoAuthenticationAndMalformedResponseRemainFatal(t *testing.T) {
++	for _, code := range []int{200, 400, 401, 403, 470, 500} {
++		t.Run(fmt.Sprint(code), func(t *testing.T) {
++			c, s := net.Pipe()
++			defer c.Close()
++			defer s.Close()
++			c.SetDeadline(time.Now().Add(3 * time.Second))
++			s.SetDeadline(time.Now().Add(3 * time.Second))
++			client := NewAirPlayClient("127.0.0.1", 1)
++			client.conn = c
++			go func() {
++				r := bufio.NewReader(s)
++				for {
++					line, err := r.ReadString('\n')
++					if err != nil {
++						return
++					}
++					if line == "\r\n" {
++						break
++					}
++				}
++				fmt.Fprintf(s, "RTSP/1.0 %d Response\r\nContent-Length: 3\r\n\r\nbad", code)
++			}()
++			if info, err := client.GetInfo(); err == nil || info != nil {
++				t.Fatalf("must reject status %d / invalid plist", code)
++			}
++		})
++	}
++}
++
++func TestInfoTransportFailureRemainsFatal(t *testing.T) {
++	c, s := net.Pipe()
++	s.Close()
++	defer c.Close()
++	client := NewAirPlayClient("127.0.0.1", 1)
++	client.conn = c
++	if _, err := client.GetInfo(); err == nil {
++		t.Fatal("transport failure was ignored")
++	}
++}
++
++func TestUnknownInfoDoesNotDisableFairPlay(t *testing.T) {
++	clientConn, serverConn := net.Pipe()
++	defer clientConn.Close()
++	defer serverConn.Close()
++	clientConn.SetDeadline(time.Now().Add(3 * time.Second))
++	serverConn.SetDeadline(time.Now().Add(3 * time.Second))
++	client := NewAirPlayClient("127.0.0.1", 1)
++	client.conn = clientConn
++	client.info = &ReceiverInfo{}
++	client.infoUnavailable = true
++	done := make(chan error, 1)
++	go func() {
++		r := bufio.NewReader(serverConn)
++		line, err := r.ReadString('\n')
++		if err != nil {
++			done <- err
++			return
++		}
++		if strings.TrimSpace(line) != "POST /fp-setup RTSP/1.0" {
++			done <- fmt.Errorf("FairPlay skipped or changed: %q", line)
++			return
++		}
++		var n int
++		for {
++			line, err = r.ReadString('\n')
++			if err != nil {
++				done <- err
++				return
++			}
++			if line == "\r\n" {
++				break
++			}
++			fmt.Sscanf(line, "Content-Length: %d", &n)
++		}
++		if _, err = io.CopyN(io.Discard, r, int64(n)); err != nil {
++			done <- err
++			return
++		}
++		_, err = fmt.Fprint(serverConn, "RTSP/1.0 401 Unauthorized\r\nContent-Length: 0\r\n\r\n")
++		done <- err
++	}()
++	err := client.FairPlaySetup(context.Background())
++	var status *HTTPStatusError
++	if !errors.As(err, &status) || status.StatusCode != 401 {
++		t.Fatalf("FairPlay auth rejection must propagate, got %v", err)
++	}
++	if err := <-done; err != nil {
++		t.Fatal(err)
++	}
++	client.infoUnavailable = false
++	if err := client.FairPlaySetup(context.Background()); !errors.Is(err, ErrFairPlayUnsupported) {
++		t.Fatalf("known capability absence changed: %v", err)
++	}
++}

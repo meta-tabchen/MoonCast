@@ -296,7 +296,8 @@
     "native/airplay-sender/source/doubletake/plasmoid/contents/ui/main.qml": "a1b71ed060308bfddf2d57d5e55d441c693e383764a81bde4bbfddd7c149461d",
     "native/airplay-sender/source/doubletake/plasmoid/metadata.json": "5a35277878b1fdd1227915c74d7cb6eea06e35e72da09181aaf29626c2388f71",
     "native/airplay-sender/tests/airplaylib_test.go": "c740c33c8fc9cbffe69c91d2b1069bcbeb655af599b40302a7b8f4f65b3e2696",
-    "scripts/build_airplay.sh": "bc77013625e32799fbae38cc1390ed1216a692a1eab95b39c4fe64fb46d02abd",
-    "scripts/prepare_airplay.py": "45d6ba46852434129ad649b5bb3359149c2098e928a03436b810ba8d732c9b9e"
+    "scripts/build_airplay.sh": "8bb01a088455b8909464649be87edf6b4357cb6d362b9b66a67b8b6b95638eda",
+    "scripts/prepare_airplay.py": "45d6ba46852434129ad649b5bb3359149c2098e928a03436b810ba8d732c9b9e",
+    "native/airplay-sender/patches/0002-optional-info-capability-probe.patch": "eca84dcaecbcdf8cd3c6ea9d537c4a8cce138c3d866661ad6aa6e8c175fe8908"
   }
 }

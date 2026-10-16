@@ -1,3 +1,7 @@
+> Current follow-up: **0.7.2 / code59 / v0.7.2**. `/info` optional-capability repair; see [details](airplay-0.7.2.md). Earlier 0.7.1 instructions remain historical.
+
+> Current AirPlay repair: **0.7.1 / code58 / v0.7.1**. Apply this release procedure with `0.7.1` filenames. The 0.7 examples below describe the previous request and must not overwrite its published assets. See [AirPlay correction](airplay-0.7.1.md).
+
 # Version naming / 版本命名
 
 ## Exact numeric choice

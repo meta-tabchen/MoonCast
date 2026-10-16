@@ -6,5 +6,5 @@
     <string name="airplay_quality_hint">仅适用于 AirPlay 2。保存后用于下次共享，当前会话保持原设置。编码器支持并不代表接收端或网络一定能持续承载所选画质。</string>
     <string name="airplay_quality_output_box">输出尺寸上限</string>
     <string name="airplay_quality_box">%1$d × %2$d</string>
-    <string name="airplay_quality_legacy_limit">AirPlay 1 上限为 1280 × 720、30 帧/秒、4 Mbps。高级画质仅适用于 AirPlay 2。</string>
+    <string name="airplay_quality_legacy_limit">兼容画质上限为 1280 × 720、30 帧/秒、4 Mbps，仍使用完整 AirPlay 协商。</string>
 </resources>

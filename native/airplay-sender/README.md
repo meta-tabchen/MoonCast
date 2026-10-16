@@ -1,3 +1,23 @@
+## MoonCast 0.7.2 native rebuild
+
+The upstream snapshot below remains v0.0.33. MoonCast patch 0002 makes only the
+`/info` 404/405/501 responses optional, preserves all authentication and transport
+errors, and keeps FairPlay negotiation when capabilities are unknown. No HTTP
+protocol rewrite or empty SETUP shortcut is introduced. See
+[the follow-up](../../docs/airplay-0.7.2.md).
+
+The 0.7.2 AAR is rebuilt with Go 1.25.6 darwin/amd64, the pinned Go mobile
+module, official NDK r29 (29.0.14206865), JDK 17.0.20.1, platform 35/API 26.
+The official Darwin archive SHA256 is
+`ce5e4b100ec5fe5be4eb3edcb2c02528824ff9cda3860f5304619be6c3da34d3`.
+The build helper uses `/tmp/mooncast-airplay-072/source`; `prebuilt-manifest.json`
+records the actual new output/source hashes. The new AAR is committed with its
+sources and is excluded from the historical 0.5.0 dependency restoration list,
+so restoration cannot replace it with the old sender.
+
+The rest of this document describes the original baseline and historical rebuild;
+its Linux hash comparison is not a claim about the 0.7.2 Darwin output.
+
 # AirPlay sender native runtime (v0.0.33)
 
 `app/libs/airplaylib.aar` is built from source, not extracted from an APK. It contains

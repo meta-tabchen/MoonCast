@@ -5,8 +5,8 @@ android {
  buildToolsVersion '35.0.0'
  defaultConfig {
   minSdk 26; targetSdk 35
-  buildConfigField 'int', 'VERSION_CODE', '57'
-  buildConfigField 'String', 'VERSION_NAME', '"0.7"'
+  buildConfigField 'int', 'VERSION_CODE', '59'
+  buildConfigField 'String', 'VERSION_NAME', '"0.7.2"'
   buildConfigField 'String', 'APPLICATION_ID', '"com.mooncast.community"'
  }
  buildFeatures { buildConfig true; aidl true }

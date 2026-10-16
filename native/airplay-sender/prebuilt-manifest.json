@@ -9,16 +9,16 @@
   },
   "aar": {
     "path": "app/libs/airplaylib.aar",
-    "sha256": "ccbd8ffb184881128f7e3c3f9223cd10d500457bb8dbab7a36d681b5a973baaf",
-    "size": 13380564
+    "sha256": "4efc111b5dc3118b20cf3eba0d667c9b8c57d4bbeb9d7c394c8152d5faa79a02",
+    "size": 13375595
   },
-  "source_lock_sha256": "0e830b499b929414f48873db3d630c54e04ed5bf43bcd3cddaf64d4547936073",
+  "source_lock_sha256": "6068f62be6d1a3d0b7db42f5000976ee7cfb82ee5cc00453861aadab0c777d02",
   "toolchain": {
-    "go": "go1.25.10",
+    "go": "go1.25.6",
     "gomobile": "v0.0.0-20260611195102-4dd8f1dbf5d2",
     "ndk": "29.0.14206865",
-    "jdk": "OpenJDK javac 21.0.12.1",
-    "host": "linux/amd64",
+    "jdk": "Amazon Corretto javac 17.0.20.1",
+    "host": "darwin/amd64",
     "android_sdk_platform": 35,
     "android_sdk_platform_revision": 2,
     "android_api": 26,
@@ -27,25 +27,25 @@
       "android/arm",
       "android/amd64"
     ],
-    "go_archive_sha256": "42d4f7a32316aa66591eca7e89867256057a4264451aca10570a715b3637ba70",
-    "ndk_archive_sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf",
+    "ndk_archive_url": "https://dl.google.com/android/repository/android-ndk-r29-darwin.zip",
+    "ndk_archive_sha256": "ce5e4b100ec5fe5be4eb3edcb2c02528824ff9cda3860f5304619be6c3da34d3",
     "android_jar_sha256": "4566663c3876e022b4fa4ced8c8697c4ab1688267f090114fd92d027b32e619b",
-    "canonical_module_replacement": "/tmp/mooncast-airplay-v0.0.33/source"
+    "canonical_module_replacement": "/tmp/mooncast-airplay-072/source"
   },
   "validation": {
-    "go_race_tests": "PASS: go test -race -count=5 ./airplaylib",
-    "offline_rebuild": "PASS: two builds from fresh temporary module caches using only the vendored file:// proxy produced byte-identical normalized AARs; shared compile cache, exact recorded toolchains",
-    "device_interoperability": "not tested",
-    "upstream_selected_tests": "PASS with Go race detector: ALAC/audio framing and ciphers, congestion/drop, H.264 SPS/slices, plist ports, HTTP content length/header parsing, bitrate/keyframe/VBV helpers",
-    "elf": "PASS: all three ABIs have 16 KiB-aligned LOAD segments and only Android system shared-library dependencies",
-    "java_api": "PASS: generated airplaylib API inspected with javap; Java bindings and Go runtime are included in the AAR",
-    "developer_path_scan": "PASS: no /workspace path in compiled ELF; canonical /tmp module replacement only",
-    "date_utc": "2026-10-11"
+    "offline_rebuild": "PASS: one offline three-ABI build using the vendored file:// module proxy and recorded Darwin toolchain; no claim of two fresh-cache reproducible builds",
+    "go_race_tests": "not run for 0.7.2",
+    "upstream_selected_tests": "PASS: optional-info/authentication/transport/unknown-FairPlay tests, negotiated SETUP wire shapes, selected FairPlay regressions and native wrapper lifecycle tests",
+    "elf": "PASS: all three ABIs have >=16 KiB LOAD alignment; final APK verifier checks Android system-only JNI dependency closure",
+    "java_api": "PASS: all Java class names and javap -public APIs identical to previous AAR; JAR bytes differ with recorded JDK17 build",
+    "developer_path_scan": "PASS: no personal /Users/chenjiahao path in any shipped native library",
+    "device_interoperability": "NOT TESTED on user TV; prior 0.7.1 user attempt failed at GET/info501",
+    "date_utc": "2026-10-16"
   },
   "jni": {
     "jni/arm64-v8a/libgojni.so": {
-      "sha256": "91eedb51ca1b8b5297959cc05e5d1c4668f055b924cf316cb225b5de7595a5d3",
-      "size": 8399328,
+      "sha256": "38732a97a59066106c326522719eaf058da4c0a5c45fcce19d49d4d2317ecdf3",
+      "size": 8395728,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -54,8 +54,8 @@
       "machine": "AArch64"
     },
     "jni/armeabi-v7a/libgojni.so": {
-      "sha256": "01cc43c56967782a0915a746e60749dbd8b123eeda820e1418c38ef93219780f",
-      "size": 8103112,
+      "sha256": "f52a18c2ace6de15bf93d9017af057c6487fd147dd36f4a15cc4bc5a3336657e",
+      "size": 8103040,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -64,8 +64,8 @@
       "machine": "ARM"
     },
     "jni/x86_64/libgojni.so": {
-      "sha256": "07c35fd7033662bf07ac81f8feffd9fe223184ddea128e9ab3d9e3efc1913b7c",
-      "size": 9022640,
+      "sha256": "7d4dfa0a3069a026e4e84c8f7b2881c454490886422b26519330873d2a77e887",
+      "size": 9018104,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -74,7 +74,9 @@
       "machine": "Advanced Micro Devices X86-64"
     }
   },
-  "classes_jar_sha256": "24d0df2718d97436f49f904a4a0982668206c8b3f6d2f37b93921390a75d100e",
+  "classes_jar_sha256": "fd1e2202c0ced0bb48622a3b44e415c83bb6ee7f068703a55a48536ca903d31e",
   "original_source_lock_sha256": "b8c6f2370b06d35b35c41a2b769c1a41f30eb8eeb5d7f29b5a6145d2531c9e90",
-  "layout_note": "Sender sources moved from native/airplay to native/airplay-sender; source bytes and AAR unchanged; path-only helper edits re-pinned."
+  "layout_note": "MoonCast 0.7.2 adds patch0002 to the unchanged v0.0.33 upstream source snapshot. Native AAR rebuilt; original Go mobile Java bindings retained. Historical Linux build claims do not apply to this Darwin artifact.",
+  "previous_aar_sha256": "ccbd8ffb184881128f7e3c3f9223cd10d500457bb8dbab7a36d681b5a973baaf",
+  "previous_source_lock_sha256": "0e830b499b929414f48873db3d630c54e04ed5bf43bcd3cddaf64d4547936073"
 }

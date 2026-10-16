@@ -36,6 +36,8 @@ public final class AirPlayHostService extends Service {
     private int width, height, fps, bitrate, scaleMode, port;
     private String host = "", state = "", detail = "", error = "";
     private volatile long connectedFrames;
+    private long statusToken;
+    private String protocolStage = "CONNECT";
 
     @Override public void onCreate() {
         super.onCreate(); commands.start();
@@ -64,6 +66,7 @@ public final class AirPlayHostService extends Service {
         if (initialReply != null) subscriber = initialReply;
         if (!SenderOwnership.acquire(this)) { stopSelf(); return START_NOT_STICKY; }
         ownsCapture = true; started = true;
+        statusToken = intent.getLongExtra("statusToken", 0);
         try {
             notification();
             localMute = new LocalAudioMute(this); localMute.restore();
@@ -90,7 +93,11 @@ public final class AirPlayHostService extends Service {
             }, main);
             wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MoonCast:AirPlay");
             wake.acquire(6 * 60 * 60 * 1000L);
-            Airplaylib.setAirPlay1Mode(legacy);
+            // The upstream bare legacy path sends empty SETUP /video and skips
+            // /info, pairing and FairPlay. Real AirPlay mirrors require negotiated
+            // session/stream plists. The saved compatibility option now limits
+            // encoding only; receiver features still choose legacy/HAP pairing.
+            Airplaylib.setAirPlay1Mode(false);
             // Private, backup-excluded store. Separate from Sunshine certificates/PINs.
             Airplaylib.setCredentialsPath(new File(getFilesDir(), "airplay-credentials.json").getAbsolutePath());
             connect(intent.getStringExtra("airplayPin"));
@@ -108,6 +115,7 @@ public final class AirPlayHostService extends Service {
     }
     private void connect(String pin) {
         int token = generation.incrementAndGet(); Session old = session; session = null;
+        protocolStage = "GET/info";
         state = getString(R.string.ap_service_connecting); detail = host + ":" + port; publish();
         new Thread(() -> {
             try {
@@ -117,23 +125,29 @@ public final class AirPlayHostService extends Service {
                 private void deliver(Runnable action) { main.post(() -> { if (!stopping && token == generation.get()) action.run(); }); }
                 public void onDeviceFound(String json) {}
                 public void onConnected() { deliver(() -> startCapture(token)); }
-                public void onDisconnected(String reason) { deliver(() -> fail(getString(R.string.ap_service_disconnected))); }
+                public void onDisconnected(String reason) { deliver(() -> failProtocol(reason)); }
                 public void onPinRequired() { deliver(() -> { pinPending = true; state = getString(R.string.ap_service_pin); detail = getString(R.string.ap_service_pin_hint); publish(); }); }
-                public void onError(String message) { deliver(() -> fail(getString(R.string.ap_service_protocol_failed))); }
-                public void onLog(String message) { /* Native response bodies/headers/frame samples are never retained in Android logs or IPC. */ }
+                public void onError(String message) { deliver(() -> failProtocol(message)); }
+                public void onLog(String message) {
+                    String stage = AirPlayDiagnostics.progress(message);
+                    if (stage != null) deliver(() -> { protocolStage = stage; log("AirPlay stage=" + stage); publish(); });
+                }
             });
             // Claim the session on the command owner before starting an asynchronous Go handshake.
             main.post(() -> {
                 if (stopping || token != generation.get()) { discard(created); return; }
                 session = created;
                 try { created.connect(host, port, pin == null ? "" : pin, width, height, fps); }
-                catch (RuntimeException | LinkageError failure) { fail(getString(R.string.ap_service_protocol_failed)); }
+                catch (RuntimeException | LinkageError failure) { failProtocol(failure.getMessage()); }
             });
             } catch (RuntimeException | LinkageError failure) {
-                main.post(() -> { if (!stopping && token == generation.get()) fail(getString(R.string.ap_service_protocol_failed)); });
+                main.post(() -> { if (!stopping && token == generation.get()) failProtocol(failure.getMessage()); });
             }
         }, "AirPlayConnect").start();
-        main.postDelayed(() -> { if (!stopping && token == generation.get() && !connected && !pinPending) fail(getString(R.string.ap_service_timeout)); }, 25000);
+        main.postDelayed(() -> { if (!stopping && token == generation.get() && !connected && !pinPending) fail(getString(R.string.ap_service_timeout, AirPlayDiagnostics.safeStage(protocolStage))); }, 25000);
+    }
+    private void failProtocol(String reason) {
+        fail(getString(R.string.ap_service_protocol_failed, AirPlayDiagnostics.failure(reason, protocolStage)));
     }
     private static void discard(Session obsolete) {
         new Thread(() -> { try { obsolete.disconnect(); } catch (RuntimeException | LinkageError ignored) {} }, "AirPlayDiscard").start();
@@ -183,7 +197,7 @@ public final class AirPlayHostService extends Service {
             try {
                 if (!active.hasAudio()) { closeAudio(); log(getString(R.string.ap_service_audio_ended)); publish(); }
                 else watchAudio(active, token);
-            } catch (RuntimeException | LinkageError failure) { closeAudio(); fail(getString(R.string.ap_service_protocol_failed)); }
+            } catch (RuntimeException | LinkageError failure) { closeAudio(); failProtocol(failure.getMessage()); }
         }, 500);
     }
     private void restoreVolume() { if (localMute != null) try { localMute.restore(); } catch (RuntimeException failure) { android.util.Log.w("MoonCast", "Volume recovery pending", failure); } }
@@ -191,7 +205,8 @@ public final class AirPlayHostService extends Service {
     private void fail(String message) {
         if (stopping) return;
         error = boundedDiagnostic(PhoneMessages.render(this, message == null || message.isEmpty() ? getString(R.string.ap_service_failed) : message));
-        state = getString(R.string.ap_service_failed); detail = error; log(error); publish(); stopSender();
+        state = getString(R.string.ap_service_failed); detail = error; log(error);
+        HostFailureStore.failure(getFilesDir(), statusToken, AirPlayDiagnostics.safeStage(protocolStage), error, this::publish, this::stopSender);
     }
     private synchronized void stopSender() {
         if (stopping) return;

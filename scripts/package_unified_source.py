@@ -88,7 +88,7 @@ def main():
                 info.compress_type = zipfile.ZIP_DEFLATED
                 out.writestr(info, data)
             provenance = {'sourceCommit': commit, 'applicationId': 'com.mooncast.community',
-                          'version': '0.7', 'files': inventory,
+                          'version': '0.7.2', 'files': inventory,
                           'externalWebRtc': {'lock': 'native/webrtc/SOURCE_LOCK.json',
                                             'sourceGuide': 'native/webrtc/README.md',
                                             'nativeSourceVendored': False,
