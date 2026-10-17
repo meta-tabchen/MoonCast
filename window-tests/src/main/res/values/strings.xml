@@ -16,4 +16,22 @@
     <string name="phone_capture_size_invalid">The capture dimensions are invalid</string>
     <string name="phone_output_size_invalid">The encoder output dimensions are invalid</string>
     <string name="phone_gpu_sample_unavailable">The GPU sampling buffer is unavailable</string>
-    </resources>
+    <string name="controls_bubble">Cast</string>
+    <string name="controls_collapse">Collapse</string>
+    <string name="controls_pause">Pause picture + audio</string>
+    <string name="controls_resume">Resume picture + audio</string>
+    <string name="controls_paused">Casting paused</string>
+    <string name="controls_screen_off">Screen off</string>
+    <string name="controls_cancel_off">Cancel screen off</string>
+    <string name="controls_panel_unavailable">Screen off needs floating-window permission and an authorized Root or Shizuku backend. The phone stays bright.</string>
+    <string name="controls_not_connected">Connect a receiver and resume casting first.</string>
+    <string name="controls_capture_notice">Whole-screen capture may include the bubble. No secure-window black rectangle is used.</string>
+    <string name="controls_notification">The phone stays bright. Use these controls or the floating bubble.</string>
+    <string name="controls_panel_validation_pending">Physical screen-off is unavailable in this candidate while device wake and stop/crash recovery are being validated. The phone stays bright.</string>
+<string name="ui_mooncast_is_running" formatted="false">"MoonCast is running"</string>
+    <string name="ui_stop" formatted="false">"Stop"</string>
+    <string name="ui_panel_restore">Restore local display</string>
+    <string name="controls_dim_phone">Dim phone screen</string>
+    <string name="controls_dim_active">Minimum brightness requested. Tap once to restore; casting continues.</string>
+    <string name="controls_dim_notice">Dimming lowers display brightness without hiding the cast picture. It is not physical screen-off; minimum brightness depends on the phone.</string>
+</resources>

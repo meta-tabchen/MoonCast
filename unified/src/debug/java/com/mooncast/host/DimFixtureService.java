@@ -4,9 +4,11 @@ import android.app.Service;import android.content.Intent;import android.os.*;
 public final class DimFixtureService extends Service {
  private PowerManager.WakeLock bright;private ScreenDimmer dimmer;private final Handler main=new Handler(Looper.getMainLooper());
  private final Messenger binder=new Messenger(new Handler(Looper.getMainLooper(),m->{
-  if(dimmer==null)dimmer=new ScreenDimmer(this,()->{});
+  if(dimmer==null)dimmer=new ScreenDimmer(this,()->android.util.Log.i("MoonCastWindowFixture","dimmer transition elapsed="+SystemClock.elapsedRealtime()+" active="+(dimmer!=null&&dimmer.active())+" dimmed="+(dimmer!=null&&dimmer.dimmed())));
   if(m.what==1)dimmer.request();else if(m.what==2)dimmer.restore();else if(m.what==3){dimmer.close();dimmer=null;stopSelf();}
   Bundle b=new Bundle();b.putInt("nonce",m.getData().getInt("nonce"));b.putInt("pid",android.os.Process.myPid());b.putBoolean("brightWakeLock",bright!=null&&bright.isHeld());b.putBoolean("active",dimmer!=null&&dimmer.active());b.putBoolean("dimmed",dimmer!=null&&dimmer.dimmed());
+  try{if(dimmer!=null){java.lang.reflect.Field field=ScreenDimmer.class.getDeclaredField("guard");field.setAccessible(true);android.view.View guard=(android.view.View)field.get(dimmer);b.putBoolean("guardReady",guard!=null&&guard.isAttachedToWindow()&&guard.isLaidOut()&&guard.isShown()&&guard.getWidth()>0&&guard.getHeight()>0);b.putBoolean("countdown",dimmer.countdown());}}
+  catch(ReflectiveOperationException error){b.putString("failure",error.toString());}
   if(m.replyTo!=null)try{Message reply=Message.obtain();reply.setData(b);m.replyTo.send(reply);}catch(RemoteException ignored){}
   if(m.what==4)main.postDelayed(()->android.os.Process.killProcess(android.os.Process.myPid()),100);
   return true;

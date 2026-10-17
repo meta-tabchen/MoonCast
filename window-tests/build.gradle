@@ -3,11 +3,13 @@ android {
  namespace 'com.mooncast.host'
  compileSdk 35
  defaultConfig { applicationId 'com.mooncast.windowtest'; minSdk 26; targetSdk 35; versionCode 1; versionName '1'; testInstrumentationRunner 'com.mooncast.unified.WindowInstrumentation' }
+ buildFeatures { buildConfig true }
+ defaultConfig { buildConfigField 'boolean', 'PHYSICAL_SCREEN_OFF_VALIDATED', 'false' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
  sourceSets {
   main.java.srcDirs = ['src/main/java','../app/src/main/java','../unified/src/debug/java']
-  main.java.includes = ['com/mooncast/unified/PipelineFixtureActivity.java','com/mooncast/host/VideoPipeline.java','com/mooncast/host/PhoneMessages.java','com/mooncast/host/CropGeometry.java','com/mooncast/host/AutoCropTracker.java','com/mooncast/host/CinemaCropTracker.java','com/mooncast/host/OutputSizePolicy.java','com/mooncast/host/FrameStatistics.java','com/mooncast/host/ScreenDimmer.java','com/mooncast/host/ScreenDimState.java','com/mooncast/host/DimFixtureService.java','com/mooncast/unified/DimFixtureActivity.java']
+  main.java.includes = ['com/mooncast/host/CastControls.java','com/mooncast/host/ManualControlState.java','com/mooncast/host/ControlsFixtureDependencies.java','com/mooncast/host/ControlsFixtureService.java','com/mooncast/unified/ControlsBackdropActivity.java','com/mooncast/unified/PipelineFixtureActivity.java','com/mooncast/host/VideoPipeline.java','com/mooncast/host/PhoneMessages.java','com/mooncast/host/CropGeometry.java','com/mooncast/host/AutoCropTracker.java','com/mooncast/host/CinemaCropTracker.java','com/mooncast/host/OutputSizePolicy.java','com/mooncast/host/FrameStatistics.java','com/mooncast/host/ScreenDimmer.java','com/mooncast/host/ScreenDimState.java','com/mooncast/host/DimFixtureService.java','com/mooncast/unified/DimFixtureActivity.java']
   androidTest.java.srcDirs += ['../unified/src/androidTest/java']
-  androidTest.java.includes = ['com/mooncast/unified/PipelinePauseDeviceTest.java','com/mooncast/unified/ScreenDimDeviceTest.java','com/mooncast/unified/WindowInstrumentation.java']
+  androidTest.java.includes = ['com/mooncast/unified/ControlsLayoutDeviceTest.java','com/mooncast/unified/PipelinePauseDeviceTest.java','com/mooncast/unified/ScreenDimDeviceTest.java','com/mooncast/unified/WindowInstrumentation.java']
  }
 }

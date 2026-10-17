@@ -29,12 +29,15 @@ final class CastControls implements AutoCloseable {
     private final PanelRecoveryClient recovery;
     private final ScreenDimmer dimmer;
     private PowerManager.WakeLock bright;
-    private LinearLayout overlay;
+    private LinearLayout overlay,content;
+    private ScrollView menu;private View fixedRow;
     private WindowManager.LayoutParams position;
-    private boolean expanded,closed,resourcesReleased;
+    private boolean expanded,closed,resourcesReleased,rightEdge,dragging;
+    private int viewportWidth,viewportHeight;
     private final ManualControlState state=new ManualControlState();
     private final Runnable monitor=new Runnable(){public void run(){
         if(closed)return;
+        if(viewportWidth!=service.getResources().getDisplayMetrics().widthPixels||viewportHeight!=service.getResources().getDisplayMetrics().heightPixels)draw();
         if(!session.connected()){if(recovery!=null)recovery.disconnected();dimmer.restore();}
         if(!Settings.canDrawOverlays(service)){removeOverlay();restore(false);}
         main.postDelayed(this,5000);
@@ -79,24 +82,55 @@ final class CastControls implements AutoCloseable {
         GradientDrawable bg=new GradientDrawable();bg.setColor(0xed18354a);bg.setCornerRadius(dp(20));overlay.setBackground(bg);
         if(position==null){position=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);position.gravity=Gravity.TOP|Gravity.LEFT;position.x=0;position.y=dp(180);}
+        overlay.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(closed||overlay!=v)return;if(viewportWidth!=service.getResources().getDisplayMetrics().widthPixels||viewportHeight!=service.getResources().getDisplayMetrics().heightPixels){main.post(this::draw);return;}fitOverlay();});
+        overlay.setOnApplyWindowInsetsListener((v,insets)->{v.post(this::fitOverlay);return insets;});
         try{windows.addView(overlay,position);draw();}catch(RuntimeException denied){overlay=null;toast(R.string.controls_overlay_denied);}
     }
     private void draw(){
-        if(overlay==null||closed)return;overlay.removeAllViews();
+        viewportWidth=service.getResources().getDisplayMetrics().widthPixels;viewportHeight=service.getResources().getDisplayMetrics().heightPixels;
+        if(overlay==null||closed)return;overlay.removeAllViews();content=overlay;menu=null;fixedRow=null;
         Button bubble=button(state.pending()?R.string.controls_cancel_off:expanded?R.string.controls_collapse:R.string.controls_bubble,()->{
             if(state.pending()){restore(false);return;}expanded=!expanded;draw();});
+        fixedRow=bubble;
         bubble.setOnTouchListener(new View.OnTouchListener(){
             float x,y;int startX,startY;boolean moved;
             public boolean onTouch(View v,MotionEvent e){
-                if(e.getAction()==MotionEvent.ACTION_DOWN){x=e.getRawX();y=e.getRawY();startX=position.x;startY=position.y;moved=false;return false;}
+                if(e.getAction()==MotionEvent.ACTION_DOWN){dragging=true;x=e.getRawX();y=e.getRawY();startX=position.x;startY=position.y;moved=false;return false;}
                 if(e.getAction()==MotionEvent.ACTION_MOVE){float dx=e.getRawX()-x,dy=e.getRawY()-y;if(Math.abs(dx)+Math.abs(dy)>dp(8))moved=true;if(moved){position.x=Math.max(0,startX+(int)dx);position.y=Math.max(0,startY+(int)dy);try{windows.updateViewLayout(overlay,position);}catch(RuntimeException ignored){}}return moved;}
-                if(e.getAction()==MotionEvent.ACTION_UP&&moved){int width=service.getResources().getDisplayMetrics().widthPixels;int height=service.getResources().getDisplayMetrics().heightPixels;position.x=position.x<width/2?0:Math.max(0,width-overlay.getWidth());position.y=Math.min(position.y,Math.max(0,height-overlay.getHeight()));try{windows.updateViewLayout(overlay,position);}catch(RuntimeException ignored){}return true;}return false;
+                if(e.getAction()==MotionEvent.ACTION_CANCEL){dragging=false;clampOverlay();return true;}
+                if(e.getAction()==MotionEvent.ACTION_UP){dragging=false;}
+                if(e.getAction()==MotionEvent.ACTION_UP&&moved){int width=service.getResources().getDisplayMetrics().widthPixels;int height=service.getResources().getDisplayMetrics().heightPixels;rightEdge=position.x>=width/2;position.x=rightEdge?Math.max(0,width-overlay.getWidth()):0;position.y=Math.min(position.y,Math.max(0,height-overlay.getHeight()));try{windows.updateViewLayout(overlay,position);}catch(RuntimeException ignored){}return true;}return false;
             }
         });
-        if(expanded){button(R.string.controls_dim_phone,this::requestDim);button(state.paused?R.string.controls_resume:R.string.controls_pause,this::togglePause);button(R.string.controls_screen_off,this::requestOff);button(R.string.ui_panel_restore,()->restore(false));button(R.string.ui_stop,session::stop);label(R.string.controls_dim_notice);label(R.string.controls_capture_notice);}
+        if(expanded){
+            int height=service.getResources().getDisplayMetrics().heightPixels;
+            int width=service.getResources().getDisplayMetrics().widthPixels;
+            int menuHeight=Math.max(0,Math.min(dp(420),height-dp(80)));
+            LinearLayout pinned=new LinearLayout(service);pinned.setOrientation(LinearLayout.HORIZONTAL);overlay.removeView(bubble);overlay.addView(pinned,new LinearLayout.LayoutParams(-1,-2));pinned.addView(bubble,new LinearLayout.LayoutParams(0,-2,1));content=pinned;Button stop=button(R.string.ui_stop,session::stop);stop.setLayoutParams(new LinearLayout.LayoutParams(0,-2,1));fixedRow=pinned;
+            ScrollView scroll=new ScrollView(service);scroll.setFillViewport(false);menu=scroll;
+            content=new LinearLayout(service);content.setOrientation(LinearLayout.VERTICAL);scroll.addView(content,new ScrollView.LayoutParams(-1,-2));
+            overlay.addView(scroll,new LinearLayout.LayoutParams(Math.max(dp(120),Math.min(dp(240),width-dp(24))),menuHeight));
+            button(R.string.controls_dim_phone,this::requestDim);button(state.paused?R.string.controls_resume:R.string.controls_pause,this::togglePause);button(R.string.controls_screen_off,this::requestOff);button(R.string.ui_panel_restore,()->restore(false));label(R.string.controls_dim_notice);label(R.string.controls_capture_notice);
+        }
     }
-    private Button button(int text,Runnable action){Button b=new Button(service);b.setText(text);b.setTextSize(13);b.setAllCaps(false);b.setMinHeight(dp(48));b.setMaxWidth(dp(240));b.setOnClickListener(v->action.run());overlay.addView(b);return b;}
-    private void label(int text){TextView v=new TextView(service);v.setText(text);v.setTextColor(Color.WHITE);v.setTextSize(12);v.setMaxWidth(dp(230));v.setPadding(dp(6),dp(6),dp(6),dp(6));overlay.addView(v);}
+    private void fitOverlay(){
+        if(overlay==null||closed)return;
+        if(menu!=null&&fixedRow!=null&&fixedRow.getMeasuredHeight()>0){
+            android.graphics.Rect visible=new android.graphics.Rect();overlay.getWindowVisibleDisplayFrame(visible);
+            int available=visible.height()>0?Math.min(viewportHeight,visible.height()):viewportHeight;
+            int height=Math.max(0,Math.min(dp(420),available-fixedRow.getMeasuredHeight()-overlay.getPaddingTop()-overlay.getPaddingBottom()));
+            if(menu.getLayoutParams().height!=height){ViewGroup.LayoutParams layout=menu.getLayoutParams();layout.height=height;menu.setLayoutParams(layout);}
+        }
+        clampOverlay();
+    }
+    private void clampOverlay(){
+        if(overlay==null||closed||dragging||overlay.getWidth()<1||overlay.getHeight()<1)return;
+        int x=rightEdge?Math.max(0,viewportWidth-overlay.getWidth()):Math.max(0,Math.min(position.x,viewportWidth-overlay.getWidth()));
+        int y=Math.max(0,Math.min(position.y,viewportHeight-overlay.getHeight()));
+        if(x!=position.x||y!=position.y){position.x=x;position.y=y;try{windows.updateViewLayout(overlay,position);}catch(RuntimeException ignored){}}
+    }
+    private Button button(int text,Runnable action){Button b=new Button(service);b.setText(text);b.setTextSize(13);b.setAllCaps(false);b.setMinHeight(dp(48));b.setMaxWidth(dp(240));b.setOnClickListener(v->action.run());content.addView(b);return b;}
+    private void label(int text){TextView v=new TextView(service);v.setText(text);v.setTextColor(Color.WHITE);v.setTextSize(12);v.setMaxWidth(dp(230));v.setPadding(dp(6),dp(6),dp(6),dp(6));content.addView(v);}
     private int dp(int value){return Math.round(value*service.getResources().getDisplayMetrics().density);}
     private void toast(int id){Toast.makeText(service,id,Toast.LENGTH_LONG).show();}
     private PendingIntent action(String action,int id){return PendingIntent.getService(service,id,new Intent(service,service.getClass()).setAction(action),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);}

@@ -56,6 +56,7 @@ jobs:
           grep -qx 'hw.lcd.density=160' "$ANDROID_AVD_HOME/aosp.avd/config.ini"
           "$ANDROID_HOME/emulator/emulator" -avd aosp -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 480x800 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/aosp-evidence/emulator.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/aosp-emulator.pid"
+          adb start-server
           (timeout 780s adb -s emulator-5554 wait-for-device && adb -s emulator-5554 logcat -v threadtime) > "$RUNNER_TEMP/aosp-evidence/continuous-logcat.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/aosp-logcat.pid"
           deadline=$((SECONDS+780))
@@ -77,6 +78,8 @@ jobs:
           timeout 90s adb -s emulator-5554 install --no-streaming -r -t window-tests/build/outputs/apk/androidTest/debug/window-tests-debug-androidTest.apk
           timeout 300s adb -s emulator-5554 shell am instrument -w -r com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/aosp-evidence/window.txt" 2>&1
           cat "$RUNNER_TEMP/aosp-evidence/window.txt"
+          timeout 20s adb -s emulator-5554 logcat -d -v threadtime > "$RUNNER_TEMP/aosp-evidence/window-logcat.txt" || true
+          timeout 20s adb -s emulator-5554 pull /sdcard/Android/data/com.mooncast.windowtest/files/window-evidence "$RUNNER_TEMP/aosp-evidence/generated-early" || true
           grep -q SCREEN_DIM_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/window.txt"
           grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/window.txt"
           ! grep -qE 'SCREEN_DIM_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/window.txt"
@@ -90,6 +93,21 @@ jobs:
           grep -q PIPELINE_PAUSE_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
           grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
           ! grep -qE 'PIPELINE_PAUSE_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+      - name: Actual floating control layout and taps at 320dp and landscape
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          timeout 240s adb -s emulator-5554 shell am instrument -w -r -e suite controls com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/aosp-evidence/controls.txt" 2>&1
+          cat "$RUNNER_TEMP/aosp-evidence/controls.txt"
+          grep -q CONTROLS_LAYOUT_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/controls.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/controls.txt"
+          ! grep -qE 'CONTROLS_LAYOUT_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/controls.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aosp-early-window-and-gl-evidence
+          path: ${{ runner.temp }}/aosp-evidence
       - name: Actual TV Activity and standalone fresh-Surface session comparisons
         if: always() && steps.boot.conclusion == 'success'
         timeout-minutes: 18
