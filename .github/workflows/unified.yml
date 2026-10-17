@@ -9,8 +9,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -26,6 +29,19 @@ jobs:
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Restore pinned complete-source inputs
         run: python3 scripts/restore_release_inputs.py
+      - name: Snapshot exact committed source before verified generated native overrides
+        run: |
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-base-source.zip"
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 12102154262
+          merge-multiple: true
+          path: ${{ runner.temp }}/reused-native
+          run-id: 39035789360
+          github-token: ${{ github.token }}
+      - name: Require every native input unchanged before reusing original cloud-built outputs
+        run: python3 scripts/reuse_native_candidate.py --bundle "$RUNNER_TEMP/reused-native"
       - name: Pinned native inputs
         run: |
           python3 scripts/prepare_airplay.py --verify-sources
@@ -36,6 +52,10 @@ jobs:
           node-version: '22'
       - name: Behavior and discovery regressions
         run: |
+          python3 scripts/run_release_asset_policy_tests.py
+          python3 scripts/run_receiver_runner_tests.py
+          python3 scripts/run_receiver_jni_thread_tests.py
+          python3 scripts/run_sunshine_candidate_tests.py
           python3 scripts/check_localization.py
           python3 scripts/run_locale_policy_tests.py
           python3 scripts/test_community_device_preflight.py
@@ -67,7 +87,7 @@ jobs:
       - name: Community identity fail-closed build guards
         run: bash scripts/test_community_build_guards.sh
       - name: Build fixed-signature community ARM64 app and lint
-        run: gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a
+        run: gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=arm64-v8a -PmooncastBuildId="$GITHUB_SHA"
       - name: QR roundtrip against pinned binary and bundled sources
         run: python3 scripts/run_browser_qr_tests.py
       - name: Inspect combined APK
@@ -82,14 +102,16 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/community-release"
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.9-arm64-v8a.apk"
-          gradle --no-daemon :unified:assembleRelease -PmooncastAbi=armeabi-v7a
+          gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi=armeabi-v7a -PmooncastBuildId="$GITHUB_SHA"
           python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi armeabi-v7a
           python3 scripts/verify_bouncycastle_apk.py unified/build/outputs/apk/release/unified-release.apk
           python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
           "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/community-release/MoonCast-0.9-armeabi-v7a.apk"
       - name: Application source and pinned dependency source map (no app signing key)
-        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/community-release/MoonCast-0.9-source.zip"
+        run: |
+          python3 scripts/package_native_candidate.py --base "$RUNNER_TEMP/community-base-source.zip" --output "$RUNNER_TEMP/community-release/MoonCast-0.9-source.zip" --expected-commit "$GITHUB_SHA"
+          python3 scripts/prepare_release_assets.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         with:
           name: community-release-candidates
@@ -101,6 +123,35 @@ jobs:
             unified/build/outputs/apk/release/unified-release.apk
             unified/build/reports/lint-results-release.*
             unified/build/outputs/mapping/release/mapping.txt
+  publish:
+    if: github.repository == 'meta-tabchen/MoonCast' && github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[publish-mooncast-0.9]')
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: mooncast-release-v0.9
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: community-release-candidates
+          path: ${{ runner.temp }}/community-release
+      - name: Publish exact verified draft and verify unauthenticated public bytes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/publish_community_release.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA" | tee "$RUNNER_TEMP/public-release-verification.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: public-release-verification
+          path: ${{ runner.temp }}/public-release-verification.json
   device:
     # Prior software-emulator CPU starvation prevents treating routine reruns as
     # release evidence. Manual dispatch may investigate it; skipped is not passed.
@@ -116,6 +167,7 @@ jobs:
         api: [30, 35]
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -131,12 +183,20 @@ jobs:
           gradle-version: '8.9'
       - name: Official emulator packages
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-${{ matrix.api }};google_apis;x86_64'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 12102154262
+          merge-multiple: true
+          path: ${{ runner.temp }}/reused-native
+          run-id: 39035789360
+          github-token: ${{ github.token }}
       - name: Restore and build signed device fixtures
         run: |
           python3 scripts/restore_release_inputs.py
+          python3 scripts/reuse_native_candidate.py --bundle "$RUNNER_TEMP/reused-native"
           python3 scripts/prepare_unified_native.py
           mkdir -p "$RUNNER_TEMP/mooncast-device"
-          gradle --no-daemon :unified:assembleRelease :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
+          gradle --no-daemon :unified:assembleRelease :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64 -PmooncastBuildId="$GITHUB_SHA"
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/candidate66.apk"
           cp unified/build/outputs/apk/debug/unified-debug.apk "$RUNNER_TEMP/mooncast-device/debug66.apk"
           cp unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk "$RUNNER_TEMP/mooncast-device/test.apk"
@@ -147,7 +207,7 @@ jobs:
           if s.count('versionCode 66')!=1 or s.count("versionName '0.9'")!=1:raise SystemExit('Unexpected version fixture baseline')
           p.write_text(s.replace('versionCode 66','versionCode 65'))
           PY
-          gradle --no-daemon :unified:assembleRelease -PmooncastAbi=x86_64
+          gradle --no-daemon :unified:assembleRelease -PmooncastAbi=x86_64 -PmooncastBuildId="$GITHUB_SHA"
           cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/mooncast-device/baseline65.apk"
           git restore -- unified/build.gradle
       - name: Start disposable emulator without changing host permissions

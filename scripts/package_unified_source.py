@@ -95,7 +95,10 @@ def main():
                                             'nativeSdkLocallyRebuilt': False,
                                             'note': 'This archive is not a self-contained WebRTC/Chromium native source distribution.'},
                           'signing': 'No signing key included. Fixed community public certificate is recorded; owner-published test fixture remains in Git. Certificate: '+identity['certificateSha256']}
-            out.writestr('MoonCast/CORRESPONDING-SOURCE.json', json.dumps(provenance, indent=2) + '\n')
+            info = zipfile.ZipInfo('MoonCast/CORRESPONDING-SOURCE.json', (1980, 1, 1, 0, 0, 0))
+            info.external_attr = 0o100644 << 16
+            info.compress_type = zipfile.ZIP_DEFLATED
+            out.writestr(info, json.dumps(provenance, indent=2) + '\n')
     with zipfile.ZipFile(args.output) as archive:
         if archive.testzip() is not None:
             raise ValueError('Archive integrity check failed')

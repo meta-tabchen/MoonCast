@@ -1,0 +1,76 @@
+name: Real TV TextureView software-emulator sessions
+on:
+  push:
+    branches: [codex/mooncast-0.9]
+    paths: ['.github/workflows/receiver-software-tv.yml']
+jobs:
+  actual-tv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - run: sdkmanager emulator 'system-images;android-28;google_apis;x86_64'
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 12106625289
+          merge-multiple: true
+          path: ${{ runner.temp }}/tv-apks
+          run-id: 39046884856
+          github-token: ${{ github.token }}
+      - name: Verify exact already-built patched runtime and actual-TV fixture
+        run: |
+          cd "$RUNNER_TEMP/tv-apks"
+          echo '0559e761a91873cb1f9341a88a6bbd3a49da7e1e5e48c78ad431bf4489a346ed  debug/unified-debug.apk' | sha256sum -c -
+          echo '484a8cb932ac1493186a3d3cb5b8a3855dc45dc0aba58252c9695955c7c3183b  androidTest/debug/unified-debug-androidTest.apk' | sha256sum -c -
+      - name: Start proven Android 28 software image without KVM or host permission changes
+        timeout-minutes: 12
+        run: |
+          mkdir -p "$RUNNER_TEMP/tv-evidence"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/tv-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --force --name tv --package 'system-images;android-28;google_apis;x86_64' --device pixel_2
+          "$ANDROID_HOME/emulator/emulator" -avd tv -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/tv-evidence/emulator.txt" 2>&1 &
+          echo $! > "$RUNNER_TEMP/tv-emulator.pid"
+          deadline=$((SECONDS+660))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$(cat "$RUNNER_TEMP/tv-emulator.pid")" || exit 1
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            sleep 3
+          done
+          echo 'Software emulator failed to boot; no device PASS' >&2; exit 1
+      - name: Actual TV UI reconnect plus corrected off-screen consumer comparisons
+        timeout-minutes: 18
+        shell: bash
+        run: |
+          failed=0
+          for surface in tv-ui fresh probe; do
+            adb -s emulator-5554 uninstall com.mooncast.community.test || true
+            adb -s emulator-5554 uninstall com.mooncast.community || true
+            args=(--surface "$surface")
+            if [ "$surface" = probe ]; then args=(--surface reuse --probe-texture); fi
+            if ! python3 scripts/run_receiver_session_device.py --serial emulator-5554 "${args[@]}" --debug "$RUNNER_TEMP/tv-apks/debug/unified-debug.apk" --test "$RUNNER_TEMP/tv-apks/androidTest/debug/unified-debug-androidTest.apk" --output "$RUNNER_TEMP/tv-evidence/$surface"; then failed=1; fi
+          done
+          exit "$failed"
+      - name: Stop disposable software emulator
+        if: always()
+        run: |
+          timeout 15s adb -s emulator-5554 emu kill || true
+          if [ -f "$RUNNER_TEMP/tv-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/tv-emulator.pid")" 2>/dev/null || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: actual-tv-software-session-evidence
+          path: ${{ runner.temp }}/tv-evidence

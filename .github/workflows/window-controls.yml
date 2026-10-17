@@ -60,6 +60,8 @@ jobs:
         if: always()
         run: |
           mkdir -p "$RUNNER_TEMP/window-evidence"
+          timeout 20s adb -s emulator-5554 pull /sdcard/Android/data/com.mooncast.windowtest/files/window-evidence "$RUNNER_TEMP/window-evidence/generated" || true
+          timeout 20s adb -s emulator-5554 shell dumpsys window > "$RUNNER_TEMP/window-evidence/window.txt" 2>&1 || true
           timeout 20s adb -s emulator-5554 logcat -d -t 1500 > "$RUNNER_TEMP/window-evidence/logcat.txt" 2>&1 || true
           timeout 15s adb -s emulator-5554 emu kill || true
           if [ -f "$RUNNER_TEMP/window-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/window-emulator.pid")" 2>/dev/null || true; fi
