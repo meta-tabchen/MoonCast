@@ -1,0 +1,125 @@
+name: AOSP software window and real TV runtime
+on:
+  push:
+    branches: [codex/mooncast-0.9]
+    paths: ['.github/workflows/software-aosp.yml']
+jobs:
+  aosp-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Official ordinary AOSP image under existing SDK licenses only
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-29;default;x86_64' < /dev/null
+      - run: python3 scripts/restore_release_inputs.py
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 12102154262
+          run-id: 39035789360
+          merge-multiple: true
+          path: ${{ runner.temp }}/reused-native
+          github-token: ${{ github.token }}
+      - name: Verify unchanged native sources and exact rebuilt outputs
+        run: |
+          python3 scripts/reuse_native_candidate.py --bundle "$RUNNER_TEMP/reused-native"
+          python3 scripts/prepare_unified_native.py
+      - name: Build exact current actual-TV and production-GL/window fixtures
+        run: gradle --no-daemon :unified:assembleDebug :unified:assembleDebugAndroidTest :window-tests:assembleDebug :window-tests:assembleDebugAndroidTest -PmooncastAbi=x86_64
+      - name: Start ordinary AOSP software emulator with complete boot diagnostics
+        id: boot
+        timeout-minutes: 14
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/aosp-evidence"
+          git rev-parse HEAD > "$RUNNER_TEMP/aosp-evidence/source-commit.txt"
+          sha256sum unified/build/outputs/apk/debug/*.apk unified/build/outputs/apk/androidTest/debug/*.apk window-tests/build/outputs/apk/debug/*.apk window-tests/build/outputs/apk/androidTest/debug/*.apk > "$RUNNER_TEMP/aosp-evidence/apk-sha256.txt"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/aosp-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --force --name aosp --package 'system-images;android-29;default;x86_64' --device pixel_2
+          sed -i 's/^hw.lcd.density=.*/hw.lcd.density=160/' "$ANDROID_AVD_HOME/aosp.avd/config.ini"
+          grep -qx 'hw.lcd.density=160' "$ANDROID_AVD_HOME/aosp.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" -avd aosp -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 480x800 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/aosp-evidence/emulator.txt" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aosp-emulator.pid"
+          (timeout 780s adb -s emulator-5554 wait-for-device && adb -s emulator-5554 logcat -v threadtime) > "$RUNNER_TEMP/aosp-evidence/continuous-logcat.txt" 2>&1 &
+          echo $! > "$RUNNER_TEMP/aosp-logcat.pid"
+          deadline=$((SECONDS+780))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$(cat "$RUNNER_TEMP/aosp-emulator.pid")" || exit 1
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then
+              timeout 20s adb -s emulator-5554 shell wm density > "$RUNNER_TEMP/aosp-evidence/density.txt"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo 'Ordinary AOSP software boot blocked; no device test executed' >&2; exit 1
+      - name: Real window brightness and full gesture checks
+        if: steps.boot.conclusion == 'success'
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          timeout 90s adb -s emulator-5554 install --no-streaming -r -t window-tests/build/outputs/apk/debug/window-tests-debug.apk
+          timeout 90s adb -s emulator-5554 install --no-streaming -r -t window-tests/build/outputs/apk/androidTest/debug/window-tests-debug-androidTest.apk
+          timeout 300s adb -s emulator-5554 shell am instrument -w -r com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/aosp-evidence/window.txt" 2>&1
+          cat "$RUNNER_TEMP/aosp-evidence/window.txt"
+          grep -q SCREEN_DIM_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/window.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/window.txt"
+          ! grep -qE 'SCREEN_DIM_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/window.txt"
+      - name: Real production GL pause and latest static frame resume
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          timeout 180s adb -s emulator-5554 shell am instrument -w -r -e suite pipeline com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/aosp-evidence/pipeline.txt" 2>&1
+          cat "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+          grep -q PIPELINE_PAUSE_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+          ! grep -qE 'PIPELINE_PAUSE_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+      - name: Actual TV Activity and standalone fresh-Surface session comparisons
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 18
+        shell: bash
+        run: |
+          failed=0
+          for surface in tv-ui fresh; do
+            timeout 30s adb -s emulator-5554 uninstall com.mooncast.community.test || true
+            timeout 30s adb -s emulator-5554 uninstall com.mooncast.community || true
+            timeout 20s adb -s emulator-5554 shell ps -A -o PID,PPID,NAME,ARGS > "$RUNNER_TEMP/aosp-evidence/$surface-processes-before.txt" 2>&1 || true
+            if ! python3 scripts/run_receiver_session_device.py --serial emulator-5554 --surface "$surface" --debug unified/build/outputs/apk/debug/unified-debug.apk --test unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk --output "$RUNNER_TEMP/aosp-evidence/$surface"; then failed=1; fi
+          done
+          exit "$failed"
+      - name: Preserve system and generated fixture evidence and stop emulator
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/aosp-evidence"
+          timeout 20s adb -s emulator-5554 pull /sdcard/Android/data/com.mooncast.windowtest/files/window-evidence "$RUNNER_TEMP/aosp-evidence/generated" || true
+          timeout 20s adb -s emulator-5554 shell dumpsys activity lastanr > "$RUNNER_TEMP/aosp-evidence/last-anr.txt" 2>&1 || true
+          timeout 20s adb -s emulator-5554 shell dumpsys window > "$RUNNER_TEMP/aosp-evidence/final-windows.txt" 2>&1 || true
+          timeout 20s adb -s emulator-5554 shell dumpsys package installs > "$RUNNER_TEMP/aosp-evidence/install-state.txt" 2>&1 || true
+          if [ -f "$RUNNER_TEMP/aosp-logcat.pid" ]; then kill "$(cat "$RUNNER_TEMP/aosp-logcat.pid")" 2>/dev/null || true; fi
+          timeout 15s adb -s emulator-5554 emu kill || true
+          if [ -f "$RUNNER_TEMP/aosp-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/aosp-emulator.pid")" 2>/dev/null || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: aosp-software-runtime-evidence
+          path: |
+            ${{ runner.temp }}/aosp-evidence
+            window-tests/build/outputs/apk
+            unified/build/outputs/apk
