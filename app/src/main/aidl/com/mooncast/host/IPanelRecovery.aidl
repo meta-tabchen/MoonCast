@@ -4,5 +4,6 @@ oneway interface IPanelRecovery {
     void initialize(IBinder owner, boolean root);
     void requestOff();
     void restore();
+    void disconnected();
     void ownerStopped();
 }

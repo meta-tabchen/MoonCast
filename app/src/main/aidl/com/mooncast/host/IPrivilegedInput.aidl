@@ -13,4 +13,5 @@ interface IPrivilegedInput {
     void launch(String component,int displayId) = 9;
     boolean displayPower(boolean off) = 10;
     boolean displayPowerPending() = 11;
+    boolean stopCommands() = 12;
 }

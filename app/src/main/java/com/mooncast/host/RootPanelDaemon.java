@@ -10,7 +10,7 @@ public final class RootPanelDaemon {
    lease=new DisplayPowerLease(new PhysicalDisplayPower(context));DisplayPowerLease owned=lease;
    timer=java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r->new Thread(r,"PanelLease"));timer.scheduleWithFixedDelay(()->{try{owned.tick(SystemClock.elapsedRealtime());}catch(Exception ignored){}},1,1,java.util.concurrent.TimeUnit.SECONDS);
    socket=new LocalSocket();socket.connect(new LocalSocketAddress(args[0]));DataInputStream commands=new DataInputStream(socket.getInputStream());DataOutputStream replies=new DataOutputStream(socket.getOutputStream());
-   for(;;){String command=commands.readUTF();if(command.equals("STOP"))break;if(!command.matches("(ON|OFF) [0-9]+"))continue;String[] pieces=command.split(" ");boolean ok=false;
+   for(;;){String command=commands.readUTF();if(command.equals("STOP"))break;if(command.matches("STOP [0-9]+")){replies.writeUTF(command.substring(5)+" 1");replies.flush();break;}if(!command.matches("(ON|OFF) [0-9]+"))continue;String[] pieces=command.split(" ");boolean ok=false;
     try{if(pieces[0].equals("OFF"))owned.renew(SystemClock.elapsedRealtime(),30000);else owned.restore();ok=true;}catch(Exception ignored){}
     replies.writeUTF(pieces[1]+" "+(ok?1:0));replies.flush();
    }

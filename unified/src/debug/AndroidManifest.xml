@@ -2,4 +2,7 @@
  <service android:name="com.mooncast.host.AirPlayFixtureSender" android:process=":stream" android:exported="false"/>
  <service android:name=".SenderNativeProbe" android:process=":stream" android:exported="false"/>
  <service android:name=".ReceiverNativeProbe" android:process=":receiver" android:exported="false"/>
-<service android:name=".SlowFileProbe" android:process=":files" android:exported="false"/></application></manifest>
+<service android:name=".SlowFileProbe" android:process=":files" android:exported="false"/><service android:name="com.mooncast.host.GameStreamHostFixture" android:process=":stream" android:exported="false"/>
+<service android:name="com.mooncast.host.GameStreamClientOneFixture" android:process=":test_client_one" android:exported="false"/>
+<service android:name="com.mooncast.host.GameStreamClientTwoFixture" android:process=":test_client_two" android:exported="false"/>
+</application></manifest>

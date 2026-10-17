@@ -104,5 +104,8 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
             System.exit(power!=null&&power.pending()?2:0);
         },"PanelRestoreOnly").start();
     }
+    /** Terminal flag is set before waiting for an in-flight operation. A true reply
+     * acknowledges no queued/current OFF or input producer can act after this point. */
+    @Override public boolean stopCommands(){cleanup();synchronized(this){return true;}}
     @Override public void destroy(){cleanup();}
 }

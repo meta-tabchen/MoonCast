@@ -36,8 +36,8 @@ public final class AirPlayFixtureSender extends Service {
             long deadline=SystemClock.elapsedRealtime()+25000;
             while(!created.isConnected()&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(50);
             if(!created.isConnected())throw new IllegalStateException("handshake-timeout");
-            running=true;
-            while(running&&active==created){created.sendFrameAt(frame,true,System.nanoTime()/1000);SystemClock.sleep(100);}
+            running=true;int sent=0;
+            while(running&&active==created){created.sendFrameAt(frame,true,System.nanoTime()/1000);sent++;if(sent%10==0){Message m=Message.obtain();Bundle b=new Bundle();b.putString("event","frames");b.putInt("frames",sent);m.setData(b);if(reply!=null)reply.send(m);}SystemClock.sleep(100);}
         }catch(Throwable e){reply(reply,"failure",e.getClass().getSimpleName());}
     }
     private static void reply(Messenger target,String event,String failure){if(target==null)return;try{Message m=Message.obtain();Bundle b=new Bundle();b.putString("event",event);b.putString("failure",failure);m.setData(b);target.send(m);}catch(RemoteException ignored){}}

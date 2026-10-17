@@ -19,10 +19,12 @@ final class RootPanelBackend implements AutoCloseable {
  },"RootPanelChannel").start();}
  boolean ended(){return closed;}
  synchronized boolean ready(){return !closed&&commands!=null;}
- boolean power(boolean off){
+ boolean power(boolean off){return command(off?"OFF":"ON",2);}
+ boolean terminalizePanel(){boolean ack=command("STOP",65);close();return ack;}
+ private boolean command(String verb,int timeoutSeconds){
   CompletableFuture<Boolean> future=new CompletableFuture<>();int token;
-  synchronized(this){if(!ready())return false;token=++sequence;replies.put(token,future);try{commands.writeUTF((off?"OFF ":"ON ")+token);commands.flush();}catch(IOException failure){replies.remove(token);return false;}}
-  try{return future.get(2,TimeUnit.SECONDS);}catch(Exception failure){return false;}finally{replies.remove(token);}
+  synchronized(this){if(!ready())return false;token=++sequence;replies.put(token,future);try{commands.writeUTF(verb+" "+token);commands.flush();}catch(IOException failure){replies.remove(token);return false;}}
+  try{return future.get(timeoutSeconds,TimeUnit.SECONDS);}catch(Exception failure){return false;}finally{replies.remove(token);}
  }
  @Override public synchronized void close(){if(closed)return;closed=true;try{if(commands!=null){commands.writeUTF("STOP");commands.flush();}}catch(IOException ignored){}try{if(socket!=null)socket.close();}catch(IOException ignored){}try{if(server!=null)server.close();}catch(IOException ignored){}for(CompletableFuture<Boolean> reply:replies.values())reply.complete(false);replies.clear();commands=null;}
 }

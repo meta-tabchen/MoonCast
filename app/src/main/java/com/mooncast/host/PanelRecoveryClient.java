@@ -10,6 +10,7 @@ final class PanelRecoveryClient implements AutoCloseable {
  };
  PanelRecoveryClient(Context context,boolean root){this.context=context;this.root=root;bound=context.bindService(new Intent(context,PanelRecoveryService.class),connection,Context.BIND_AUTO_CREATE);}
  void requestOff(){if(remote!=null&&!closed)try{remote.requestOff();}catch(RemoteException ignored){}else android.widget.Toast.makeText(context,R.string.controls_panel_unavailable,android.widget.Toast.LENGTH_LONG).show();}
+ void disconnected(){if(remote!=null)try{remote.disconnected();}catch(RemoteException ignored){}}
  void restore(){if(remote!=null)try{remote.restore();}catch(RemoteException ignored){}}
  @Override public void close(){if(closed)return;closed=true;if(remote!=null)try{remote.ownerStopped();}catch(RemoteException ignored){}remote=null;if(bound){context.unbindService(connection);bound=false;}}
 }

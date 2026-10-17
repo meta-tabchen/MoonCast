@@ -8,10 +8,10 @@ import com.mooncast.tv.airplay.AirPlayEngine;import com.mooncast.tv.airplay.Rece
 public final class AirPlayReceiverDeviceTest {
  private static final int WIDTH=160,HEIGHT=96;
  private final Instrumentation runner;private final Bundle arguments;
- private volatile Messenger sender;private volatile String senderError;private volatile int stopped;
+ private volatile Messenger sender;private volatile String senderError;private volatile int stopped,sentFrames;
  private final AtomicInteger recoveries=new AtomicInteger();
  public AirPlayReceiverDeviceTest(Instrumentation runner,Bundle arguments){this.runner=runner;this.arguments=arguments;}
- public void run(){Bundle result=new Bundle();int resultCode=Activity.RESULT_CANCELED;AirPlayEngine engine=null;PixelSink sink=null;ServiceConnection connection=null;
+ public void run(){Bundle result=new Bundle();int resultCode=Activity.RESULT_CANCELED;AirPlayEngine engine=null;PixelSink sink=null;ServiceConnection connection=null;StringBuilder progress=new StringBuilder();
   try{
    if(!android.os.Build.FINGERPRINT.contains("generic")&&!android.os.Build.MODEL.contains("sdk"))throw new AssertionError("Disposable emulator only");
    int pid=android.os.Process.myPid();ReceiverDiagnostics.initialize(runner.getTargetContext());sink=new PixelSink();
@@ -26,7 +26,9 @@ public final class AirPlayReceiverDeviceTest {
    require(bound.await(20,TimeUnit.SECONDS),"sender ready");
    byte[] fixture=keyframe();long frames=0;
    for(int cycle=0;cycle<2;cycle++){
-    senderError=null;recoveries.set(0);sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);
+    senderError=null;sentFrames=0;recoveries.set(0);
+    if(cycle>0&&"fresh".equals(arguments.getString("surface","reuse"))){engine.setSurface(null);sink.close();sink=new PixelSink();engine.setSurface(sink.surface);}
+    sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);
     Bundle data=new Bundle();data.putInt("port",engine.getPort());data.putByteArray("frame",fixture);send(1,data);
     long until=SystemClock.elapsedRealtime()+45000;boolean pixels=false;
     while(SystemClock.elapsedRealtime()<until){
@@ -34,24 +36,25 @@ public final class AirPlayReceiverDeviceTest {
      if(sink.available.get()>0){assertPixels(sink.readPixels());pixels=true;}
      if(pixels&&engine.getDecodedFrames()>=20)break;SystemClock.sleep(50);
     }
-    require(pixels&&engine.getDecodedFrames()>=20,"actual received and decoded frames");
+    progress.append("cycle=").append(cycle).append(" surface=").append(arguments.getString("surface","reuse")).append(" sent=").append(sentFrames).append(" decoded=").append(engine.getDecodedFrames()).append(" surfaceSignals=").append(sink.available.get()).append(" pixels=").append(pixels).append(" recoveries=").append(recoveries.get()).append('\n');
+    require(pixels&&engine.getDecodedFrames()>=20,"actual received and decoded frames: "+progress);
     AirPlayEngine.RuntimeStats stats=engine.getRuntimeStats();
     require(stats.decodedWidth==WIDTH&&stats.decodedHeight==HEIGHT,"actual SPS dimensions distinct from request");
     long before=engine.getDecodedFrames(),hold=SystemClock.elapsedRealtime()+20000;
     while(SystemClock.elapsedRealtime()<hold){if(sink.available.get()>0)assertPixels(sink.readPixels());require(senderError==null,"sender alive");require(recoveries.get()==0,"no watchdog recovery during valid static video");SystemClock.sleep(100);}
-    require(engine.getDecodedFrames()>before,"decode continues beyond watchdog interval");frames+=engine.getDecodedFrames();
+    require(engine.getDecodedFrames()>before,"decode continues beyond watchdog interval");frames+=engine.getDecodedFrames();progress.append("static-hold decoded=").append(engine.getDecodedFrames()).append(" recovery=").append(recoveries.get()).append('\n');
     int wasStopped=stopped;send(2,new Bundle());long stopDeadline=SystemClock.elapsedRealtime()+20000;
     while(stopped==wasStopped&&SystemClock.elapsedRealtime()<stopDeadline)SystemClock.sleep(50);
     require(stopped>wasStopped,"sender disconnect completes");engine.stop();SystemClock.sleep(1500);
     require(android.os.Process.myPid()==pid,"receiver survives native callback thread exit");require(!engine.isRunning(),"receiver stopped");
    }
-   result.putString("stream","AIRPLAY_RECEIVER_SESSION_PASSED cycles=2 decoded="+frames+" scope=loopback-generated-media-native-transport-and-decode\n"+ReceiverDiagnostics.report()+"\n");
+   result.putString("stream","AIRPLAY_RECEIVER_SESSION_PASSED cycles=2 decoded="+frames+" scope=loopback-generated-media-native-transport-and-decode\n"+progress+ReceiverDiagnostics.report()+"\n");
    resultCode=Activity.RESULT_OK;
-  }catch(Throwable failure){result.putString("stream","AIRPLAY_RECEIVER_SESSION_FAILED\n"+android.util.Log.getStackTraceString(failure)+"\n"+ReceiverDiagnostics.report());resultCode=Activity.RESULT_CANCELED;}
+  }catch(Throwable failure){result.putString("stream","AIRPLAY_RECEIVER_SESSION_FAILED\n"+android.util.Log.getStackTraceString(failure)+"\n"+progress+ReceiverDiagnostics.report());resultCode=Activity.RESULT_CANCELED;}
   finally{try{if(sender!=null)send(2,new Bundle());}catch(Exception ignored){}if(engine!=null)engine.stop();if(connection!=null)try{runner.getTargetContext().unbindService(connection);}catch(Exception ignored){}if(sink!=null)sink.close();}
   runner.finish(resultCode,result);
  }
- private void send(int what,Bundle data)throws RemoteException{Message message=Message.obtain();message.what=what;message.setData(data);message.replyTo=new Messenger(new Handler(Looper.getMainLooper(),reply->{Bundle b=reply.getData();if("failure".equals(b.getString("event")))senderError=b.getString("failure");if("stopped".equals(b.getString("event")))stopped++;return true;}));sender.send(message);}
+ private void send(int what,Bundle data)throws RemoteException{Message message=Message.obtain();message.what=what;message.setData(data);message.replyTo=new Messenger(new Handler(Looper.getMainLooper(),reply->{Bundle b=reply.getData();if("failure".equals(b.getString("event")))senderError=b.getString("failure");if("stopped".equals(b.getString("event")))stopped++;if("frames".equals(b.getString("event")))sentFrames=b.getInt("frames");return true;}));sender.send(message);}
  private byte[] keyframe()throws Exception{
   byte[] bytes;try(var input=runner.getContext().getAssets().open("gamestream-renderer/red-blue-160x96.h264")){java.io.ByteArrayOutputStream all=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;while((count=input.read(buffer))!=-1)all.write(buffer,0,count);bytes=all.toByteArray();}
   java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();int found=0;

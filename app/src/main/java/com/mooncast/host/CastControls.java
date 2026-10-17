@@ -34,7 +34,7 @@ final class CastControls implements AutoCloseable {
     private final ManualControlState state=new ManualControlState();
     private final Runnable monitor=new Runnable(){public void run(){
         if(closed)return;
-        if(!session.connected()&&recovery!=null)recovery.restore();
+        if(!session.connected()&&recovery!=null)recovery.disconnected();
         if(overlay!=null&&!Settings.canDrawOverlays(service)){removeOverlay();restore(false);}
         main.postDelayed(this,5000);
     }};
@@ -54,7 +54,7 @@ final class CastControls implements AutoCloseable {
         if(ACTION_RESTORE.equals(action)){restore(false);return true;}
         return false;
     }
-    void disconnected(){session.pause(false);state.disconnect();restore(false);draw();updateNotification();}
+    void disconnected(){session.pause(false);state.disconnect();if(recovery!=null)recovery.disconnected();restore(false);draw();updateNotification();}
     private void togglePause(){
         if(!session.connected()){toast(R.string.controls_not_connected);return;}
         boolean wanted=!state.paused;

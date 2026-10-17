@@ -12,7 +12,7 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     private final Shizuku.UserServiceArgs args;
     private final Binder owner=new Binder();
     private volatile IPrivilegedInput service;
-    private boolean closed,binding;
+    private volatile boolean closed,binding;
     private int displayId;
     private final Shizuku.OnBinderReceivedListener binderReceived=this::start;
     private final ServiceConnection connection=new ServiceConnection(){
@@ -38,5 +38,14 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     @Override public void key(int key,boolean release,int flags){try{remote().key(key,release,flags);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void cancel(){if(service!=null)try{service.cancel();}catch(Exception ignored){}}
     boolean restoreOwnedPanel(){IPrivilegedInput owned=service;if(owned==null||!owned.asBinder().isBinderAlive())return false;try{return !owned.displayPower(false);}catch(Exception failure){return false;}}
+    /** Panel-only terminal shutdown; caller must use a worker, never the UI looper. */
+    boolean terminalizePanel(){
+        IPrivilegedInput owned=service;closed=true;Shizuku.removeBinderReceivedListener(binderReceived);
+        boolean quiescent=false;
+        try{if(owned!=null)quiescent=!owned.asBinder().isBinderAlive()||owned.stopCommands();}
+        catch(Exception failure){quiescent=owned!=null&&!owned.asBinder().isBinderAlive();}
+        finally{service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
+        return quiescent;
+    }
     @Override public void close(){if(closed)return;try{if(ready())displayPower(false);}catch(RuntimeException e){log.accept(PhoneMessages.message(R.string.phone_panel_restore_failed , e.getMessage()));}cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
 }

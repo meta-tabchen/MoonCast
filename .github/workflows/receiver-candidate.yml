@@ -1,6 +1,11 @@
 name: Receiver native candidate and real decode
 on:
   workflow_dispatch:
+    inputs:
+      rebuild_native:
+        description: Rebuild native outputs instead of strict unchanged-input artifact reuse
+        type: boolean
+        default: false
   push:
     branches: [codex/mooncast-0.9]
 jobs:
@@ -15,6 +20,7 @@ jobs:
         runtime: [baseline, patched]
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -36,17 +42,28 @@ jobs:
         run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/receiver-base-source.zip"
       - name: Callback thread ownership regression
         run: |
+          python3 scripts/run_receiver_runner_tests.py
           python3 scripts/run_receiver_jni_thread_tests.py
           python3 scripts/run_sunshine_candidate_tests.py
+      - uses: actions/download-artifact@v4
+        if: matrix.runtime == 'patched' && inputs.rebuild_native != true
+        with:
+          name: receiver-patched-candidates-and-provenance
+          path: ${{ runner.temp }}/reused-native
+          run-id: 39035789360
+          github-token: ${{ github.token }}
+      - name: Reuse exact native outputs only when all native inputs match
+        if: matrix.runtime == 'patched' && inputs.rebuild_native != true
+        run: python3 scripts/reuse_native_candidate.py --bundle "$RUNNER_TEMP/reused-native"
       - name: Rebuild all three receiver ABIs from verified source and patches
-        if: matrix.runtime == 'patched'
+        if: matrix.runtime == 'patched' && inputs.rebuild_native == true
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
           export PATH="$ANDROID_HOME/cmake/3.22.1/bin:$PATH"
           python3 scripts/build_airplay_receiver_candidate.py --source "$GITHUB_WORKSPACE" --work "$RUNNER_TEMP/receiver-native"
           python3 scripts/install_receiver_candidate.py --work "$RUNNER_TEMP/receiver-native"
       - name: Rebuild Sunshine device stream title for all ABIs
-        if: matrix.runtime == 'patched'
+        if: matrix.runtime == 'patched' && inputs.rebuild_native == true
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
           export PATH="$ANDROID_HOME/cmake/3.31.1/bin:$PATH"
@@ -91,8 +108,12 @@ jobs:
           export ANDROID_EMULATOR_HOME="$RUNNER_TEMP/receiver-emulator"
           mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" "$RUNNER_TEMP/receiver-evidence"
           echo no | avdmanager create avd --force --name receiver --path "$ANDROID_AVD_HOME/receiver.avd" --package 'system-images;android-30;google_apis;x86_64' --device pixel_2
-          accel=off; if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
-          echo "acceleration=$accel; no permissions or host security settings changed"
+          if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
+            echo "Device execution blocked: /dev/kvm unavailable; known-broken software mode will not be retried. APK artifacts are preserved; no device PASS." | tee "$RUNNER_TEMP/receiver-evidence/device-blocked.txt"
+            exit 1
+          fi
+          accel=on
+          echo "Using already available KVM; no permissions or host security settings changed"
           "$ANDROID_HOME/emulator/emulator" -avd receiver -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel "$accel" > "$RUNNER_TEMP/receiver-evidence/emulator.txt" 2>&1 &
           pid=$!; deadline=$((SECONDS + 900))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -103,7 +124,7 @@ jobs:
           tail -100 "$RUNNER_TEMP/receiver-evidence/emulator.txt"; echo 'Emulator boot timed out, device tests NOT passed' >&2; exit 1
       - name: Real AirPlay native transport, decoded pixels and repeated session survival
         run: |
-          python3 scripts/run_receiver_session_device.py --serial emulator-5554 \
+          python3 scripts/run_receiver_session_device.py --serial emulator-5554 ${{ matrix.runtime == 'patched' && '--gamestream' || '' }} \
             --debug unified/build/outputs/apk/debug/unified-debug.apk \
             --test unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk \
             --output "$RUNNER_TEMP/receiver-evidence/session"
