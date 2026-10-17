@@ -1,0 +1,102 @@
+name: Approved one-time accelerated receiver evidence
+on:
+  push:
+    branches: [codex/mooncast-0.9]
+    paths: [.github/workflows/receiver-kvm-once.yml]
+jobs:
+  existing-apks:
+    # Exactly one authorized job, not a standing permission or automatic retry.
+    if: contains(github.event.head_commit.message, '[approved-kvm-once-20261017]') && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - run: sdkmanager emulator 'system-images;android-30;google_apis;x86_64'
+      - uses: actions/download-artifact@v4
+        with:
+          name: receiver-baseline-emulator-apks
+          path: ${{ runner.temp }}/receiver-apks/baseline
+          run-id: 39035789360
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: receiver-patched-emulator-apks
+          path: ${{ runner.temp }}/receiver-apks/patched
+          run-id: 39035789360
+          github-token: ${{ github.token }}
+      - name: Record exact prebuilt runtime and one-time ACL
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/receiver-evidence"
+          printf 'runtime_commit=ab57723605c8e26fc0575f848f022121d0cbcc1e\nartifact_run=39035789360\n' > "$RUNNER_TEMP/receiver-evidence/provenance.txt"
+          find "$RUNNER_TEMP/receiver-apks" -name '*.apk' -exec sha256sum {} \; >> "$RUNNER_TEMP/receiver-evidence/provenance.txt"
+          test -c /dev/kvm
+          command -v getfacl; command -v setfacl
+          getfacl --absolute-names /dev/kvm > "$RUNNER_TEMP/kvm.acl"
+          cp "$RUNNER_TEMP/kvm.acl" "$RUNNER_TEMP/receiver-evidence/kvm-before.acl"
+          sudo setfacl -m "u:$(id -u):rw" /dev/kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          getfacl --absolute-names /dev/kvm > "$RUNNER_TEMP/receiver-evidence/kvm-during.acl"
+          "$ANDROID_HOME/emulator/emulator" -accel-check | tee "$RUNNER_TEMP/receiver-evidence/acceleration.txt"
+      - name: Start disposable accelerated emulator
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/receiver-avd"
+          export ANDROID_EMULATOR_HOME="$RUNNER_TEMP/receiver-emulator"
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME"
+          echo no | avdmanager create avd --force --name receiver --path "$ANDROID_AVD_HOME/receiver.avd" --package 'system-images;android-30;google_apis;x86_64' --device pixel_2
+          "$ANDROID_HOME/emulator/emulator" -avd receiver -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel on > "$RUNNER_TEMP/receiver-evidence/emulator.txt" 2>&1 &
+          pid=$!; echo "$pid" > "$RUNNER_TEMP/receiver-emulator.pid"
+          deadline=$((SECONDS+420))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$pid" || { cat "$RUNNER_TEMP/receiver-evidence/emulator.txt"; exit 1; }
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            sleep 3
+          done
+          echo 'Accelerated emulator boot timed out; no device pass' >&2; exit 1
+      - name: Compare actual baseline and patched AirPlay sessions
+        shell: bash
+        run: |
+          failed=0
+          for runtime in baseline patched; do
+            # This fresh emulator contains only these generated test identities/media.
+            adb -s emulator-5554 uninstall com.mooncast.community.test || true
+            adb -s emulator-5554 uninstall com.mooncast.community || true
+            debug=$(find "$RUNNER_TEMP/receiver-apks/$runtime" -name unified-debug.apk)
+            test_apk=$(find "$RUNNER_TEMP/receiver-apks/$runtime" -name unified-debug-androidTest.apk)
+            test -f "$debug" && test -f "$test_apk"
+            python3 scripts/run_receiver_session_device.py --serial emulator-5554 --debug "$debug" --test "$test_apk" --output "$RUNNER_TEMP/receiver-evidence/$runtime" || failed=1
+          done
+          exit "$failed"
+      - name: Stop emulator and restore exact original ACL
+        if: always()
+        shell: bash
+        run: |
+          timeout 15s adb -s emulator-5554 emu kill || true
+          if [ -f "$RUNNER_TEMP/receiver-emulator.pid" ]; then
+            pid=$(cat "$RUNNER_TEMP/receiver-emulator.pid")
+            kill "$pid" 2>/dev/null || true
+          fi
+          if [ -f "$RUNNER_TEMP/kvm.acl" ]; then
+            sudo setfacl --restore="$RUNNER_TEMP/kvm.acl"
+            getfacl --absolute-names /dev/kvm > "$RUNNER_TEMP/receiver-evidence/kvm-after.acl"
+            cmp "$RUNNER_TEMP/kvm.acl" "$RUNNER_TEMP/receiver-evidence/kvm-after.acl"
+            echo 'Original /dev/kvm ACL restored and exact comparison passed' | tee "$RUNNER_TEMP/receiver-evidence/acl-restored.txt"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: approved-once-accelerated-receiver-evidence
+          path: ${{ runner.temp }}/receiver-evidence

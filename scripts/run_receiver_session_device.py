@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """Run real generated-media AirPlay loopback against a disposable emulator only."""
 import argparse,pathlib,subprocess,json,time
-p=argparse.ArgumentParser();p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--gamestream',action='store_true');p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
 if not a.serial.startswith('emulator-'):raise SystemExit('This suite is restricted to a disposable emulator, never a personal device')
 a.output.mkdir(parents=True,exist_ok=True)
 def adb(*args,**kwargs):return subprocess.run(['adb','-s',a.serial,*map(str,args)],text=True,capture_output=True,**kwargs)
-passed=False;status={'passed':False,'scope':'disposable emulator loopback, native transport/JNI/MediaCodec/GL pixels/reconnect; no physical TV, LAN discovery, screen capture or audio acceptance'};evidence=[]
+passed=False;status={'passed':False,'scope':'disposable emulator AirPlay native transport/JNI/MediaCodec/GL pixels/reconnect; optional generated-Surface Sunshine encode/transport/MediaCodec outputs and native sessions; no physical TV, LAN discovery, screen capture or audio acceptance','gameStreamRequested':a.gamestream};evidence=[]
 try:
  # boot_completed can briefly precede PackageManager readiness or a system-server restart.
  end=time.monotonic()+180;ready=0
  while time.monotonic()<end:
-  probe=adb('shell','cmd','package','path','android',timeout=15)
-  ready=ready+1 if probe.returncode==0 and 'package:' in probe.stdout else 0
+  try:
+   probe=adb('shell','cmd','package','path','android',timeout=15)
+   ready=ready+1 if probe.returncode==0 and 'package:' in probe.stdout else 0
+  except subprocess.TimeoutExpired:
+   ready=0
   if ready>=3:break
   time.sleep(3)
  if ready<3:raise RuntimeError('Emulator package service did not become stable; no app test executed')
@@ -25,10 +28,18 @@ try:
  result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
  text=result.stdout+result.stderr;evidence.append(text);status['returnCode']=result.returncode
  passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
+ status['airplayReceiverPassed']=passed
+ if a.gamestream:
+  game=adb('shell','am','instrument','-w','-r','-e','suite','gamestream-native','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=600)
+  game_text=game.stdout+game.stderr;evidence.append(game_text)
+  status['gameStreamPassed']=game.returncode==0 and 'GAMESTREAM_NATIVE_SESSION_PASSED' in game_text and 'INSTRUMENTATION_CODE: -1' in game_text and 'INSTRUMENTATION_FAILED' not in game_text
+  passed=passed and status['gameStreamPassed']
 except subprocess.TimeoutExpired as failure:
+ passed=False
  def decoded(value):return value.decode(errors='replace') if isinstance(value,bytes) else value or ''
  evidence.append(decoded(failure.stdout)+decoded(failure.stderr));status['failure']='command-timeout'
 except Exception as failure:
+ passed=False
  status['failure']=str(failure)
 finally:
  status['passed']=passed;(a.output/'instrumentation.txt').write_text('\n'.join(evidence))

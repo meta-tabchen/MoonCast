@@ -6,6 +6,7 @@ on:
 jobs:
   native-and-session:
     name: Receiver ${{ matrix.runtime }} runtime
+    if: "!contains(github.event.head_commit.message, '[approved-kvm-once-20261017]')"
     runs-on: ubuntu-latest
     timeout-minutes: 80
     strategy:
@@ -79,7 +80,9 @@ jobs:
             cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-$abi.apk"
           done
           python3 scripts/package_native_candidate.py --base "$RUNNER_TEMP/receiver-base-source.zip" --output "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-source.zip"
-          cp native/airplay/receiver-candidate-build-record.json native/airplay/prebuilt-manifest.json native/unified-receiver-manifest.json native/sunshine-candidate-build-record.json native/prebuilt-manifest.json "$RUNNER_TEMP/receiver-candidate/"
+          cp native/airplay/receiver-candidate-build-record.json native/unified-receiver-manifest.json native/sunshine-candidate-build-record.json "$RUNNER_TEMP/receiver-candidate/"
+          cp native/airplay/prebuilt-manifest.json "$RUNNER_TEMP/receiver-candidate/receiver-prebuilt-manifest.json"
+          cp native/prebuilt-manifest.json "$RUNNER_TEMP/receiver-candidate/sunshine-prebuilt-manifest.json"
       - name: Start disposable emulator without privilege changes
         timeout-minutes: 17
         shell: bash
