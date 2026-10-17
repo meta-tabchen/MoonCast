@@ -1,0 +1,35 @@
+{
+  "sourceCommit": "fe64db67ab90b5a206f9a5a03815be623d5203bf",
+  "sourceTree": "eeecab070a1291583522c7812986896880f71cc7",
+  "candidateRun": 39057023137,
+  "candidateRunAttempt": 1,
+  "candidateArtifact": 12109719045,
+  "candidateArtifactSha256": "25cac09b8ddd0db7e40aa3a9a57df8cdf53d732b1556c07dd315a2aff93f0ef8",
+  "candidateArtifactBytes": 413328797,
+  "verifiedAssets": {
+    "MoonCast-0.9-arm64-v8a.apk": {
+      "sha256": "5f3a4eb81bd816af6d43cb3af431e74a6df24f47b013b46d3f9569da7571a602",
+      "bytes": 27808563
+    },
+    "MoonCast-0.9-armeabi-v7a.apk": {
+      "sha256": "dba734373c9f0f38712e96a7252eabdf4071a58d01dc96ef40d7950a9d642881",
+      "bytes": 23527801
+    },
+    "MoonCast-0.9-notices.zip": {
+      "sha256": "08ba073c11d0c3a018573074cc1383c054a30502580b0a118ce9bea96ee28505",
+      "bytes": 360318
+    },
+    "MoonCast-0.9-source.zip": {
+      "sha256": "defda2e627eee4bf6fbd8e77985ebcfe960f31200870a37cf502d91f146cca8d",
+      "bytes": 364344317
+    },
+    "RELEASE-PROVENANCE.json": {
+      "sha256": "177ec9e4d17db08cee4953a56d6644b11dba8e8f2bdb6e6905b013fed9ad73ba",
+      "bytes": 4880
+    },
+    "SHA256SUMS": {
+      "sha256": "2e4a2708e4bbdcb791cb057f31e98ba81a4f3892640624d8bfebb341bbb4398c",
+      "bytes": 459
+    }
+  }
+}
