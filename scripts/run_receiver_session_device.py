@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Run real generated-media AirPlay loopback against a disposable emulator only."""
 import argparse,pathlib,subprocess,json,time
-p=argparse.ArgumentParser();p.add_argument('--gamestream',action='store_true');p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--gamestream',action='store_true');p.add_argument('--surface',choices=['reuse','fresh'],default='reuse');p.add_argument('--probe-texture',action='store_true');p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
 if not a.serial.startswith('emulator-'):raise SystemExit('This suite is restricted to a disposable emulator, never a personal device')
 a.output.mkdir(parents=True,exist_ok=True)
 def adb(*args,**kwargs):return subprocess.run(['adb','-s',a.serial,*map(str,args)],text=True,capture_output=True,**kwargs)
-passed=False;status={'passed':False,'scope':'disposable emulator AirPlay native transport/JNI/MediaCodec/GL pixels/reconnect; optional generated-Surface Sunshine encode/transport/MediaCodec outputs and native sessions; no physical TV, LAN discovery, screen capture or audio acceptance','gameStreamRequested':a.gamestream};evidence=[]
+passed=False;status={'passed':False,'scope':'disposable emulator AirPlay native transport/JNI/MediaCodec/GL pixels/reconnect; optional generated-Surface Sunshine encode/transport/MediaCodec outputs and native sessions; no physical TV, LAN discovery, screen capture or audio acceptance','gameStreamRequested':a.gamestream,'surfaceMode':a.surface,'acquireWithoutSignal':a.probe_texture};evidence=[]
 try:
  # boot_completed can briefly precede PackageManager readiness or a system-server restart.
  end=time.monotonic()+180;ready=0
@@ -25,7 +25,7 @@ try:
  load_text=result.stdout+result.stderr;evidence.append(load_text)
  status['nativeLoadPassed']=result.returncode==0 and 'actual Android sender/receiver JNI loads' in load_text and 'INSTRUMENTATION_CODE: -1' in load_text and 'INSTRUMENTATION_FAILED' not in load_text
  if not status['nativeLoadPassed']:raise RuntimeError('Actual sender/receiver library load or isolated process test failed')
- result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
+ result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','-e','surface',a.surface,'-e','acquireWithoutSignal',str(a.probe_texture).lower(),'com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
  text=result.stdout+result.stderr;evidence.append(text);status['returnCode']=result.returncode
  passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
  status['airplayReceiverPassed']=passed

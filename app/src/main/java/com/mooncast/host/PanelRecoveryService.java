@@ -7,6 +7,7 @@ public final class PanelRecoveryService extends Service {
  private final Handler main=new Handler(Looper.getMainLooper());
  private final ExecutorService io=Executors.newSingleThreadExecutor(r->new Thread(r,"PanelRecoveryIO"));
  private final PanelRecoveryState state=new PanelRecoveryState();
+ private PanelRecoveryJournal journal;
  private IBinder owner;private boolean rootMode,started,gesture,restorationAck,confirmationPending,terminalRequested;private volatile boolean closed;
  private volatile int operationGeneration;
  private ShizukuInputBackend shizuku;private RootPanelBackend root;
@@ -27,7 +28,7 @@ public final class PanelRecoveryService extends Service {
   public void ownerStopped(){main.post(PanelRecoveryService.this::ownerStopped);}
  };
  @Override protected void attachBaseContext(Context c){super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(c));}
- @Override public void onCreate(){super.onCreate();windows=getSystemService(WindowManager.class);getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("panel-recovery",getString(R.string.controls_recovery_channel),NotificationManager.IMPORTANCE_LOW));}
+ @Override public void onCreate(){super.onCreate();SharedPreferences prefs=getSharedPreferences("panel-recovery",0);journal=new PanelRecoveryJournal(new PanelRecoveryJournal.Storage(){public boolean read(String key){return prefs.getBoolean(key,false);}public boolean write(String key,boolean value){return prefs.edit().putBoolean(key,value).commit();}});if(journal.blocked())state.blockFurtherOff();windows=getSystemService(WindowManager.class);getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel("panel-recovery",getString(R.string.controls_recovery_channel),NotificationManager.IMPORTANCE_LOW));}
  @Override public IBinder onBind(Intent i){return binder;}
  @Override public int onStartCommand(Intent i,int flags,int id){if(i!=null&&"restore".equals(i.getAction()))restore(false);return START_NOT_STICKY;}
  private void initializeOwner(IBinder token,boolean root){
@@ -36,6 +37,8 @@ public final class PanelRecoveryService extends Service {
   try{token.linkToDeath(()->main.post(this::ownerStopped),0);}catch(RemoteException failure){ownerStopped();}
  }
  private void requestOff(){
+  if(closed)return;
+  if(state.failedRecovery){toast(R.string.controls_recovery_disabled);return;}
   if(!BuildConfig.PHYSICAL_SCREEN_OFF_VALIDATED){toast(R.string.controls_panel_validation_pending);return;}
   if(owner==null||!owner.isBinderAlive()||!Settings.canDrawOverlays(this)){toast(R.string.controls_panel_unavailable);return;}
   if(state.phase!=PanelRecoveryState.Phase.BRIGHT){restore(false);return;}
@@ -48,7 +51,7 @@ public final class PanelRecoveryService extends Service {
   wake=getSystemService(PowerManager.class).newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK,"MoonCast:PanelRecovery");wake.setReferenceCounted(false);wake.acquire(6*60*60*1000L);
   showGuard(false);addLabel(state.test?R.string.controls_test_instructions:R.string.controls_off_countdown);addButton(R.string.controls_cancel_off,()->restore(false));
   main.postDelayed(()->{
-   if(closed||token!=operationGeneration)return;if(guard==null||!Settings.canDrawOverlays(this)){restore(false);return;}if(!state.off(token))return;
+   if(closed||token!=operationGeneration)return;if(guard==null||!Settings.canDrawOverlays(this)){restore(false);return;}if(!journal.arm()){state.blockFurtherOff();toast(R.string.controls_recovery_disabled);restore(false);return;}if(!state.off(token))return;
    // The same guard remains through the entire wake gesture and every failed restoration.
    showGuard(true);main.removeCallbacks(watch);main.postDelayed(watch,5000);
    submitOff(token);
@@ -83,7 +86,8 @@ public final class PanelRecoveryService extends Service {
   main.postDelayed(()->{if(!closed&&!completed[0]&&token==operationGeneration&&state.phase==PanelRecoveryState.Phase.RESTORING){completed[0]=true;state.uncertain(token);showRecovery();}},3000);
  }
  private void acceptRestore(int token){
-  if(!state.restored(token))return;restorationAck=false;removeGuard();finishBright();
+  if(closed)return;
+  if(!state.restored(token))return;if(!state.failedRecovery&&!journal.restored())state.blockFurtherOff();restorationAck=false;removeGuard();finishBright();
   if(!closed&&confirmationPending&&state.owner&&Settings.canDrawOverlays(this)){
    confirmationPending=false;showGuard(false);addLabel(R.string.controls_test_confirm);
    addButton(R.string.controls_test_yes,()->{state.verified=true;removeGuard();toast(R.string.controls_verified);});
@@ -91,13 +95,13 @@ public final class PanelRecoveryService extends Service {
   }
  }
  private void showRecovery(){
-  if(closed)return;confirmationPending=false;restorationAck=false;operationGeneration=state.generation;terminalize();showGuard(false);addLabel(R.string.controls_recovery_required);
+  if(closed)return;state.blockFurtherOff();journal.quarantine();confirmationPending=false;restorationAck=false;operationGeneration=state.generation;terminalize();showGuard(false);addLabel(R.string.controls_recovery_required);
   // Long hold + complete UP is deliberately different from the first blind wake tap.
   Button confirm=addButton(R.string.controls_recovery_visible,()->{});recoveryConfirmation=confirm;updateRecoveryConfirmation();long[] down={0};
   confirm.setOnTouchListener((v,event)->{if(event.getAction()==MotionEvent.ACTION_DOWN){down[0]=SystemClock.elapsedRealtime();return true;}if(event.getAction()==MotionEvent.ACTION_UP){if(state.canVisiblyConfirm()&&down[0]!=0&&SystemClock.elapsedRealtime()-down[0]>=2000&&state.visiblyConfirmed()){operationGeneration=state.generation;removeGuard();finishBright();}down[0]=0;return true;}if(event.getAction()==MotionEvent.ACTION_CANCEL)down[0]=0;return true;});
   notifyState();
  }
- private void ownerStopped(){if(closed||!state.owner)return;state.ownerLost();confirmationPending=false;if(state.phase==PanelRecoveryState.Phase.BRIGHT){removeGuard();finishBright();}else{restore(false);terminalize();}}
+ private void ownerStopped(){if(closed||!state.owner)return;state.ownerLost();confirmationPending=false;if(state.phase==PanelRecoveryState.Phase.BRIGHT){removeGuard();finishBright();}else{restore(false);if(state.phase==PanelRecoveryState.Phase.RECOVERY_REQUIRED)terminalize();}}
  private void updateRecoveryConfirmation(){if(recoveryConfirmation!=null)recoveryConfirmation.setEnabled(!closed&&state.canVisiblyConfirm());}
  private void terminalize(){
   if(terminalRequested)return;terminalRequested=true;int token=operationGeneration;

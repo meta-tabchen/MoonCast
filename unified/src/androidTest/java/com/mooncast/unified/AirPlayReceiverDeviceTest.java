@@ -8,7 +8,7 @@ import com.mooncast.tv.airplay.AirPlayEngine;import com.mooncast.tv.airplay.Rece
 public final class AirPlayReceiverDeviceTest {
  private static final int WIDTH=160,HEIGHT=96;
  private final Instrumentation runner;private final Bundle arguments;
- private volatile Messenger sender;private volatile String senderError;private volatile int stopped,sentFrames;
+ private volatile Messenger sender;private volatile String senderError;private volatile int stopped,sentFrames,sessionToken;private volatile boolean stopping;private volatile String senderStats="";
  private final AtomicInteger recoveries=new AtomicInteger();
  public AirPlayReceiverDeviceTest(Instrumentation runner,Bundle arguments){this.runner=runner;this.arguments=arguments;}
  public void run(){Bundle result=new Bundle();int resultCode=Activity.RESULT_CANCELED;AirPlayEngine engine=null;PixelSink sink=null;ServiceConnection connection=null;StringBuilder progress=new StringBuilder();
@@ -24,26 +24,30 @@ public final class AirPlayReceiverDeviceTest {
    connection=new ServiceConnection(){public void onServiceConnected(ComponentName name,IBinder binder){sender=new Messenger(binder);bound.countDown();}public void onServiceDisconnected(ComponentName name){senderError="sender-process-lost";}};
    require(runner.getTargetContext().bindService(new Intent().setClassName(runner.getTargetContext().getPackageName(),"com.mooncast.host.AirPlayFixtureSender"),connection,Context.BIND_AUTO_CREATE),"sender bind");
    require(bound.await(20,TimeUnit.SECONDS),"sender ready");
-   byte[] fixture=keyframe();long frames=0;
+   long frames=0;
    for(int cycle=0;cycle<2;cycle++){
-    senderError=null;sentFrames=0;recoveries.set(0);
+    sessionToken=cycle+1;stopping=false;senderError=null;senderStats="";sentFrames=0;recoveries.set(0);
     if(cycle>0&&"fresh".equals(arguments.getString("surface","reuse"))){engine.setSurface(null);sink.close();sink=new PixelSink();engine.setSurface(sink.surface);}
-    sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);
-    Bundle data=new Bundle();data.putInt("port",engine.getPort());data.putByteArray("frame",fixture);send(1,data);
-    long until=SystemClock.elapsedRealtime()+45000;boolean pixels=false;
+    long priorTextureTimestamp=sink.texture.getTimestamp();sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);
+    Bundle data=new Bundle();data.putInt("port",engine.getPort());data.putByteArray("frame",keyframe(cycle));send(1,data);
+    long until=SystemClock.elapsedRealtime()+45000,lastSample=0,firstOutputAt=0;boolean pixels=false,probeAttempted=false;ArrayDeque<String> samples=new ArrayDeque<>();
     while(SystemClock.elapsedRealtime()<until){
      if(senderError!=null)throw new AssertionError(senderError);
-     if(sink.available.get()>0){assertPixels(sink.readPixels());pixels=true;}
+     if(sink.available.get()>0){ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
+     if(firstOutputAt==0&&engine.getDecodedFrames()>0)firstOutputAt=SystemClock.elapsedRealtime();
+     if(!probeAttempted&&Boolean.parseBoolean(arguments.getString("acquireWithoutSignal","false"))&&firstOutputAt!=0&&SystemClock.elapsedRealtime()-firstOutputAt>=500){probeAttempted=true;ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
+     long now=SystemClock.elapsedRealtime();if(now-lastSample>=1000){lastSample=now;AirPlayEngine.RuntimeStats sample=engine.getRuntimeStats();String row="cycle="+cycle+" receivedVcl="+sample.receivedVclFrames+" decoded="+sample.decodedFrames+" dropped="+sample.droppedFrames+" surfaceSignals="+sink.available.get()+" textureNs="+sink.texture.getTimestamp()+" priorTextureNs="+priorTextureTimestamp+" pixels="+pixels+" probeRan="+probeAttempted+" sender="+senderStats;android.util.Log.i("MoonCastReceiverFixture",row);samples.addLast(row);if(samples.size()>12)samples.removeFirst();}
      if(pixels&&engine.getDecodedFrames()>=20)break;SystemClock.sleep(50);
     }
-    progress.append("cycle=").append(cycle).append(" surface=").append(arguments.getString("surface","reuse")).append(" sent=").append(sentFrames).append(" decoded=").append(engine.getDecodedFrames()).append(" surfaceSignals=").append(sink.available.get()).append(" pixels=").append(pixels).append(" recoveries=").append(recoveries.get()).append('\n');
-    require(pixels&&engine.getDecodedFrames()>=20,"actual received and decoded frames: "+progress);
+    progress.append("cycle=").append(cycle).append(" surface=").append(arguments.getString("surface","reuse")).append(" sent=").append(sentFrames).append(" decoded=").append(engine.getDecodedFrames()).append(" surfaceSignals=").append(sink.available.get()).append(" pixels=").append(pixels).append(" probeRan=").append(probeAttempted).append(" recoveries=").append(recoveries.get()).append('\n');
+    if(!pixels||engine.getDecodedFrames()<20)progress.append(String.join("\n",samples)).append('\n');
+    require(pixels&&engine.getDecodedFrames()>=20,"actual received and decoded frames");
     AirPlayEngine.RuntimeStats stats=engine.getRuntimeStats();
     require(stats.decodedWidth==WIDTH&&stats.decodedHeight==HEIGHT,"actual SPS dimensions distinct from request");
     long before=engine.getDecodedFrames(),hold=SystemClock.elapsedRealtime()+20000;
-    while(SystemClock.elapsedRealtime()<hold){if(sink.available.get()>0)assertPixels(sink.readPixels());require(senderError==null,"sender alive");require(recoveries.get()==0,"no watchdog recovery during valid static video");SystemClock.sleep(100);}
+    while(SystemClock.elapsedRealtime()<hold){if(sink.available.get()>0)require(expectedPixels(sink.readPixels(),cycle),"current-cycle generated pixels during hold");require(senderError==null,"sender alive");require(recoveries.get()==0,"no watchdog recovery during valid static video");SystemClock.sleep(100);}
     require(engine.getDecodedFrames()>before,"decode continues beyond watchdog interval");frames+=engine.getDecodedFrames();progress.append("static-hold decoded=").append(engine.getDecodedFrames()).append(" recovery=").append(recoveries.get()).append('\n');
-    int wasStopped=stopped;send(2,new Bundle());long stopDeadline=SystemClock.elapsedRealtime()+20000;
+    int wasStopped=stopped;stopping=true;send(2,new Bundle());long stopDeadline=SystemClock.elapsedRealtime()+20000;
     while(stopped==wasStopped&&SystemClock.elapsedRealtime()<stopDeadline)SystemClock.sleep(50);
     require(stopped>wasStopped,"sender disconnect completes");engine.stop();SystemClock.sleep(1500);
     require(android.os.Process.myPid()==pid,"receiver survives native callback thread exit");require(!engine.isRunning(),"receiver stopped");
@@ -51,18 +55,25 @@ public final class AirPlayReceiverDeviceTest {
    result.putString("stream","AIRPLAY_RECEIVER_SESSION_PASSED cycles=2 decoded="+frames+" scope=loopback-generated-media-native-transport-and-decode\n"+progress+ReceiverDiagnostics.report()+"\n");
    resultCode=Activity.RESULT_OK;
   }catch(Throwable failure){result.putString("stream","AIRPLAY_RECEIVER_SESSION_FAILED\n"+android.util.Log.getStackTraceString(failure)+"\n"+progress+ReceiverDiagnostics.report());resultCode=Activity.RESULT_CANCELED;}
-  finally{try{if(sender!=null)send(2,new Bundle());}catch(Exception ignored){}if(engine!=null)engine.stop();if(connection!=null)try{runner.getTargetContext().unbindService(connection);}catch(Exception ignored){}if(sink!=null)sink.close();}
+  finally{stopping=true;try{if(sender!=null)send(2,new Bundle());}catch(Exception ignored){}if(engine!=null)engine.stop();if(connection!=null)try{runner.getTargetContext().unbindService(connection);}catch(Exception ignored){}if(sink!=null)sink.close();}
   runner.finish(resultCode,result);
  }
- private void send(int what,Bundle data)throws RemoteException{Message message=Message.obtain();message.what=what;message.setData(data);message.replyTo=new Messenger(new Handler(Looper.getMainLooper(),reply->{Bundle b=reply.getData();if("failure".equals(b.getString("event")))senderError=b.getString("failure");if("stopped".equals(b.getString("event")))stopped++;if("frames".equals(b.getString("event")))sentFrames=b.getInt("frames");return true;}));sender.send(message);}
- private byte[] keyframe()throws Exception{
-  byte[] bytes;try(var input=runner.getContext().getAssets().open("gamestream-renderer/red-blue-160x96.h264")){java.io.ByteArrayOutputStream all=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;while((count=input.read(buffer))!=-1)all.write(buffer,0,count);bytes=all.toByteArray();}
+ private void send(int what,Bundle data)throws RemoteException{
+  Message message=Message.obtain();message.what=what;data.putInt("token",sessionToken);message.setData(data);
+  message.replyTo=new Messenger(new Handler(Looper.getMainLooper(),reply->{Bundle b=reply.getData();if(b.getInt("token")!=sessionToken)return true;
+   String event=b.getString("event","");if("failure".equals(event))senderError=b.getString("failure");
+   if("disconnected".equals(event)&&!stopping)senderError="unexpected-sender-disconnect";
+   if("stopped".equals(event))stopped++;if("stats".equals(event)){sentFrames=b.getInt("frames");senderStats=b.getString("stats","");}return true;
+  }));sender.send(message);
+ }
+ private byte[] keyframe(int cycle)throws Exception{
+  byte[] bytes;try(var input=runner.getContext().getAssets().open("gamestream-renderer/"+(cycle==0?"red-blue-160x96.h264":"blue-red-160x96.h264.base64"))){java.io.ByteArrayOutputStream all=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[4096];int count;while((count=input.read(buffer))!=-1)all.write(buffer,0,count);bytes=all.toByteArray();}if(cycle!=0)bytes=android.util.Base64.decode(bytes,android.util.Base64.DEFAULT);
   java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();int found=0;
   for(int at=0;at<bytes.length;){int prefix=prefix(bytes,at);require(prefix>0,"Annex-B fixture");int end=at+prefix+1;while(end<bytes.length&&prefix(bytes,end)==0)end++;int type=bytes[at+prefix]&31;if(type==7||type==8||type==5){out.write(bytes,at,end-at);found++;}at=end;}
   require(found==3,"SPS/PPS/IDR");return out.toByteArray();
  }
  private static int prefix(byte[] b,int at){if(at+3<=b.length&&b[at]==0&&b[at+1]==0){if(b[at+2]==1)return 3;if(at+4<=b.length&&b[at+2]==0&&b[at+3]==1)return 4;}return 0;}
- private static void assertPixels(ByteBuffer p){int left=(HEIGHT/2*WIDTH+WIDTH/4)*4,right=(HEIGHT/2*WIDTH+WIDTH*3/4)*4;require((p.get(left)&255)>150&&(p.get(left+1)&255)<90&&(p.get(left+2)&255)<90,"left red decoded pixels");require((p.get(right+2)&255)>150&&(p.get(right)&255)<90&&(p.get(right+1)&255)<90,"right blue decoded pixels");}
+ private static boolean expectedPixels(ByteBuffer p,int cycle){int left=(HEIGHT/2*WIDTH+WIDTH/4)*4,right=(HEIGHT/2*WIDTH+WIDTH*3/4)*4;int red=cycle==0?left:right,blue=cycle==0?right:left;return (p.get(red)&255)>150&&(p.get(red+1)&255)<90&&(p.get(red+2)&255)<90&&(p.get(blue+2)&255)>150&&(p.get(blue)&255)<90&&(p.get(blue+1)&255)<90;}
  private static void require(boolean value,String name){if(!value)throw new AssertionError(name);}
     /** Off-screen EGL consumer: pixels are observed from the actual decoder's Surface. */
     private static final class PixelSink implements AutoCloseable {

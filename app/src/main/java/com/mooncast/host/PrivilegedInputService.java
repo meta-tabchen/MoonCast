@@ -11,7 +11,7 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     private Context context;
     private RootInputInjector input;
     private IBinder owner;
-    private int ownerUid=-1;
+    private volatile int ownerUid=-1;
     private final java.util.concurrent.atomic.AtomicBoolean stopping=new java.util.concurrent.atomic.AtomicBoolean();
     private DisplayPowerLease power;
     private final Handler watchdog=new Handler(Looper.getMainLooper());
@@ -106,6 +106,6 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     }
     /** Terminal flag is set before waiting for an in-flight operation. A true reply
      * acknowledges no queued/current OFF or input producer can act after this point. */
-    @Override public boolean stopCommands(){cleanup();synchronized(this){return true;}}
+    @Override public boolean stopCommands(){if(Binder.getCallingUid()!=ownerUid)throw new SecurityException("Panel owner required");cleanup();synchronized(this){return true;}}
     @Override public void destroy(){cleanup();}
 }

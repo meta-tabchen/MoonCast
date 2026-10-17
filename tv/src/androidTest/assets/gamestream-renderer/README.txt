@@ -14,3 +14,10 @@ ffmpeg -hide_banner -loglevel error -f lavfi \
 
 This fixture is packaged only in the androidTest APK. It does not demonstrate
 GameStream transport, pairing, sender compatibility, or native Opus decoding.
+
+Reconnect fixture blue-red-160x96.h264.base64 was generated in the cloud with
+FFmpeg 7.1.5-0+deb13u1 / libx264, using the command above with blue/red swapped.
+The ASCII asset decodes to 741 bytes; decoded H.264 SHA256:
+cd08af91899e4a141e1f52ad1a3c522cf4109fa90a726403c657d8221bf6c398
+The AirPlay session test changes pattern on reconnect so old queued pictures
+cannot satisfy second-session pixel assertions. This is generated fixture media.

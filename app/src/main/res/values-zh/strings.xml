@@ -234,4 +234,5 @@
     <string name="controls_recovery_channel">恢复手机屏幕</string>
     <string name="controls_recovery_required">尚未确认屏幕恢复。新的熄屏命令已停用，正在关闭辅助进程。只有确认延迟的熄屏命令不会再执行后，按钮才会启用。如果能看清此消息，请按住按钮两秒后松开。本次验证将失效。屏幕仍黑时不要盲点。</string>
     <string name="controls_recovery_visible">我能看清屏幕 · 按住两秒</string>
+    <string name="controls_recovery_disabled">恢复状态曾不确定，已停用物理熄屏。重新启用前需要完成设备验证。投屏、暂停和停止仍可使用。</string>
 </resources>
