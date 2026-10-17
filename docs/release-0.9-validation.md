@@ -32,3 +32,16 @@ The public fixture provides upgrade continuity, not publisher authentication.
 Only APKs whose bundled native bytes match their associated rebuilt manifests may be called native-patched candidates. A plain unified build that consumes old pinned binaries is insufficient. Candidate source archives must identify the base Git commit and each generated native override; no source-only fix is presented as shipped.
 
 - Diagnostic-only fixture options now separate reused/fresh decoder Surfaces and an explicitly requested no-callback texture-acquisition probe. Per-session sender transport diagnostics, received VCL, decoder outputs/drops, texture timestamps and pixels localize failures; send-call counts are not claimed as transmitted frames.
+
+## Physical panel enablement matrix (not yet executed)
+
+Keep `PHYSICAL_SCREEN_OFF_VALIDATED=false` until each explicitly supported phone/Android/OEM and Root/Shizuku backend is validated separately, with Douyin foreground and each actual cast protocol. Record exact APK hash, device/OS/backend, observed panel/touch behavior and failures.
+
+1. Start/reconnect remains lit; countdown cancels; first-use 15-second recovery and deliberate confirmation work; sustained manual OFF spans multiple 30-second helper leases; manual restoration stays lit.
+2. First DOWN through final UP/CANCEL, held/multi-touch and hardware-power interactions never accidentally reach the underlying application. No claim that power-key/double-tap works before observation.
+3. Disconnect/Stop and kills of `:host`, `:panel` and privilege helper during countdown/OFF/ON, overlay/privilege revocation and Shizuku server stop: observe actual restoration, prompt media/input release and bounded helper cleanup.
+4. Inject OFF/ON exceptions, hangs, delayed replies and silent vendor failure. Visible recovery dismissal stays disabled until command quiescence; no delayed OFF acts afterward. A permanently dark or blocked phone makes that configuration unsupported.
+5. Failed armed/clear/quarantine persistence plus process restart preserve refusal/quarantine. Visible confirmation cannot start a replacement helper while an old recovery owner is still active.
+6. Whole-screen and app capture do not introduce secure-window black masks or unintended private content. Pause/resume genuinely freezes/silences, then resumes current frames/audio without replaying buffered audio.
+
+A vendor API return or emulator result is not optical-restoration evidence. Passing the portable state/journal tests does not satisfy this matrix.

@@ -42,12 +42,12 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         public final int requestedWidth, requestedHeight, requestedFps, decodedWidth, decodedHeight;
         public final String codec, decoderName, decoderImplementation, peerDescription;
         public final float observedFps;
-        public final long decodedFrames, droppedFrames, receivedVclFrames;
+        public final long decodedFrames, droppedFrames, receivedVclCallbacks;
         public final int controlConnections, watchdogSeconds, configuredAudioBufferMs;
         public final boolean pinRequired, audioActive;
         public final NativeAudioStats audio;
         private RuntimeStats(AirPlayEngine engine) {
-            receivedVclFrames=engine.diagnosticPackets;
+            receivedVclCallbacks=engine.diagnosticPackets;
             state = engine.sessionState; playbackMode = engine.playbackMode;
             requestedWidth = engine.requestedWidth; requestedHeight = engine.requestedHeight;
             requestedFps = engine.requestedFps;

@@ -4,25 +4,30 @@ import android.app.Service;import android.content.Intent;import android.os.*;
 import airplaylib.*;import java.io.File;import org.json.JSONObject;
 /** Debug-only generated-media sender in :stream. No capture grant or user media. */
 public final class AirPlayFixtureSender extends Service {
-    private volatile Session active;private volatile Thread worker;private volatile boolean stopRequested;
-    private volatile int sessionToken;
+    private static final class Run {final int token;volatile Session session;volatile Thread worker;volatile boolean stopping;volatile String cleanupFailure;Run(int token){this.token=token;}}
+    private volatile Run current;
     private final Messenger binder=new Messenger(new Handler(Looper.getMainLooper(),message->{
         Messenger reply=message.replyTo;Bundle input=message.getData();int token=input.getInt("token");
         if(message.what==2){
-            if(token!=sessionToken)return true;stopRequested=true;
+            final Run run=current;if(run==null||token!=run.token)return true;run.stopping=true;
+            // Capture exact ownership before scheduling; a late STOP cannot clear a newer run.
+            final Thread sending=run.worker;
             new Thread(()->{
-                try{Session old=active;if(old!=null)old.disconnect();Thread sending=worker;if(sending!=null)sending.join(5000);
-                    if(sending!=null&&sending.isAlive())throw new IllegalStateException("sender-loop-exit-timeout");active=null;worker=null;reply(reply,token,"stopped",null);
-                }catch(Throwable failure){reply(reply,token,"failure",failure.getClass().getSimpleName());}
+                try{Session session=run.session;if(session!=null)session.disconnect();if(sending!=null)sending.join(5000);
+                    if(sending!=null&&sending.isAlive())throw new IllegalStateException("sender-loop-exit-timeout");
+                    if(run.cleanupFailure!=null)throw new IllegalStateException(run.cleanupFailure);
+                    if(current==run)current=null;reply(reply,token,"stopped",null);
+                }catch(Throwable failure){run.cleanupFailure="disconnect-failed";reply(reply,token,"failure",failure.getClass().getSimpleName());}
             },"FixtureStop").start();
         }else if(message.what==1){
-            if(worker!=null&&worker.isAlive()){reply(reply,token,"failure","previous-sender-loop-still-alive");return true;}
-            sessionToken=token;stopRequested=false;worker=new Thread(()->start(input,reply,token),"FixtureStart");worker.start();
+            Run old=current;if(old!=null){reply(reply,token,"failure","previous-sender-not-retired");return true;}
+            Run run=new Run(token);current=run;run.worker=new Thread(()->start(input,reply,run),"FixtureStart");run.worker.start();
         }
         return true;
     }));
     @Override public IBinder onBind(Intent intent){return binder.getBinder();}
-    private void start(Bundle input,Messenger reply,int token){
+    private void start(Bundle input,Messenger reply,Run run){
+        Session owned=null;int token=run.token;
         try{
             byte[] frame=input.getByteArray("frame");if(frame==null||frame.length>65536)throw new IllegalArgumentException("fixture");
             Airplaylib.setAirPlay1Mode(false);
@@ -35,19 +40,20 @@ public final class AirPlayFixtureSender extends Service {
                 public void onError(String reason){reply(reply,token,"failure","handshake-or-transport");}
                 public void onLog(String value){}
             });
-            active=created;created.setAudioEnabled(false);created.setClockReference(System.nanoTime()/1000);
+            owned=created;run.session=created;if(run.stopping)return;created.setAudioEnabled(false);created.setClockReference(System.nanoTime()/1000);
             created.connect("127.0.0.1",input.getInt("port"),"",640,360,30);
             long deadline=SystemClock.elapsedRealtime()+25000;
-            while(!stopRequested&&!created.isConnected()&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(50);
-            if(stopRequested)return;if(!created.isConnected())throw new IllegalStateException("handshake-timeout");
+            while(!run.stopping&&!created.isConnected()&&SystemClock.elapsedRealtime()<deadline)SystemClock.sleep(50);
+            if(run.stopping)return;if(!created.isConnected())throw new IllegalStateException("handshake-timeout");
             int attempts=0;
-            while(!stopRequested&&active==created&&token==sessionToken){
+            while(!run.stopping&&current==run){
                 if(!created.isConnected()){statistics(reply,token,created,attempts);throw new IllegalStateException("transport-disconnected");}
                 created.sendFrameAt(frame,true,System.nanoTime()/1000);attempts++;
                 if(attempts%10==0)statistics(reply,token,created,attempts);
                 SystemClock.sleep(100);
             }
-        }catch(Throwable failure){if(!stopRequested)reply(reply,token,"failure",failure.getClass().getSimpleName());}
+        }catch(Throwable failure){if(!run.stopping)reply(reply,token,"failure",failure.getClass().getSimpleName());}
+        finally{if(owned!=null){try{owned.disconnect();run.session=null;}catch(Throwable failure){run.cleanupFailure="disconnect-failed";reply(reply,token,"failure",run.cleanupFailure);}}}
     }
     private static void statistics(Messenger reply,int token,Session session,int attempts)throws Exception{
         JSONObject raw=new JSONObject(session.diagnostics());JSONObject last=raw.optJSONObject("last");if(last!=null)raw=last;
@@ -58,5 +64,5 @@ public final class AirPlayFixtureSender extends Service {
         Message m=Message.obtain();Bundle b=new Bundle();b.putString("event","stats");b.putInt("token",token);b.putInt("frames",attempts);b.putString("stats",safe.toString());m.setData(b);if(reply!=null)reply.send(m);
     }
     private static void reply(Messenger target,int token,String event,String failure){if(target==null)return;try{Message m=Message.obtain();Bundle b=new Bundle();b.putInt("token",token);b.putString("event",event);b.putString("failure",failure);m.setData(b);target.send(m);}catch(RemoteException ignored){}}
-    @Override public void onDestroy(){stopRequested=true;Session old=active;active=null;if(old!=null)new Thread(old::disconnect,"FixtureDestroy").start();super.onDestroy();}
+    @Override public void onDestroy(){Run run=current;if(run!=null){run.stopping=true;Session session=run.session;if(session!=null)new Thread(session::disconnect,"FixtureDestroy").start();}super.onDestroy();}
 }

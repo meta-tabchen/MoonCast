@@ -88,7 +88,8 @@ public final class PanelRecoveryService extends Service {
  private void acceptRestore(int token){
   if(closed)return;
   if(!state.restored(token))return;if(!state.failedRecovery&&!journal.restored())state.blockFurtherOff();restorationAck=false;removeGuard();finishBright();
-  if(!closed&&confirmationPending&&state.owner&&Settings.canDrawOverlays(this)){
+  if(state.failedRecovery){confirmationPending=false;toast(R.string.controls_recovery_disabled);}
+  if(!closed&&!state.failedRecovery&&confirmationPending&&state.owner&&Settings.canDrawOverlays(this)){
    confirmationPending=false;showGuard(false);addLabel(R.string.controls_test_confirm);
    addButton(R.string.controls_test_yes,()->{state.verified=true;removeGuard();toast(R.string.controls_verified);});
    addButton(android.R.string.cancel,()->{state.verified=false;removeGuard();});
