@@ -1,4 +1,5 @@
 package com.mooncast.tv;
+import com.mooncast.tv.airplay.ReceiverDiagnostics;
 
 import android.app.Activity;
 import android.app.AlertDialog;

@@ -23,7 +23,8 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
         }
         public void onServiceDisconnected(ComponentName name){service=null;log.accept(PhoneMessages.message(R.string.phone_shizuku_disconnected));}
     };
-    ShizukuInputBackend(Context c,Consumer<String> log){this.log=log;args=new Shizuku.UserServiceArgs(new ComponentName(c.getPackageName(),PrivilegedInputService.class.getName())).daemon(false).tag("mooncast-host").processNameSuffix("privileged").debuggable(false).version(BuildConfig.VERSION_CODE);Shizuku.addBinderReceivedListenerSticky(binderReceived);}
+    ShizukuInputBackend(Context c,Consumer<String> log){this(c,log,"mooncast-host");}
+    ShizukuInputBackend(Context c,Consumer<String> log,String tag){this.log=log;args=new Shizuku.UserServiceArgs(new ComponentName(c.getPackageName(),PrivilegedInputService.class.getName())).daemon(false).tag(tag).processNameSuffix(tag.equals("mooncast-panel")?"panel-power":"privileged").debuggable(false).version(BuildConfig.VERSION_CODE);Shizuku.addBinderReceivedListenerSticky(binderReceived);}
     static boolean authorized(){try{return Shizuku.pingBinder() && !Shizuku.isPreV11() && Shizuku.checkSelfPermission()==PackageManager.PERMISSION_GRANTED;}catch(RuntimeException e){return false;}}
     void start(){if(closed || binding)return;if(!authorized()){log.accept(PhoneMessages.message(R.string.phone_shizuku_authorize));return;}binding=true;try{Shizuku.bindUserService(args,connection);}catch(RuntimeException e){binding=false;log.accept(PhoneMessages.message(R.string.phone_shizuku_bind_failed , e.getMessage()));}}
     @Override public boolean ready(){return !closed && authorized() && service!=null && service.asBinder().isBinderAlive();}
@@ -36,5 +37,6 @@ final class ShizukuInputBackend implements RemoteInputController.Backend {
     @Override public void touch(int type,int id,float x,float y,float pressure){try{remote().touch(type,id,x,y,pressure);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void key(int key,boolean release,int flags){try{remote().key(key,release,flags);}catch(RemoteException e){throw new IllegalStateException(e);}}
     @Override public void cancel(){if(service!=null)try{service.cancel();}catch(Exception ignored){}}
+    boolean restoreOwnedPanel(){IPrivilegedInput owned=service;if(owned==null||!owned.asBinder().isBinderAlive())return false;try{return !owned.displayPower(false);}catch(Exception failure){return false;}}
     @Override public void close(){if(closed)return;try{if(ready())displayPower(false);}catch(RuntimeException e){log.accept(PhoneMessages.message(R.string.phone_panel_restore_failed , e.getMessage()));}cancel();closed=true;Shizuku.removeBinderReceivedListener(binderReceived);try{if(service!=null)service.releaseDisplays();}catch(Exception ignored){}service=null;if(binding)try{Shizuku.unbindUserService(args,connection,true);}catch(RuntimeException ignored){}binding=false;}
 }

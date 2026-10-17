@@ -170,11 +170,7 @@ public class HostService extends Service implements SunshineServer.Listener {
                     castPaused=value;return true;
                 }
                 public void stop(){stopHost();}
-            },new CastControls.Panel(){
-                public boolean ready(){return root!=null?root.ready():shizukuInput!=null&&shizukuInput.ready();}
-                public void off(){if(root!=null)root.panelOff();else if(shizukuInput!=null)shizukuInput.displayPower(true);else throw new IllegalStateException("No panel backend");}
-                public boolean restore(){panelWanted=false;main.removeCallbacks(panelHeartbeat);if(root!=null)return root.panelPower(false);return shizukuInput!=null&&shizukuInput.ready()&&!shizukuInput.displayPower(false);}
-            });
+            },rootCapture);
             log(isRoot ? getString(R.string.ui_starting_root_host) : getString(R.string.ui_starting_screen_capture_host));
             if (!isRoot && captureSource!=2) {
                 stage("projection");

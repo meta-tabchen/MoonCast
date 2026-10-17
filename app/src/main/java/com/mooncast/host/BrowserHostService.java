@@ -91,7 +91,7 @@ public final class BrowserHostService extends Service {
                 public boolean connected(){return !stopping&&connected&&rtc!=null;}
                 public boolean pause(boolean value){if(rtc==null||value&&!connected())return false;rtc.pause(value);castPaused=value;return true;}
                 public void stop(){stopSender();}
-            },null);
+            },false);
             state = getString(R.string.browser_service_preparing);
             detail = getString(R.string.browser_service_lan_hint);
             publish();

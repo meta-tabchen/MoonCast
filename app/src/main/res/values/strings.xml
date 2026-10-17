@@ -231,4 +231,7 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="ui_airplay_permission_hint" formatted="false">"Follow the Android prompt to continue. You can cancel this request at any time."</string>
     <string name="ui_airplay_permission_denied" formatted="false">"Screen sharing cancelled"</string>
     <string name="ui_airplay_permission_retry" formatted="false">"Nothing is being shared. Try again when you’re ready."</string>
+    <string name="controls_recovery_channel">Screen restoration</string>
+    <string name="controls_recovery_required">Screen restoration is unconfirmed. Automatic attempts have stopped; the independent helper is still trying. If you can see this message, hold the button below for two seconds and release. This disables screen-off verification. Do not guess where to tap while the screen is dark.</string>
+    <string name="controls_recovery_visible">I can see this screen · hold 2 seconds</string>
 </resources>

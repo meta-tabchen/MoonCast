@@ -3,18 +3,6 @@ on:
   workflow_dispatch:
   push:
     branches: [codex/mooncast-0.9]
-    paths:
-      - '.github/workflows/receiver-candidate.yml'
-      - 'native/airplay/bridge-patches/**'
-      - 'scripts/build_airplay_receiver_candidate.py'
-      - 'scripts/install_receiver_candidate.py'
-      - 'scripts/run_receiver*'
-      - 'scripts/build_sunshine_candidate.py'
-      - 'scripts/run_sunshine_candidate_tests.py'
-      - 'native/sunshine/**'
-      - 'unified/src/androidTest/**'
-      - 'phone-ui/src/debug/**'
-      - 'tv/src/main/java/com/mooncast/tv/airplay/**'
 jobs:
   native-and-session:
     name: Receiver ${{ matrix.runtime }} runtime

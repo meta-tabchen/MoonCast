@@ -12,13 +12,15 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
     private RootInputInjector input;
     private IBinder owner;
     private int ownerUid=-1;
+    private final java.util.concurrent.atomic.AtomicBoolean stopping=new java.util.concurrent.atomic.AtomicBoolean();
     private DisplayPowerLease power;
     private final Handler watchdog=new Handler(Looper.getMainLooper());
-    private final Runnable powerWatch=new Runnable(){public void run(){synchronized(PrivilegedInputService.this){try{if(power!=null)power.tick(SystemClock.elapsedRealtime());}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restoration will retry",e);}if(owner!=null)watchdog.postDelayed(this,1000);}}};
+    private final Runnable powerWatch=new Runnable(){public void run(){synchronized(PrivilegedInputService.this){try{if(power!=null)power.tick(SystemClock.elapsedRealtime());}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restoration will retry",e);}if(owner!=null&&!stopping.get())watchdog.postDelayed(this,1000);}}};
     private final Map<Integer,VirtualDisplay> displays=new HashMap<>();
     public PrivilegedInputService(){}
     public PrivilegedInputService(Context context){this.context=context;}
     @Override public synchronized void initialize(IBinder token){
+        if(stopping.get())throw new IllegalStateException("Service is restoring and closing");
         int calling=Binder.getCallingUid();
         if(owner!=null && (ownerUid!=calling || owner!=token))throw new SecurityException(PhoneMessages.message(R.string.phone_privileged_owned));
         if(token==null)throw new IllegalArgumentException("owner");
@@ -27,10 +29,10 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
             // Shell has the display permissions and an attribution package on stock Android.
             if(uid==0)android.system.Os.setuid(2000);
             if(input==null)input=new RootInputInjector(true);
-            if(owner==null){owner=token;ownerUid=calling;token.linkToDeath(()->{cleanup();System.exit(0);},0);watchdog.post(powerWatch);}
+            if(owner==null){owner=token;ownerUid=calling;token.linkToDeath(this::cleanup,0);watchdog.post(powerWatch);}
         }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_privileged_init_failed),e);}
     }
-    private void checkOwner(){if(owner==null || !owner.isBinderAlive() || Binder.getCallingUid()!=ownerUid)throw new SecurityException(PhoneMessages.message(R.string.phone_privileged_owner_rejected));}
+    private void checkOwner(){if(stopping.get() || owner==null || !owner.isBinderAlive() || Binder.getCallingUid()!=ownerUid)throw new SecurityException(PhoneMessages.message(R.string.phone_privileged_owner_rejected));}
     @Override public synchronized int uid(){checkOwner();return android.os.Process.myUid();}
     @Override public synchronized void touch(int type,int id,float x,float y,float pressure){checkOwner();input.touch(type,id,x,y,pressure);}
     @Override public synchronized void key(int code,boolean release,int flags){checkOwner();input.key(code,release,flags);}
@@ -83,6 +85,24 @@ public final class PrivilegedInputService extends IPrivilegedInput.Stub {
         }catch(Exception e){throw new IllegalStateException(PhoneMessages.message(R.string.phone_app_launch_failed, e.getMessage()),e);}
         finally{Binder.restoreCallingIdentity(identity);}
     }
-    private synchronized void cleanup(){watchdog.removeCallbacks(powerWatch);if(power!=null)for(int i=0;i<3 && power.pending();i++)try{power.restore();}catch(Exception e){android.util.Log.e("MoonCastPrivileged","Panel restore failed",e);SystemClock.sleep(100);}if(input!=null)try{input.cancel();}catch(RuntimeException ignored){}for(VirtualDisplay d:displays.values())try{d.release();}catch(RuntimeException ignored){}displays.clear();}
-    @Override public void destroy(){cleanup();System.exit(0);}
+    private void cleanup(){
+        if(!stopping.compareAndSet(false,true))return;
+        // Terminal first: no queued Binder call can off/renew/input/launch again.
+        watchdog.removeCallbacks(powerWatch);
+        new Thread(()->{
+            synchronized(PrivilegedInputService.this){
+                if(input!=null)try{input.cancel();}catch(RuntimeException ignored){}
+                for(VirtualDisplay d:displays.values())try{d.release();}catch(RuntimeException ignored){}
+                displays.clear();owner=null;
+            }
+            long deadline=SystemClock.elapsedRealtime()+60000;
+            while(power!=null&&power.pending()&&SystemClock.elapsedRealtime()<deadline){
+                try{power.restore();}catch(Exception failure){android.util.Log.e("MoonCastPrivileged","Restore-only retry failed",failure);}
+                if(power.pending())SystemClock.sleep(1000);
+            }
+            // A persistent driver failure is a validation failure, never claimed as restored.
+            System.exit(power!=null&&power.pending()?2:0);
+        },"PanelRestoreOnly").start();
+    }
+    @Override public void destroy(){cleanup();}
 }

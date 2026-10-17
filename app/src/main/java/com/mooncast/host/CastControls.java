@@ -20,40 +20,28 @@ final class CastControls implements AutoCloseable {
         boolean pause(boolean value);
         void stop();
     }
-    interface Panel {
-        boolean ready();
-        void off();
-        boolean restore();
-    }
     private final Service service;
     private final Session session;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final WindowManager windows;
     private final String channel;
     private final int notificationId;
-    private final Panel panel;
-    private ShizukuInputBackend privileged;
+    private final PanelRecoveryClient recovery;
     private PowerManager.WakeLock bright;
     private LinearLayout overlay;
-    private View wakeGuard;
     private WindowManager.LayoutParams position;
     private boolean expanded,closed,resourcesReleased;
     private final ManualControlState state=new ManualControlState();
-    private final Runnable restoreRetry=()->restore(false);
     private final Runnable monitor=new Runnable(){public void run(){
         if(closed)return;
-        if((!state.bright())&&(!session.connected()||!Settings.canDrawOverlays(service)))restore(false);
-        if(state.renewing())try{panel.off();}catch(RuntimeException failure){restore(false);toast(R.string.controls_panel_unavailable);}
+        if(!session.connected()&&recovery!=null)recovery.restore();
         if(overlay!=null&&!Settings.canDrawOverlays(service)){removeOverlay();restore(false);}
         main.postDelayed(this,5000);
     }};
-    CastControls(Service service,String channel,int notificationId,Session session,Panel externalPanel){
+    CastControls(Service service,String channel,int notificationId,Session session,boolean root){
         this.service=service;this.channel=channel;this.notificationId=notificationId;this.session=session;
         windows=service.getSystemService(WindowManager.class);
-        if(externalPanel==null){
-            if(ShizukuInputBackend.authorized()){privileged=new ShizukuInputBackend(service,s->{});privileged.start();}
-            panel=new Panel(){public boolean ready(){return privileged!=null&&privileged.ready();}public void off(){privileged.displayPower(true);}public boolean restore(){return privileged!=null&&privileged.ready()&&!privileged.displayPower(false);}};
-        }else panel=externalPanel;
+        recovery=BuildConfig.PHYSICAL_SCREEN_OFF_VALIDATED?new PanelRecoveryClient(service,root):null;
         bright=service.getSystemService(PowerManager.class).newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK,"MoonCast:ManualBright");
         bright.setReferenceCounted(false);bright.acquire(6*60*60*1000L);
         if(service.getSharedPreferences("cast-controls",0).getBoolean("overlay",false)&&Settings.canDrawOverlays(service))showOverlay();
@@ -76,55 +64,11 @@ final class CastControls implements AutoCloseable {
     private void requestOff(){
         if(closed)return;
         if(!BuildConfig.PHYSICAL_SCREEN_OFF_VALIDATED){toast(R.string.controls_panel_validation_pending);return;}
-        if(!state.bright()){restore(false);return;}
         if(!session.connected()||state.paused){toast(R.string.controls_not_connected);return;}
-        if(!Settings.canDrawOverlays(service)||!panel.ready()){toast(R.string.controls_panel_unavailable);return;}
-        if(overlay==null)showOverlay();
-        if(!state.request(session.connected(),Settings.canDrawOverlays(service),panel.ready()))return;
-        expanded=false;int token=state.generation;draw();
-        toast(state.testAttempt()?R.string.controls_test_instructions:R.string.controls_off_countdown);
-        updateNotification();
-        main.postDelayed(()->{
-            if(closed||token!=state.generation||!state.pending()||!session.connected())return;
-            try{
-                // A transparent, touchable guard consumes the wake touch, never forwarding it to another app.
-                wakeGuard=new View(service);wakeGuard.setBackgroundColor(Color.TRANSPARENT);
-                wakeGuard.setOnTouchListener((v,event)->{if(event.getAction()==MotionEvent.ACTION_DOWN){restore(true);}return true;});
-                WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);
-                windows.addView(wakeGuard,p);removeOverlay();panel.off();state.powerOff(token);
-                updateNotification();
-                if(state.testing())main.postDelayed(()->{if(token==state.generation&&state.dark()){restore(false);toast(R.string.controls_test_timeout);}},15000);
-            }catch(RuntimeException failure){restore(false);toast(R.string.controls_panel_unavailable);}
-        },3000);
+        if(!Settings.canDrawOverlays(service)){toast(R.string.controls_panel_unavailable);return;}
+        expanded=false;draw();if(recovery!=null)recovery.requestOff();
     }
-    private void restore(boolean fromTouch){
-        if(Looper.myLooper()!=Looper.getMainLooper()){main.post(()->restore(fromTouch));return;}
-        state.beginRestore(wakeGuard!=null,fromTouch);
-        main.removeCallbacks(restoreRetry);
-        if(state.restoring()){
-            boolean restored=false;try{restored=panel.restore();}catch(RuntimeException ignored){}
-            if(!restored){
-                // Retain the touch guard until restoration is acknowledged. No new off/renewal.
-                if(!closed)toast(R.string.controls_restore_retry);
-                main.postDelayed(restoreRetry,1000);return;
-            }
-        }
-        boolean wasTest=state.restored();
-        if(wakeGuard!=null){try{windows.removeView(wakeGuard);}catch(RuntimeException ignored){}wakeGuard=null;}
-        if(!closed&&service.getSharedPreferences("cast-controls",0).getBoolean("overlay",false)&&Settings.canDrawOverlays(service))showOverlay();
-        if(wasTest&&!closed&&Settings.canDrawOverlays(service)){
-            showOverlay();
-            expanded=true;draw();
-            // The user can only confirm after actually seeing the restored phone display.
-            if(overlay==null){state.confirm(false);updateNotification();return;}
-            overlay.removeAllViews();label(R.string.controls_test_confirm);
-            button(R.string.controls_test_yes,()->{state.confirm(true);expanded=false;draw();toast(R.string.controls_verified);});
-            button(android.R.string.cancel,()->{state.confirm(false);expanded=false;draw();});
-        }else draw();
-        updateNotification();
-        if(closed)releaseResources();
-    }
+    private void restore(boolean ignored){if(recovery!=null)recovery.restore();}
     private void showOverlay(){
         if(closed||overlay!=null||!Settings.canDrawOverlays(service))return;
         overlay=new LinearLayout(service);overlay.setOrientation(LinearLayout.VERTICAL);overlay.setPadding(dp(6),dp(6),dp(6),dp(6));
@@ -164,6 +108,6 @@ final class CastControls implements AutoCloseable {
         service.getSystemService(NotificationManager.class).notify(notificationId,builder.build());
     }
     private void removeOverlay(){if(overlay!=null){try{windows.removeView(overlay);}catch(RuntimeException ignored){}overlay=null;}}
-    @Override public void close(){if(closed)return;closed=true;main.removeCallbacksAndMessages(null);removeOverlay();restore(false);}
-    private void releaseResources(){if(resourcesReleased)return;resourcesReleased=true;if(privileged!=null)privileged.close();if(bright!=null&&bright.isHeld())bright.release();}
+    @Override public void close(){if(closed)return;closed=true;main.removeCallbacksAndMessages(null);removeOverlay();if(recovery!=null)recovery.close();releaseResources();}
+    private void releaseResources(){if(resourcesReleased)return;resourcesReleased=true;if(bright!=null&&bright.isHeld())bright.release();}
 }

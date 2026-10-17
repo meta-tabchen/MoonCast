@@ -27,5 +27,5 @@
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/control_accessibility" />
         </service>
-    <service android:name="com.mooncast.host.RoleCleanupService" android:process=":host" android:exported="false"/><service android:name="com.mooncast.host.FileRoleCleanupService" android:process=":files" android:exported="false"/></application>
+    <service android:name="com.mooncast.host.RoleCleanupService" android:process=":host" android:exported="false"/><service android:name="com.mooncast.host.FileRoleCleanupService" android:process=":files" android:exported="false"/><service android:name="com.mooncast.host.PanelRecoveryService" android:process=":panel" android:exported="false" android:foregroundServiceType="connectedDevice" /></application>
 </manifest>

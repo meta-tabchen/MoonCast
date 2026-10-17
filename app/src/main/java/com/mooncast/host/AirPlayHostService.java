@@ -114,7 +114,7 @@ public final class AirPlayHostService extends Service {
                 public boolean connected(){return !stopping&&connected&&video!=null;}
                 public boolean pause(boolean value){if(!connected())return false;video.pause(value);castPaused=value;return true;}
                 public void stop(){stopSender();}
-            },null);
+            },false);
             // The upstream bare legacy path sends empty SETUP /video and skips
             // /info, pairing and FairPlay. Real AirPlay mirrors require negotiated
             // session/stream plists. The saved compatibility option now limits

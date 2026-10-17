@@ -35,5 +35,5 @@
             <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
             <meta-data android:name="android.accessibilityservice" android:resource="@xml/control_accessibility" />
         </service>
-    </application>
+    <service android:name="com.mooncast.host.PanelRecoveryService" android:process=":panel" android:exported="false" android:foregroundServiceType="connectedDevice" /></application>
 </manifest>
