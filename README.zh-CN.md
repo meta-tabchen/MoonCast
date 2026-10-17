@@ -3,20 +3,24 @@
 <p align="center"><sub>模型生成品牌概念图，非设备截图或实际互通测试。</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7"><img src="https://img.shields.io/badge/download-0.7-547BEB" alt="Current download: 0.7"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8"><img src="https://img.shields.io/badge/download-0.8-547BEB" alt="Current download: 0.8"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> · <b>简体中文</b></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7">下载 APK</a> · <a href="docs/browser-receiver.md">浏览器上手</a> · <a href="docs/unified-guide.md">电视指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8">下载 APK</a> · <a href="docs/browser-receiver.md">浏览器上手</a> · <a href="docs/unified-guide.md">电视指南</a> · <a href="docs/cropping.zh-CN.md">裁剪算法</a> · <a href="docs/unified-build.md">构建</a> · <a href="CONTRIBUTING.md">参与贡献</a></p>
 
 # MoonCast · 从手机到大屏，也到浏览器
 
 **安卓画面可以送到浏览器、AirPlay 接收端或 Moonlight 客户端；另一台安卓设备也能成为电视接收端。一个应用，多种连接方式，按场景选择画面呈现。**
 
 视频本身可能已经被黑边包在手机画面里。把整张手机画面等比放进电视，又会增加一层留白。MoonCast 帮你利用这部分空间：检测稳定黑边、按比例显示有效画面，并在自动判断不确定时提供手动调整。
+
+## 当前版本与下一版候选
+
+当前公开下载为 **0.8 / code65**，完整源码 ZIP 已提供。[0.8 验证记录](docs/release-0.8-validation.md)保留历史失败与真机验证范围。**0.9 / code66 仍是开发候选，尚未发布。**[候选改动与验证边界](docs/release-0.9-validation.md)。
 
 ## 0.7：启动问题修复与手机显示优化
 
@@ -142,13 +146,13 @@ GameStream 和 DLNA 的连接方式见下文。
 
 进阶发送功能保留[逐项实现与历史验证说明](docs/feature-development.md)。历史结果不能替当前统一 APK 验收；当前浏览器路径见[浏览器验证记录](docs/browser-validation.md)，旧版记录仍保留。
 
-## 下载 0.7
+## 下载 0.8
 
 [手机／电视首次安装与排障](docs/unified-guide.md)：电视须先安装 MoonCast，之后才能接收手机推送的 APK。
 
-[版本说明](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [应用源码](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [许可证清单](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
+[版本说明](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-armeabi-v7a.apk) · [应用源码](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-source.zip) · [许可证清单](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/SHA256SUMS)
 
-最低Android 8.0。每台设备按系统ABI选择一个APK，每个均含手机与电视角色。版本 `0.7`，versionCode `57`；固定 `com.mooncast.community` 包名与现有公开测试证书不变。最终来源、产物哈希与检查结果以Release清单为准。公开测试签名保证升级身份连续性，不证明发布者身份。
+最低Android 8.0。每台设备按系统ABI选择一个APK，每个均含手机与电视角色。版本 `0.8`，versionCode `65`；固定 `com.mooncast.community` 包名与现有公开测试证书不变。最终来源、产物哈希与检查结果以Release清单为准。公开测试签名保证升级身份连续性，不证明发布者身份。
 
 应用源码与声明提供固定WebRTC外部源码／DEPS及构建获取映射，**不是完整离线SDK依赖树，预编译原生SDK未独立重建**。[源码范围](docs/browser-release-source.md) · [版本规则](docs/versioning.md)。
 

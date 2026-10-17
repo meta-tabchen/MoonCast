@@ -4,6 +4,8 @@ android {
  compileSdk 35
  buildToolsVersion '35.0.0'
  defaultConfig {
+        // Enable only after wake, privilege-loss and stop/crash restoration acceptance on target hardware.
+        buildConfigField 'boolean', 'PHYSICAL_SCREEN_OFF_VALIDATED', 'false'
   minSdk 26; targetSdk 35
   buildConfigField 'int', 'VERSION_CODE', '66'
   buildConfigField 'String', 'VERSION_NAME', '"0.9"'

@@ -3,20 +3,24 @@
 <p align="center"><sub>Model-generated brand illustration, not a device screenshot or an interoperability test.</sub></p>
 
 <p align="center">
-  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7"><img src="https://img.shields.io/badge/download-0.7-547BEB" alt="Current download: 0.7"></a>
+  <a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8"><img src="https://img.shields.io/badge/download-0.8-547BEB" alt="Current download: 0.8"></a>
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84" alt="Android 8.0 and later">
   <img src="https://img.shields.io/badge/roles-Send_%2B_Receive-8A6DE9" alt="Send and Receive roles">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPLv3-blue" alt="GPLv3"></a>
 </p>
 
 <p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
-<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7">Download APK</a> · <a href="docs/browser-receiver.md">Browser quick start</a> · <a href="docs/unified-guide.md">TV setup</a> · <a href="docs/cropping.md">Cropping explained</a> · <a href="docs/unified-build.md">Build</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+<p align="center"><a href="https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8">Download APK</a> · <a href="docs/browser-receiver.md">Browser quick start</a> · <a href="docs/unified-guide.md">TV setup</a> · <a href="docs/cropping.md">Cropping explained</a> · <a href="docs/unified-build.md">Build</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
 
 # MoonCast · Your screen, a better fit.
 
 **Cast Android to a browser, an AirPlay receiver or a Moonlight client. Turn another Android device into a TV receiver, with framing controls that make better use of the screen.**
 
 A video can already have black bars inside the phone's captured screen. Fitting that entire capture onto a TV adds another layer of empty space. MoonCast helps you reclaim that space: detect stable black borders, keep the useful picture in proportion, and adjust the framing when automatic detection is uncertain.
+
+## Current release and next candidate
+
+The current public download is **0.8 / code65**. Its complete source ZIP is available; [0.8 validation](docs/release-0.8-validation.md) retains the historical failures and physical-device limits. **0.9 / code66 is a development candidate, not a published release.** [Candidate changes and verification boundaries](docs/release-0.9-validation.md).
 
 ## 0.7: startup fixes and a better phone layout
 
@@ -142,13 +146,13 @@ This is a deterministic pixel-threshold and geometry algorithm, **not AI scene r
 
 Advanced sender features retain their [per-feature implementation and historical test notes](docs/feature-development.md). That historical evidence does not certify the current unified APK. Use [browser validation](docs/browser-validation.md) for the new path; earlier evidence remains historical.
 
-## Download 0.7
+## Download 0.8
 
 [First phone/TV installation and troubleshooting](docs/unified-guide.md): the TV must already have MoonCast before it can receive APKs from the phone.
 
-[Release notes](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-armeabi-v7a.apk) · [Application source](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-source.zip) · [Notices](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/MoonCast-0.7-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.7/SHA256SUMS)
+[Release notes](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.8) · [ARM64 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-arm64-v8a.apk) · [ARMv7 APK](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-armeabi-v7a.apk) · [Application source](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-source.zip) · [Notices](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/MoonCast-0.8-notices.zip) · [SHA256SUMS](https://github.com/meta-tabchen/MoonCast/releases/download/v0.8/SHA256SUMS)
 
-Minimum Android 8.0. Choose one APK for the system ABI; each includes phone and TV roles. Version `0.7`, versionCode `57`; the fixed `com.mooncast.community` package and existing public test certificate are unchanged. Use the Release inventory for final provenance, artifact hashes and check results. The public test signer provides upgrade continuity, not publisher authentication.
+Minimum Android 8.0. Choose one APK for the system ABI; each includes phone and TV roles. Version `0.8`, versionCode `65`; the fixed `com.mooncast.community` package and existing public test certificate are unchanged. Use the Release inventory for final provenance, artifact hashes and check results. The public test signer provides upgrade continuity, not publisher authentication.
 
 Application source/notices supply pinned external WebRTC source/DEPS fetch/build mappings, **not a full offline SDK checkout; the prebuilt native SDK has not been independently rebuilt**. [Source scope](docs/browser-release-source.md) · [Version naming](docs/versioning.md).
 

@@ -2,7 +2,7 @@ package io.github.jqssun.displaymirror.sunshine;
 
 import android.view.Surface;
 
-/** ABI adapter for the unmodified GPLv3 Mirror/Sunshine native core. */
+/** ABI adapter for the pinned GPLv3 Mirror/Sunshine core and rebuilt candidate diagnostics. */
 public final class SunshineServer {
     public interface Listener {
         void pinRequested();
@@ -10,6 +10,7 @@ public final class SunshineServer {
         void stopDisplay(long session);
         void error(String error);
         void uuid(String uuid);
+        default void streamStats(long session,int width,int height,int targetFps,int targetKbps,double fps,double mbps) {}
     }
     public static volatile Listener listener;
     static {
@@ -37,6 +38,7 @@ public final class SunshineServer {
         NativeSessions.created(s);
         if (listener != null) listener.createDisplay(s,w,h,f,p,surface,audio);
     }
+    public static void streamStats(long s,int w,int h,int targetFps,int targetKbps,double fps,double mbps){Listener current=listener;if(current!=null)current.streamStats(s,w,h,targetFps,targetKbps,fps,mbps);}
     public static void stopVirtualDisplay(long s) { NativeSessions.ended(s);if (listener != null) listener.stopDisplay(s); }
     public static void showEncoderError(String error) { if (listener != null) listener.error(error); }
     public static void onMirrorClientDiscovered(String ignored) {}

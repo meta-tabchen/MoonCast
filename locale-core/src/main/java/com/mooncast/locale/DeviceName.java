@@ -20,14 +20,14 @@ public final class DeviceName {
         try { byte[] bytes=file(c).readFully(); if(bytes.length<=252) { String value=normalize(new String(bytes,StandardCharsets.UTF_8)); if(!value.isEmpty())return value; } }
         catch (Exception ignored) { }
         String legacy=c.getSharedPreferences("profile-default",Context.MODE_PRIVATE).getString("name", "");
-        return normalize(legacy).isEmpty()?"MoonCast · "+Build.MODEL:normalize(legacy);
+        return normalize(legacy).isEmpty()?normalize("MoonCast · "+Build.MODEL):normalize(legacy);
     }
     static String normalize(String value) {
         if(value==null)return "";
         StringBuilder clean=new StringBuilder();
         value.trim().codePoints().filter(c->!Character.isISOControl(c)).forEach(clean::appendCodePoint);
         String result=clean.toString();
-        while(result.getBytes(StandardCharsets.UTF_8).length>63)result=result.substring(0,result.offsetByCodePoints(result.length(),-1));
+        while(result.getBytes(StandardCharsets.UTF_8).length>60)result=result.substring(0,result.offsetByCodePoints(result.length(),-1));
         return result.trim();
     }
     public static void show(Activity activity, Runnable saved) {

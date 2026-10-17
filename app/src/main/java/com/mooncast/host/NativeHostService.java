@@ -48,6 +48,7 @@ public final class NativeHostService extends Service implements SunshineServer.L
     public void stopDisplay(long session){call(c->c.stopDisplay(session));}
     public void pinRequested(){call(INativeHostCallbacks::pinRequested);}
     public void error(String text){call(c->c.error(PhoneMessages.hasMessage(text)?text:PhoneMessages.message(R.string.phone_native_runtime_failed, text)));}
+    public void streamStats(long s,int w,int h,int targetFps,int targetKbps,double fps,double mbps){call(c->c.streamStats(s,w,h,targetFps,targetKbps,fps,mbps));}
     public void uuid(String uuid){call(c->c.uuid(uuid));}
     public void touch(long s,int t,int p,float x,float y,float pressure){call(c->c.touch(s,t,p,x,y,pressure));}
     public void mouse(long s,float x,float y,float w,float h){call(c->c.mouse(s,x,y,w,h));}

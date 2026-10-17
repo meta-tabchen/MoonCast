@@ -96,6 +96,7 @@ public final class RootDaemon implements SunshineServer.Listener {
     }
     @Override public void pinRequested() { event("pin",""); }
     @Override public void uuid(String ignored) {}
+    @Override public void streamStats(long s,int w,int h,int targetFps,int targetKbps,double fps,double mbps){try{event("encoderStats",new JSONObject().put("id",s).put("width",w).put("height",h).put("targetFps",targetFps).put("targetKbps",targetKbps).put("fps",fps).put("mbps",mbps).toString());}catch(org.json.JSONException ignored){}}
     @Override public void createDisplay(long s,int w,int h,int fps,int ms,Surface surface,boolean audio) {
         main.post(() -> {
             try {

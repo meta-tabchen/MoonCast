@@ -62,6 +62,7 @@ final class NativeHostConnection implements AutoCloseable {
         public void stopDisplay(long s){if(!valid())return;active.remove(s);try{listener.stopDisplay(s);}finally{Surface surface=surfaces.remove(s);if(surface!=null)surface.release();}}
         public void pinRequested(){if(valid())listener.pinRequested();}
         public void error(String text){if(valid())listener.error(text);}
+        public void streamStats(long s,int w,int h,int targetFps,int targetKbps,double fps,double mbps){if(valid())listener.streamStats(s,w,h,targetFps,targetKbps,fps,mbps);}
         public void uuid(String uuid){if(valid())listener.uuid(uuid);}
         public float[] readAudio(int count){if(!valid() || count<1 || count>96000)return null;return audio.apply(count);}
         private InputBridge.Receiver input(){return valid()?InputBridge.receiver:null;}

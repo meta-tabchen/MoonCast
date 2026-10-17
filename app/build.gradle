@@ -14,6 +14,8 @@ android {
     compileSdk 35
     buildToolsVersion '35.0.0'
     defaultConfig {
+        // Enable only after wake, privilege-loss and stop/crash restoration acceptance on target hardware.
+        buildConfigField 'boolean', 'PHYSICAL_SCREEN_OFF_VALIDATED', 'false'
         applicationId 'com.mooncast.host'
         minSdk 26
         targetSdk 35

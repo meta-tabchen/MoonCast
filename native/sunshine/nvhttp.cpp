@@ -820,7 +820,8 @@ namespace nvhttp {
         pt::ptree app;
 
         app.put("IsHdrSupported"s, 0);
-        app.put("AppTitle"s, "Desktop");
+        // Stream title follows the displayed device name. App ID and pairing UUID stay stable.
+        app.put("AppTitle"s, config::nvhttp.sunshine_name + " - Screen");
         app.put("ID", 1);
 
         apps.push_back(std::make_pair("App", std::move(app)));

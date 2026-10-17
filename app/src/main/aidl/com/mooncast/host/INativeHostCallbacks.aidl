@@ -12,4 +12,5 @@ interface INativeHostCallbacks {
     void relative(long session, int x, int y);
     void button(long session, boolean release);
     void key(int key, boolean release, int flags);
+    void streamStats(long session,int width,int height,int targetFps,int targetKbps,double fps,double mbps);
 }

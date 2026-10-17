@@ -1,4 +1,5 @@
 #include <jni.h>
+#include "jni_scope.h"
 #include "airplay_bridge.h"
 #include "logging.h"
 
@@ -31,8 +32,9 @@ void sendVideoFrame(JavaVM *jvm, const uint8_t *data, size_t size, bool isKeyfra
         return;
     }
 
-    JNIEnv *env;
-    if (jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+    MoonCastJniScope attachment(jvm);
+    JNIEnv *env=attachment.env;
+    if (!env) {
         return;
     }
 
@@ -47,7 +49,6 @@ void sendVideoFrame(JavaVM *jvm, const uint8_t *data, size_t size, bool isKeyfra
         env->ExceptionDescribe();
         env->ExceptionClear();
     }
-    jvm->DetachCurrentThread();
 }
 
 } // namespace airplay_bridge

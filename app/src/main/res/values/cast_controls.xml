@@ -25,4 +25,5 @@
     <string name="controls_permission_hint">Allow MoonCast to display over other apps to use the draggable bubble. If denied, notification controls remain available.</string>
     <string name="controls_shizuku">Authorize Shizuku for manual screen off</string>
     <string name="controls_disabled">Floating controls disabled for the next session.</string>
+    <string name="controls_panel_validation_pending">Physical screen-off is unavailable in this candidate while device wake and stop/crash recovery are being validated. The phone stays bright.</string>
 </resources>

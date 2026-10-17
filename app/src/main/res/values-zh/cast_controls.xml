@@ -25,4 +25,5 @@
     <string name="controls_permission_hint">允许 MoonCast 显示在其他应用上层后，可拖动悬浮按钮。拒绝权限仍可使用通知操作。</string>
     <string name="controls_shizuku">授权 Shizuku 以手动熄屏</string>
     <string name="controls_disabled">已关闭悬浮控件，下次投屏生效。</string>
+    <string name="controls_panel_validation_pending">此候选版暂未开放物理熄屏，仍在验证设备唤回及停止／崩溃恢复。手机保持亮屏。</string>
 </resources>

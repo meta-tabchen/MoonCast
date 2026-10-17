@@ -1,4 +1,6 @@
 #include <jni.h>
+#include "jni_scope.h"
+#include <chrono>
 #include <algorithm>
 #include <mutex>
 #include <string>
@@ -332,7 +334,6 @@ namespace sunshine_callbacks {
         jmethodID createVirtualDisplayMethod = env->GetStaticMethodID(sunshineServerClass, "createVirtualDisplay", "(JIIIILandroid/view/Surface;Z)V");
         if (createVirtualDisplayMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find createVirtualDisplay method"sv;
-            jvm->DetachCurrentThread();
             return;
         }
 
@@ -343,13 +344,12 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
     }
 
     void stopVirtualDisplay(jlong session) {
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope attachment(jvm);
+        JNIEnv *env=attachment.env;
+        if (!env) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -366,7 +366,6 @@ namespace sunshine_callbacks {
         jmethodID stopVirtualDisplayMethod = env->GetStaticMethodID(sunshineServerClass, "stopVirtualDisplay", "(J)V");
         if (stopVirtualDisplayMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find stopVirtualDisplay method"sv;
-            jvm->DetachCurrentThread();
             return;
         }
 
@@ -377,7 +376,6 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
     }
 
     void showEncoderError(const char* errorMessage) {
@@ -386,9 +384,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope attachment(jvm);
+        JNIEnv *env=attachment.env;
+        if (!env) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -396,7 +394,6 @@ namespace sunshine_callbacks {
         jmethodID showErrorMethod = env->GetStaticMethodID(sunshineServerClass, "showEncoderError", "(Ljava/lang/String;)V");
         if (showErrorMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find showEncoderError method"sv;
-            jvm->DetachCurrentThread();
             return;
         }
 
@@ -409,14 +406,20 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+    }
+
+    void streamStats(JNIEnv* env,jlong session,jint width,jint height,jint targetFps,jint targetKbps,jdouble fps,jdouble mbps) {
+        if(!env || !sunshineServerClass)return;
+        auto method=env->GetStaticMethodID(sunshineServerClass,"streamStats","(JIIIIDD)V");
+        if(method)env->CallStaticVoidMethod(sunshineServerClass,method,session,width,height,targetFps,targetKbps,fps,mbps);
+        if(env->ExceptionCheck()){env->ExceptionDescribe();env->ExceptionClear();}
     }
 
     void captureVideoLoop(void *channel_data, safe::mail_t mail, const video::config_t& config, const audio::config_t& audioConfig) {
         auto sessionHandle = (jlong)(intptr_t) channel_data;
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope attachment(jvm);
+        JNIEnv *env=attachment.env;
+        if (!env) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -443,7 +446,10 @@ namespace sunshine_callbacks {
         AMediaFormat *format = AMediaFormat_new();
         AMediaFormat_setString(format, AMEDIAFORMAT_KEY_MIME, config.videoFormat == 1 ? "video/hevc" : "video/avc");
 
-        auto encodeFrameRate = config.framerate < 60 ? 60 : config.framerate;
+        const int encodeFrameRate = config.framerate;
+        if(config.width<1 || config.height<1 || encodeFrameRate<1 || config.bitrate<1){
+            showEncoderError("Invalid client video configuration");AMediaFormat_delete(format);return;
+        }
         // base config (API 21+)
         AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, config.width);
         AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, config.height);
@@ -507,17 +513,8 @@ namespace sunshine_callbacks {
         // Create encoder
         AMediaCodec *codec = AMediaCodec_createEncoderByType(config.videoFormat == 1 ? "video/hevc" : "video/avc");
         if (!codec) {
-           // fallback encoder config
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_WIDTH, 1920);
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_HEIGHT, 1080);
-            AMediaFormat_setInt32(format, AMEDIAFORMAT_KEY_FRAME_RATE, 60);
-            AMediaFormat_setInt32(format, "max-fps-to-encoder", 60);
-            AMediaFormat_setInt32(format, "operating-rate", 60);
-            AMediaFormat_setInt32(format, "capture-rate", 60);
-            codec = AMediaCodec_createEncoderByType("video/avc");
-        }
-        if (!codec) {
-            BOOST_LOG(error) << "Failed to create encoder"sv;
+            BOOST_LOG(error) << "Failed to create requested encoder"sv;
+            showEncoderError("Requested codec is unavailable; choose a supported codec in the client");
             AMediaFormat_delete(format);
             return;
         }
@@ -556,7 +553,6 @@ namespace sunshine_callbacks {
         jobject javaSurface = ANativeWindow_toSurface(env, inputSurface);
         if (javaSurface == nullptr) {
             BOOST_LOG(error) << "Failed to convert ANativeWindow to Surface"sv;
-            jvm->DetachCurrentThread();
             ANativeWindow_release(inputSurface);
             AMediaCodec_delete(codec);
             AMediaFormat_delete(format);
@@ -580,7 +576,6 @@ namespace sunshine_callbacks {
             BOOST_LOG(error) << "Failed to start encoder, error: "sv << status;
             stopVirtualDisplay(sessionHandle);
             env->DeleteLocalRef(javaSurface);
-            jvm->DetachCurrentThread();
             ANativeWindow_release(inputSurface);
             AMediaCodec_delete(codec);
             AMediaFormat_delete(format);
@@ -590,6 +585,9 @@ namespace sunshine_callbacks {
         // Encoding loop
         std::vector<uint8_t> codecConfigData;  // stores complete codec config data
         int64_t frameIndex = 0;
+        int32_t encodedWidth=config.width,encodedHeight=config.height;
+        uint64_t measuredFrames=0,measuredBytes=0;
+        auto measuredAt=std::chrono::steady_clock::now();
         
         while (!shutdown_event->peek()) {
             bool requested_idr_frame = false;
@@ -637,6 +635,14 @@ namespace sunshine_callbacks {
                         bool isKeyFrame = (bufferInfo.flags & AMEDIACODEC_BUFFER_FLAG_KEY_FRAME) != 0;
                         BOOST_LOG(verbose) << "Received " << (isKeyFrame ? "keyframe" : "frame") << ", size: "sv << bufferSize;
                         frameIndex++;
+                        ++measuredFrames;measuredBytes+=bufferSize;
+                        auto now=std::chrono::steady_clock::now();
+                        double seconds=std::chrono::duration<double>(now-measuredAt).count();
+                        if(seconds>=1.0){
+                            streamStats(env,sessionHandle,encodedWidth,encodedHeight,encodeFrameRate,config.bitrate,
+                                measuredFrames/seconds,measuredBytes*8.0/seconds/1000000.0);
+                            measuredAt=now;measuredFrames=0;measuredBytes=0;
+                        }
                         
                         if(isKeyFrame) {
                             // Prepend codec config data for keyframes
@@ -677,7 +683,9 @@ namespace sunshine_callbacks {
                 // Output format changed
                 AMediaFormat* format = AMediaCodec_getOutputFormat(codec);
                 BOOST_LOG(info) << "Encoder output format changed"sv;
-                // Can get more info from format
+                AMediaFormat_getInt32(format,AMEDIAFORMAT_KEY_WIDTH,&encodedWidth);
+                AMediaFormat_getInt32(format,AMEDIAFORMAT_KEY_HEIGHT,&encodedHeight);
+                streamStats(env,sessionHandle,encodedWidth,encodedHeight,encodeFrameRate,config.bitrate,0.0,0.0);
                 AMediaFormat_delete(format);
             } else if (outputBufferIndex == AMEDIACODEC_INFO_OUTPUT_BUFFERS_CHANGED) {
                 // Output buffers changed
@@ -699,8 +707,8 @@ namespace sunshine_callbacks {
         AMediaCodec_delete(codec);
         AMediaFormat_delete(format);
         
-        // Clean up Java Surface ref
-        jvm->DetachCurrentThread();
+        // Clean up Java Surface ref before the attachment owner leaves scope.
+        env->DeleteLocalRef(javaSurface);
     }
 
     void captureAudioLoop(void *channel_data, safe::mail_t mail, const audio::config_t& config) {

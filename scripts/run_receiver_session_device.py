@@ -5,15 +5,33 @@ p=argparse.ArgumentParser();p.add_argument('--serial',required=True);p.add_argum
 if not a.serial.startswith('emulator-'):raise SystemExit('This suite is restricted to a disposable emulator, never a personal device')
 a.output.mkdir(parents=True,exist_ok=True)
 def adb(*args,**kwargs):return subprocess.run(['adb','-s',a.serial,*map(str,args)],text=True,capture_output=True,**kwargs)
-for file in [a.debug,a.test]:
- result=adb('install','-r','-t',file,timeout=120)
- if result.returncode or 'Success' not in result.stdout:raise SystemExit(result.stdout+result.stderr)
-result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=240)
-text=result.stdout+result.stderr;(a.output/'instrumentation.txt').write_text(text)
-logs=adb('logcat','-d','-t','1500','-v','threadtime',timeout=20)
-# This device contains only generated fixtures. Keep the tail for native crash/recovery diagnosis.
-(a.output/'logcat.txt').write_text(logs.stdout)
-passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
-(a.output/'result.json').write_text(json.dumps({'passed':passed,'scope':'disposable emulator loopback, native transport/JNI/MediaCodec/GL pixels/reconnect; no physical TV, LAN discovery, screen capture or audio acceptance','returnCode':result.returncode},indent=2)+'\n')
-print(text)
-if not passed:raise SystemExit('AirPlay receiver session test failed or process exited; see captured evidence')
+passed=False;status={'passed':False,'scope':'disposable emulator loopback, native transport/JNI/MediaCodec/GL pixels/reconnect; no physical TV, LAN discovery, screen capture or audio acceptance'};evidence=[]
+try:
+ # boot_completed can briefly precede PackageManager readiness or a system-server restart.
+ end=time.monotonic()+180;ready=0
+ while time.monotonic()<end:
+  probe=adb('shell','cmd','package','path','android',timeout=15)
+  ready=ready+1 if probe.returncode==0 and 'package:' in probe.stdout else 0
+  if ready>=3:break
+  time.sleep(3)
+ if ready<3:raise RuntimeError('Emulator package service did not become stable; no app test executed')
+ for file in [a.debug,a.test]:
+  result=adb('install','-r','-t',file,timeout=180);evidence.append(result.stdout+result.stderr)
+  if result.returncode or 'Success' not in result.stdout:raise RuntimeError('Fixture installation failed')
+ result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
+ text=result.stdout+result.stderr;evidence.append(text);status['returnCode']=result.returncode
+ passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
+except subprocess.TimeoutExpired as failure:
+ def decoded(value):return value.decode(errors='replace') if isinstance(value,bytes) else value or ''
+ evidence.append(decoded(failure.stdout)+decoded(failure.stderr));status['failure']='command-timeout'
+except Exception as failure:
+ status['failure']=str(failure)
+finally:
+ status['passed']=passed;(a.output/'instrumentation.txt').write_text('\n'.join(evidence))
+ try:
+  logs=adb('logcat','-d','-t','2000','-v','threadtime',timeout=30)
+  # This disposable device contains only generated fixtures, never user media.
+  (a.output/'logcat.txt').write_text(logs.stdout)
+ except Exception as failure:status['logCaptureFailure']=type(failure).__name__
+ (a.output/'result.json').write_text(json.dumps(status,indent=2)+'\n');print('\n'.join(evidence));print(json.dumps(status,indent=2))
+if not passed:raise SystemExit('AirPlay receiver session test failed/blocked/process exited; see captured evidence')

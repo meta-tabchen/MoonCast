@@ -79,7 +79,7 @@
     <string name="phone_audio_read_failed">Playback audio capture failed (code %1$d)</string>
     <string name="phone_h264_failed">H.264 encoding failed. Technical details: %1$s</string>
     <string name="phone_video_surface">Video output connected: %1$d × %2$d · %3$d fps</string>
-    <string name="phone_receiver_format">Receiver %1$d · %2$d×%3$d · %4$d fps</string>
+    <string name="phone_receiver_format">Receiver %1$d · Client request %2$d×%3$d · %4$d fps</string>
     <string name="phone_apk_choose_document">Choose an APK document</string>
     <string name="phone_apk_too_large">APK exceeds the 1 GiB limit</string>
     <string name="phone_apk_staging_unavailable">Private temporary storage is unavailable</string>
@@ -120,4 +120,6 @@
     <string name="phone_community_signing_notice">This community build uses a public test signing key. It keeps the update identity consistent for community builds, but does not authenticate an official publisher. Download only from trusted project Releases.</string>
     <string name="phone_community_footer">MoonCast Community · GPLv3</string>
     <string name="phone_original_media_hint">Original bytes · No transcoding. Use the player’s fullscreen control. Format support depends on your browser. The link expires when sharing stops.</string>
+    <string name="phone_encoder_observed">Encoder output: %1$d×%2$d · target %3$d fps / %4$d kbps · observed %5$.1f fps / %6$.2f Mbps video</string>
+    <string name="phone_encoder_waiting">Encoder observations not yet available. TV physical display resolution is independent of stream resolution.</string>
 </resources>

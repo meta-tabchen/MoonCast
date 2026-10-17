@@ -3,7 +3,7 @@
 """Verify every unified native payload byte, JNI graph and standalone APK identity."""
 from pathlib import Path
 import argparse, hashlib, json, os, re, subprocess, tempfile, zipfile
-from elf_dependencies import dynamic_strings
+from elf_dependencies import dynamic_strings, elf_exports
 R = Path(__file__).resolve().parents[1]
 
 def sha(b):
@@ -51,6 +51,13 @@ with zipfile.ZipFile(a.apk) as z, tempfile.TemporaryDirectory() as d:
         if name == 'libtvcryp.so':
             if not dyn['soname'] == 'libtvcryp.so':
                 raise ValueError('Verification failed')
+    sunshine_exports=elf_exports(z.read('lib/'+a.abi+'/libsunshine.so'))
+    if '_ZN6stream7session4stopERNS_9session_tE' not in sunshine_exports:
+        raise ValueError('Sunshine session stop export missing')
+    bridge_exports=elf_exports(z.read('lib/'+a.abi+'/libmooncast_sessions.so'))
+    for method in ('availableNative','stopNative'):
+        if 'Java_io_github_jqssun_displaymirror_sunshine_NativeSessions_'+method not in bridge_exports:
+            raise ValueError('Session bridge JNI export missing: '+method)
     dex = b''.join((z.read(n) for n in z.namelist() if re.fullmatch('classes\\d*\\.dex', n)))
     for asset in ('index.html', 'receiver.js', 'receiver.css'):
         name = 'assets/browser/' + asset

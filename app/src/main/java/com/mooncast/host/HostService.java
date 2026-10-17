@@ -79,6 +79,8 @@ public class HostService extends Service implements SunshineServer.Listener {
     private volatile boolean stopping;
     private boolean started, pinPending, sendAudio, audioPump, muteLocal;
     private volatile long session;
+    private final java.util.Map<Long,String> encoderStats=new java.util.HashMap<>();
+    @Override public void streamStats(long s,int w,int h,int targetFps,int targetKbps,double fps,double mbps){main.post(()->{if(!stopping&&receivers.containsKey(s))encoderStats.put(s,getString(R.string.phone_encoder_observed,w,h,targetFps,targetKbps,fps,mbps));});}
     private record Receiver(int ordinal,int width,int height,int fps){}
     private final LinkedHashMap<Long,Receiver> receivers=new LinkedHashMap<>();
     private int receiverOrdinal,receiverLimit=1,audioPacketMs;
@@ -339,7 +341,7 @@ public class HostService extends Service implements SunshineServer.Listener {
             catch(InterruptedException e){Thread.currentThread().interrupt();error(PhoneMessages.message(R.string.phone_encoder_detach_interrupted));return;}
         }
         main.post(()->{
-            if(stopping || receivers.remove(s)==null)return;
+            if(stopping || receivers.remove(s)==null)return;encoderStats.remove(s);
             if(receivers.isEmpty()){
                 session=0;if(remoteInput!=null)remoteInput.begin(0);
                 state=getString(R.string.ui_preparing_reconnection);detail="";
@@ -377,8 +379,9 @@ public class HostService extends Service implements SunshineServer.Listener {
                 case "panel" -> {panelState=PhoneMessages.render(this,text);log(text);}
                 case "pin" -> pinRequested();
                 case "receivers" -> {try{var items=new org.json.JSONArray(text);receivers.clear();for(int i=0;i<items.length();i++){var r=items.getJSONObject(i);receivers.put(r.getLong("id"),new Receiver(r.getInt("ordinal"),r.getInt("width"),r.getInt("height"),r.getInt("fps")));}if(!receivers.isEmpty())updateReceivers();}catch(org.json.JSONException e){log(PhoneMessages.message(R.string.phone_receiver_inventory_invalid));}}
+                case "encoderStats" -> {try{org.json.JSONObject x=new org.json.JSONObject(text);streamStats(x.getLong("id"),x.getInt("width"),x.getInt("height"),x.getInt("targetFps"),x.getInt("targetKbps"),x.getDouble("fps"),x.getDouble("mbps"));}catch(org.json.JSONException ignored){}}
                 case "stream" -> { state=getString(R.string.ui_casting_root); detail=PhoneMessages.render(this,text); log(text); }
-                case "end" -> { if(controls!=null)controls.disconnected();castPaused=false;state=getString(R.string.ui_waiting_for_receiver_root); detail=""; log(getString(R.string.ui_root_session_ended_waiting_for_reconnection)); }
+                case "end" -> { if(controls!=null)controls.disconnected();castPaused=false;encoderStats.clear();state=getString(R.string.ui_waiting_for_receiver_root); detail=""; log(getString(R.string.ui_root_session_ended_waiting_for_reconnection)); }
                 case "error" -> error(text);
                 case "control" -> {rootControlStatus=PhoneMessages.render(this,text);log(text);}
                 case "controlOff" -> {controlEnabled=false;rootControlStatus=PhoneMessages.render(this,text);log(text);}
@@ -398,7 +401,7 @@ public class HostService extends Service implements SunshineServer.Listener {
         NativeHostConnection host=nativeHost;nativeHost=null;if(host!=null)releaseSafely(host::close);
         VirtualDisplay vd=display;display=null;if(vd!=null)releaseSafely(vd::release);
         // The native encoder owns the Surface. Do not release it from Java while it drains.
-        encoderSurface=null;receivers.clear();
+        encoderSurface=null;receivers.clear();encoderStats.clear();
         MediaProjection old=projection;projection=null;if(old!=null)releaseSafely(old::stop);
     }
     private void releaseSafely(Runnable release){try{release.run();}catch(RuntimeException e){android.util.Log.w("MoonCast","Resource release failed",e);}}
@@ -443,7 +446,7 @@ public class HostService extends Service implements SunshineServer.Listener {
     private Bundle snapshot() {
         Bundle b=new Bundle(); b.putBoolean("stopping",stopping);b.putInt("pid",android.os.Process.myPid()); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
         b.putString("startupStage",startupStage);
-        long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.phone_receiver_format,r.ordinal(),r.width(),r.height(),r.fps());}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
+        long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.phone_receiver_format,r.ordinal(),r.width(),r.height(),r.fps())+"\n"+encoderStats.getOrDefault(entry.getKey(),getString(R.string.phone_encoder_waiting));}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
         b.putBoolean("paused",castPaused);b.putString("panelState",panelState);b.putBoolean("panelOff",panelOff);b.putInt("displayId",independentDisplayId);b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
         b.putBoolean("control",remoteInput!=null?remoteInput.enabled():controlEnabled);
         b.putString("metrics",metrics());

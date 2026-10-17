@@ -36,3 +36,25 @@ def dynamic_strings(data):
 
     return {'needed': [text(value) for tag, value in tags if tag == 1],
             'soname': next((text(value) for tag, value in tags if tag == 14), None)}
+
+
+def elf_exports(data):
+    if data[:4] != b"\x7fELF":raise ValueError("Expected ELF")
+    if data[5] != 1:raise ValueError("Expected little-endian ELF")
+    is64 = data[4] == 2
+    shoff = struct.unpack_from("<Q" if is64 else "<I", data, 40 if is64 else 32)[0]
+    entsize, count = struct.unpack_from("<HH", data, 58 if is64 else 46)
+    fmt = "<IIQQQQIIQQ" if is64 else "<IIIIIIIIII"
+    sections = [struct.unpack_from(fmt, data, shoff + i * entsize) for i in range(count)]
+    exports = set()
+    for section in sections:
+        if section[1] != 11:  # SHT_DYNSYM
+            continue
+        strings = sections[section[6]]
+        names = data[strings[4]:strings[4]+strings[5]]
+        for offset in range(section[4], section[4]+section[5], section[9]):
+            sym = struct.unpack_from("<IBBHQQ" if is64 else "<IIIBBH", data, offset)
+            nameoff, shndx = sym[0], sym[3] if is64 else sym[5]
+            if nameoff and shndx:
+                exports.add(names[nameoff:names.index(b"\0", nameoff)].decode())
+    return exports

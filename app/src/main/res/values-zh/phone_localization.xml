@@ -79,7 +79,7 @@
     <string name="phone_audio_read_failed">播放音频捕获失败（错误码 %1$d）</string>
     <string name="phone_h264_failed">H.264 编码失败。技术详情：%1$s</string>
     <string name="phone_video_surface">视频输出已连接：%1$d × %2$d · %3$d 帧/秒</string>
-    <string name="phone_receiver_format">接收端 %1$d · %2$d×%3$d · %4$d 帧/秒</string>
+    <string name="phone_receiver_format">接收端 %1$d · 客户端请求 %2$d×%3$d · %4$d 帧/秒</string>
     <string name="phone_apk_choose_document">请选择一个 APK 文件</string>
     <string name="phone_apk_too_large">APK 超过 1 GiB 大小限制</string>
     <string name="phone_apk_staging_unavailable">私有临时存储不可用</string>
@@ -120,4 +120,6 @@
     <string name="phone_community_signing_notice">此社区版使用公开测试签名。它保证社区版本的升级身份一致，但不能验证官方发布者身份。请仅从可信的项目 Release 下载。</string>
     <string name="phone_community_footer">MoonCast 社区版 · GPLv3</string>
     <string name="phone_original_media_hint">原文件直接传输 · 无转码。请在播放器中开启全屏；格式支持取决于浏览器。停止分享后链接失效。</string>
+    <string name="phone_encoder_observed">编码输出：%1$d×%2$d · 目标 %3$d 帧/秒 / %4$d kbps · 实际 %5$.1f 帧/秒 / %6$.2f Mbps 视频</string>
+    <string name="phone_encoder_waiting">暂无编码观测。电视物理显示分辨率与视频流分辨率是两回事。</string>
 </resources>
