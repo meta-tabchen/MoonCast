@@ -5,6 +5,7 @@ public final class UnifiedInstrumentation extends Instrumentation {
  private Bundle arguments;
  @Override public void onCreate(Bundle b){super.onCreate(b);arguments=b;start();}
  @Override public void onStart(){Bundle result=new Bundle();try{
+  if(arguments!=null&&"airplay-receiver".equals(arguments.getString("suite"))){new AirPlayReceiverDeviceTest(this,arguments).run();return;}
   if(arguments!=null&&("tv".equals(arguments.getString("suite"))||"apk".equals(arguments.getString("suite")))){
    Class<?> type=Class.forName("apk".equals(arguments.getString("suite"))?"com.mooncast.tv.ApkReceiveDeviceTest":"com.mooncast.tv.TvUiTestDriver");java.lang.reflect.Constructor<?> constructor=type.getDeclaredConstructor(Instrumentation.class,Bundle.class);constructor.setAccessible(true);Object driver=constructor.newInstance(this,arguments);java.lang.reflect.Method run=type.getDeclaredMethod("run");run.setAccessible(true);run.invoke(driver);return;
   }

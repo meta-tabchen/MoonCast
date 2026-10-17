@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"><application>
+ <service android:name="com.mooncast.host.AirPlayFixtureSender" android:process=":stream" android:exported="false"/>
  <service android:name=".SenderNativeProbe" android:process=":stream" android:exported="false"/>
  <service android:name=".ReceiverNativeProbe" android:process=":receiver" android:exported="false"/>
 <service android:name=".SlowFileProbe" android:process=":files" android:exported="false"/></application></manifest>

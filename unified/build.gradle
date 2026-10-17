@@ -104,3 +104,5 @@ dependencies { implementation project(':locale-core') }
 tasks.configureEach { if (name.toLowerCase().contains('production')) doFirst {
  throw new GradleException('Production publication is not configured. Use a separate applicationId and confidential certificate; public community signing is forbidden.')
 } }
+
+android.sourceSets.androidTest.assets.srcDirs += ['../tv/src/androidTest/assets']

@@ -1,0 +1,39 @@
+--- a/android_raop_callbacks.c
++++ b/android_raop_callbacks.c
+@@ -15,14 +15,32 @@
+ #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
+ #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG, __VA_ARGS__)
+ 
++/* Only native threads attached here own this key. Java-owned threads must not
++ * be detached. Android requires detach before a native pthread exits. */
++static pthread_key_t env_owner_key;
++static pthread_once_t env_owner_once = PTHREAD_ONCE_INIT;
++static int env_owner_ready;
++static void _detach_owned_env(void *value) {
++    JavaVM *jvm = (JavaVM *)value;
++    if (jvm) (*jvm)->DetachCurrentThread(jvm);
++}
++static void _make_env_owner_key(void) {
++    env_owner_ready = pthread_key_create(&env_owner_key, _detach_owned_env) == 0;
++}
+ static JNIEnv *_get_env(android_callback_ctx_t *ctx) {
+     JNIEnv *env = NULL;
+     int status = (*ctx->jvm)->GetEnv(ctx->jvm, (void **)&env, JNI_VERSION_1_6);
+     if (status == JNI_EDETACHED) {
+-        (*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL);
+-    }
+-    /* Clear any pending exception from a previous callback on this thread,
+-       otherwise JNI calls like NewByteArray will fatally abort. */
++        pthread_once(&env_owner_once, _make_env_owner_key);
++        if (!env_owner_ready) return NULL;
++        if ((*ctx->jvm)->AttachCurrentThread(ctx->jvm, &env, NULL) != JNI_OK) return NULL;
++        if (pthread_setspecific(env_owner_key, ctx->jvm) != 0) {
++            (*ctx->jvm)->DetachCurrentThread(ctx->jvm);
++            return NULL;
++        }
++    } else if (status != JNI_OK) return NULL;
++    /* Clear an earlier callback exception before another JNI operation. The
++       thread-owned destructor remains registered across every early return. */
+     if (env && (*env)->ExceptionCheck(env)) {
+         (*env)->ExceptionDescribe(env);
+         (*env)->ExceptionClear(env);

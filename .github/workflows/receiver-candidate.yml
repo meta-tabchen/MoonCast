@@ -1,0 +1,110 @@
+name: Receiver native candidate and real decode
+on:
+  workflow_dispatch:
+  push:
+    branches: [codex/mooncast-0.9]
+    paths:
+      - '.github/workflows/receiver-candidate.yml'
+      - 'native/airplay/bridge-patches/**'
+      - 'scripts/build_airplay_receiver_candidate.py'
+      - 'scripts/install_receiver_candidate.py'
+      - 'scripts/run_receiver*'
+      - 'unified/src/androidTest/**'
+      - 'phone-ui/src/debug/**'
+      - 'tv/src/main/java/com/mooncast/tv/airplay/**'
+jobs:
+  native-and-session:
+    name: Receiver ${{ matrix.runtime }} runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 80
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [baseline, patched]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Official pinned build and emulator tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1' emulator 'system-images;android-30;google_apis;x86_64'
+      - run: python3 scripts/restore_release_inputs.py
+      - name: Callback thread ownership regression
+        run: python3 scripts/run_receiver_jni_thread_tests.py
+      - name: Rebuild all three receiver ABIs from verified source and patches
+        if: matrix.runtime == 'patched'
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
+          export PATH="$ANDROID_HOME/cmake/3.22.1/bin:$PATH"
+          python3 scripts/build_airplay_receiver_candidate.py --source "$GITHUB_WORKSPACE" --work "$RUNNER_TEMP/receiver-native"
+          python3 scripts/install_receiver_candidate.py --work "$RUNNER_TEMP/receiver-native"
+      - name: Verify and isolate actual receiver inputs
+        run: |
+          python3 scripts/prepare_unified_native.py
+          python3 scripts/check_localization.py
+          python3 scripts/run_unit_tests.py
+          python3 scripts/run_airplay_decoder_tests.py
+          python3 scripts/run_airplay_rtp_transition_tests.py
+      - name: Build actual emulator fixtures
+        run: gradle --no-daemon :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
+      - name: Build and verify both signed candidate APKs
+        if: matrix.runtime == 'patched'
+        run: |
+          mkdir -p "$RUNNER_TEMP/receiver-candidate"
+          for abi in arm64-v8a armeabi-v7a; do
+            gradle --no-daemon :unified:assembleRelease :unified:lintRelease -PmooncastAbi="$abi"
+            python3 scripts/verify_unified_apk.py unified/build/outputs/apk/release/unified-release.apk --abi "$abi"
+            python3 scripts/verify_bouncycastle_apk.py unified/build/outputs/apk/release/unified-release.apk
+            python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/unified-release.apk
+            "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
+            cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-$abi.apk"
+          done
+          python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-source.zip"
+          cp native/airplay/receiver-candidate-build-record.json native/airplay/prebuilt-manifest.json native/unified-receiver-manifest.json "$RUNNER_TEMP/receiver-candidate/"
+      - name: Start disposable emulator without privilege changes
+        timeout-minutes: 17
+        shell: bash
+        run: |
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/receiver-avd"
+          export ANDROID_EMULATOR_HOME="$RUNNER_TEMP/receiver-emulator"
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_EMULATOR_HOME" "$RUNNER_TEMP/receiver-evidence"
+          echo no | avdmanager create avd --force --name receiver --path "$ANDROID_AVD_HOME/receiver.avd" --package 'system-images;android-30;google_apis;x86_64' --device pixel_2
+          accel=off; if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
+          echo "acceleration=$accel; no permissions or host security settings changed"
+          "$ANDROID_HOME/emulator/emulator" -avd receiver -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/receiver-evidence/emulator.txt" 2>&1 &
+          pid=$!; deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$pid" || { cat "$RUNNER_TEMP/receiver-evidence/emulator.txt"; exit 1; }
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            sleep 5
+          done
+          tail -100 "$RUNNER_TEMP/receiver-evidence/emulator.txt"; echo 'Emulator boot timed out, device tests NOT passed' >&2; exit 1
+      - name: Real AirPlay native transport, decoded pixels and repeated session survival
+        run: |
+          python3 scripts/run_receiver_session_device.py --serial emulator-5554 \
+            --debug unified/build/outputs/apk/debug/unified-debug.apk \
+            --test unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk \
+            --output "$RUNNER_TEMP/receiver-evidence/session"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: receiver-${{ matrix.runtime }}-evidence
+          path: ${{ runner.temp }}/receiver-evidence
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.runtime == 'patched'
+        with:
+          name: receiver-patched-candidates-and-provenance
+          path: |
+            ${{ runner.temp }}/receiver-candidate
+            ${{ runner.temp }}/receiver-native/BUILD_RECORD.json
+            ${{ runner.temp }}/receiver-native/outputs
