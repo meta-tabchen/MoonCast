@@ -39,6 +39,9 @@ jobs:
       - name: Official pinned build and emulator tools
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.0.12077973' 'cmake;3.22.1' emulator 'system-images;android-30;google_apis;x86_64'
       - run: python3 scripts/restore_release_inputs.py
+      - name: Snapshot exact committed source before generated native overrides
+        if: matrix.runtime == 'patched'
+        run: python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/receiver-base-source.zip"
       - name: Callback thread ownership regression
         run: python3 scripts/run_receiver_jni_thread_tests.py
       - name: Rebuild all three receiver ABIs from verified source and patches
@@ -69,7 +72,7 @@ jobs:
             "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -P 16 4 unified/build/outputs/apk/release/unified-release.apk
             cp unified/build/outputs/apk/release/unified-release.apk "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-$abi.apk"
           done
-          python3 scripts/package_unified_source.py --output "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-source.zip"
+          python3 scripts/package_native_candidate.py --base "$RUNNER_TEMP/receiver-base-source.zip" --output "$RUNNER_TEMP/receiver-candidate/MoonCast-0.9-source.zip"
           cp native/airplay/receiver-candidate-build-record.json native/airplay/prebuilt-manifest.json native/unified-receiver-manifest.json "$RUNNER_TEMP/receiver-candidate/"
       - name: Start disposable emulator without privilege changes
         timeout-minutes: 17

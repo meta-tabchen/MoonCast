@@ -4,7 +4,7 @@ Requires Python 3.12+, git, make, perl, CMake 3.22.1/Ninja on PATH and
 ANDROID_NDK_HOME pointing to NDK 27.0.12077973. No downloads or signing.
 Usage: python build_airplay_receiver_candidate.py --source /path/to/MoonCast --work /new/empty/dir
 """
-import argparse, hashlib, json, os, pathlib, shutil, subprocess, tarfile
+import argparse, hashlib, json, os, pathlib, shutil, subprocess, tarfile, re
 p=argparse.ArgumentParser();p.add_argument('--source',type=pathlib.Path,required=True);p.add_argument('--work',type=pathlib.Path,required=True);p.add_argument('--abi',action='append',choices=['armeabi-v7a','arm64-v8a','x86_64']);a=p.parse_args()
 src=a.source.resolve()/'native/airplay';w=a.work.resolve();ndk=pathlib.Path(os.environ['ANDROID_NDK_HOME']).resolve()
 if w.exists() and any(w.iterdir()): raise SystemExit('Work directory must be empty; existing outputs are never removed')
@@ -36,7 +36,11 @@ f=cpp/'cmake/BuildFFmpeg.cmake';f.write_text(f.read_text().replace('ProcessorCou
 conf=w/'oboe-config';conf.mkdir();(conf/'oboeConfig.cmake').write_text(f'set(BUILD_SHARED_LIBS ON)\nadd_subdirectory("{w}/oboe-1.9.3" "${{CMAKE_BINARY_DIR}}/oboe")\nadd_library(oboe::oboe ALIAS oboe)\n')
 if 'Pkg.Revision = 27.0.12077973' not in (ndk/'source.properties').read_text():raise SystemExit('Wrong NDK version')
 record['toolVersions']={x:subprocess.check_output([x,'--version'],text=True).splitlines()[0] for x in ['cmake','ninja']};record['toolVersions']['ndk']='27.0.12077973'
-if record['toolVersions']['cmake']!='cmake version 3.22.1':raise SystemExit('Wrong CMake version')
+cmake_version=record['toolVersions']['cmake']
+print('Pinned Android CMake reports:',cmake_version,flush=True)
+if not re.fullmatch(r'cmake version 3\.22\.1(?:-[A-Za-z0-9.-]+)?',cmake_version):raise SystemExit('Wrong CMake version: '+cmake_version)
+cmake_package=pathlib.Path(shutil.which('cmake')).resolve().parent.parent/'source.properties'
+if not cmake_package.is_file() or 'Pkg.Revision = 3.22.1' not in cmake_package.read_text():raise SystemExit('Expected official Android SDK CMake 3.22.1 package')
 triples={'armeabi-v7a':'arm-linux-androideabi','arm64-v8a':'aarch64-linux-android','x86_64':'x86_64-linux-android'}
 for abi in a.abi or list(triples):
  b=w/f'build-{abi}';cmd=['cmake','-S',str(cpp),'-B',str(b),'-G','Ninja',f'-DCMAKE_TOOLCHAIN_FILE={ndk}/build/cmake/android.toolchain.cmake',f'-DANDROID_ABI={abi}','-DANDROID_PLATFORM=android-24','-DANDROID_STL=c++_shared','-DANDROID_SUPPORT_FLEXIBLE_PAGE_SIZES=ON','-DCMAKE_BUILD_TYPE=Release',f'-Doboe_DIR={conf}',f"-DOPENSSL_BUILD_HASH={record['sourceArchives']['openssl-3.4.4.tar.gz']}"]
