@@ -140,7 +140,7 @@ This is a deterministic pixel-threshold and geometry algorithm, **not AI scene r
 | Optional control | Accessibility gestures; Root/Shizuku continuous touch and basic keys | Off by default; explicit authorization; backend and ROM limitations |
 | App capture | Android 14+ system app picker; Shizuku independent display | Picker capture has no reliable input mapping; independent display is video-only |
 | Watch party | Experimental fan-out to up to three Moonlight receivers | Hardware encoding/network limits; common framing/audio packet duration; input off |
-| Local panel power | Optional Root/Shizuku panel-off request with recovery lease | Experimental, ROM-dependent; physical panel behavior and savings need device tests |
+| Phone screen brightness | Manual transparent-window dimming with touch restoration | 0.9 does not expose Root/Shizuku physical panel-off; actual brightness and savings need device tests |
 | TV experience | Remote-friendly settings, four standby themes, translucent playback panel | Theme art is a standby background, not a playback overlay |
 | APK transfer | User-enabled TV session, package review and Android installer | Ordinary `.apk` only; no silent install, `.apks` or `.xapk` handling |
 

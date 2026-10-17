@@ -4,7 +4,7 @@ See both README language versions for roles, protocols and installation.
 
 ## First installation / 首次安装
 
-Use the [current 0.7 Release](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7). Each APK contains both phone and TV roles; choose by the **Android system ABI**, not the device's role or CPU marketing name. `arm64-v8a` is the 64-bit ARM build; `armeabi-v7a` is the 32-bit ARM build. An ARM64 processor can run a 32-bit Android system. Check the manufacturer's system information if unsure; do not assume every TV needs ARMv7. Minimum Android version is 8.0.
+Use the [current Release](https://github.com/meta-tabchen/MoonCast/releases/latest) (0.9 / code66). Each APK contains both phone and TV roles; choose by the **Android system ABI**, not the device's role or CPU marketing name. `arm64-v8a` is the 64-bit ARM build; `armeabi-v7a` is the 32-bit ARM build. An ARM64 processor can run a 32-bit Android system. Check the manufacturer's system information if unsure; do not assume every TV needs ARMv7. Minimum Android version is 8.0.
 
 **On a phone:** download the matching APK, open it from your browser's downloads or file manager, and review Android's installation prompt. If Android offers an install-source permission, it applies to the app opening the APK. Review and decide yourself; MoonCast does not grant it.
 
@@ -14,14 +14,14 @@ Use the [current 0.7 Release](https://github.com/meta-tabchen/MoonCast/releases/
 
 **If installation fails:** keep the existing installation and note the exact system message. Check Android version, system ABI, complete download and available storage; a same-package update must also satisfy Android's signature and version checks. Do not uninstall or clear data as the first troubleshooting step: that removes private settings and pairing records. Current community upgrades retain the package/signature; older standalone/0.5.0 packages have different identities, as explained in the [README migration section](../README.md#community-updates-and-one-time-migration). A public test signature supports upgrade continuity, not publisher authentication. Download only from the intended Release and compare its checksum.
 
-请使用[当前 0.7 Release](https://github.com/meta-tabchen/MoonCast/releases/tag/v0.7)。每个 APK 都含手机和电视模式，按**安卓系统 ABI**选包：`arm64-v8a` 为 64 位 ARM，`armeabi-v7a` 为 32 位 ARM。64 位处理器也可能运行 32 位系统；不确定时查厂商系统信息，不要默认电视都选 ARMv7。最低 Android 8.0。
+请使用[当前 Release](https://github.com/meta-tabchen/MoonCast/releases/latest)（0.9 / code66）。每个 APK 都含手机和电视模式，按**安卓系统 ABI**选包：`arm64-v8a` 为 64 位 ARM，`armeabi-v7a` 为 32 位 ARM。64 位处理器也可能运行 32 位系统；不确定时查厂商系统信息，不要默认电视都选 ARMv7。最低 Android 8.0。
 
 - **手机首次安装：** 下载匹配的 APK，从浏览器下载列表或文件管理器打开，核对系统安装提示。如系统提供安装来源授权，由你自行审阅决定；授权对象是打开 APK 的应用，MoonCast 不会自动授予。
 - **电视还没有 MoonCast：** 若电视已有的浏览器／文件管理器支持，可直接打开 Release 下载并打开 APK；也可将 APK 拷到 U 盘，用电视已有文件管理器打开。浏览器、U 盘、安装器和权限入口因电视／管理策略而异，这些是可选路径，不是新增厂商实测。没有允许的入口时遵循厂商说明，不要求关闭安全保护。
 - **电视已安装 MoonCast：** 后续可用手机向电视传普通 APK，再由电视确认。接收端必须已安装并运行 MoonCast，不能靠这个功能完成空白电视的首次安装。
 - **安装失败：** 先保留旧应用，记录系统原话，检查 Android 版本、系统 ABI、下载完整性及空间；同包升级还要满足签名和版本要求。不要先卸载或清数据，以免丢失设置和配对。当前社区版保持包名／签名，历史独立版及 0.5.0 有不同身份，见 [README 迁移说明](../README.zh-CN.md#社区版升级与旧版迁移)。公开测试签名只保证升级身份连续性，不认证发布者；只从预期 Release 下载并核对校验和。
 
-[Android ABI reference / ABI 官方说明](https://developer.android.com/ndk/guides/abis) · [Current validation limits / 当前验证范围](release-0.7-validation.md)
+[Android ABI reference / ABI 官方说明](https://developer.android.com/ndk/guides/abis) · [Current validation limits / 当前验证范围](release-0.9-validation.md)
 
 ## Device mode / 设备模式
 
@@ -67,16 +67,16 @@ source app, device/version and whether sound eventually resumes; never include
 private pairing keys or unredacted network logs.
 
 DRM restrictions, OEM codecs, HDMI and source audio routes need real-device tests.
-Phone panel-off/root input features remain experimental and opt-in.
+0.9 offers manual transparent-window dimming, not physical panel-off. Root/Shizuku physical panel-off remains gated pending device-specific safe-restoration evidence; optional root input is a separate feature. See [manual controls and limits](manual-controls-0.9.md).
 
 ## Downloads and platform limits / 下载与协议边界
 
-Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. For the current 0.7 / versionCode 57 build, fixed public test signature and actual test boundaries, see [0.7 validation](release-0.7-validation.md). No new physical-device or full GameStream/iPhone interoperability test is claimed for 0.7. [Community validation](community-validation.md) records historical 0.5.1 results; historical 0.5.0 results describe that older package only.
+Use the signed ARM64 or ARMv7 assets linked from the README. Choose by the device's Android ABI, not by phone versus TV: each variant contains both roles. An x86 emulator test does not establish ARM physical-device compatibility. For the current 0.9 / versionCode 66 build, fixed public test signature and actual test boundaries, see [0.9 validation](release-0.9-validation.md). The generated-media emulator checks do not establish physical phone/TV acceptance or Moonlight resolution-switch interoperability. [0.7 validation](release-0.7-validation.md) remains historical. [Community validation](community-validation.md) records historical 0.5.1 results; historical 0.5.0 results describe that older package only.
 
 Miracast, Google Cast/Chromecast, OEM system casting and AirPlay 2 multiroom are not implemented. A manual AirPlay IP is a fallback attempt, not verified evidence that the address supports AirPlay or APK installation. APK receiving must be explicitly enabled on a capable MoonCast TV and confirmed there; GameStream still requires its protocol PIN.
 
 请从 README 下载已签名的 ARM64 或 ARMv7 附件，按安卓系统 ABI 选择，不按手机/电视区分。
-当前 0.7 / code57 的固定公开测试签名及实际验证范围见[0.7 验证记录](release-0.7-validation.md)；
+当前 0.9 / code66 的固定公开测试签名及实际验证范围见[0.9 验证记录](release-0.9-validation.md)。生成媒体的模拟器检查不代表手机／电视实机验收或 Moonlight 分辨率切换通过；[0.7 验证记录](release-0.7-validation.md)仍保留为历史。
 [社区版验证](community-validation.md)保留的是历史 0.5.1 结果，不能作为本版新增真机验收。自动发现失败可在 My TV 手动输入 IP；这不代表已经验证对方支持 AirPlay，更不代表支持 APK。APK 须在支持该功能的 MoonCast 电视端开启、核对并确认。GameStream 的协议 PIN 配对仍须完成。Miracast、Chromecast、厂商系统投屏和 AirPlay 2 多房间未实现。
 
 主题设置中，遥控器左右移动只预览；确认键应用并保存，返回或关闭会放弃未应用的预览。四种背景只用于待机，播放中的半透明设置不会替换视频画面。实际声画质量、实体设备互通和系统安装仍以验证文档的未测试边界为准。
