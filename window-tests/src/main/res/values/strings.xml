@@ -1,1 +1,19 @@
-<resources><string name="controls_overlay_denied">Overlay unavailable</string><string name="controls_dim_countdown">Generated test: tap to cancel dimming</string></resources>
+<resources><string name="controls_overlay_denied">Overlay unavailable</string><string name="controls_dim_countdown">Generated test: tap to cancel dimming</string><string name="phone_crop_dark">Dark scene; retaining the region</string>
+    <string name="phone_crop_sample_failed">Video-region sampling failed: %1$s</string>
+    <string name="phone_encoder_output_failed">Additional encoder output failed: %1$s</string>
+    <string name="phone_gpu_capture">GPU capture %1$d×%2$d → %3$d encoder output(s)</string>
+    <string name="phone_gpu_init_failed">GPU initialization failed: %1$s</string>
+    <string name="phone_display_mode_failed">Display mode change failed: %1$s</string>
+    <string name="phone_capture_resized">Capture size updated: %1$d×%2$d</string>
+    <string name="phone_gpu_render_failed">GPU rendering failed: %1$s</string>
+    <string name="phone_crop_sample">Video-region sample %1$d×%2$d: %3$s</string>
+    <string name="phone_cinema_locked">Cinema region locked: %1$d%% × %2$d%%</string>
+    <string name="phone_video_region_updated">Video region updated: %1$d%% × %2$d%%</string>
+    <string name="phone_gpu_first_frame">First GPU frame submitted to the encoder</string>
+    <string name="phone_diagnostic_unavailable">Diagnostic details unavailable</string>
+    <string name="phone_volume_denied">The system did not allow media volume changes</string>
+    <string name="phone_volume_restore_denied">The system did not restore media volume; recovery will retry on the next casting session</string>
+    <string name="phone_capture_size_invalid">The capture dimensions are invalid</string>
+    <string name="phone_output_size_invalid">The encoder output dimensions are invalid</string>
+    <string name="phone_gpu_sample_unavailable">The GPU sampling buffer is unavailable</string>
+    </resources>

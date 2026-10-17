@@ -7,6 +7,7 @@ a.output.mkdir(parents=True,exist_ok=True)
 def adb(*args,**kwargs):return subprocess.run(['adb','-s',a.serial,*map(str,args)],text=True,capture_output=True,**kwargs)
 passed=False;status={'passed':False,'scope':'disposable emulator AirPlay native transport/JNI/MediaCodec/GL pixels/reconnect; optional generated-Surface Sunshine encode/transport/MediaCodec outputs and native sessions; no physical TV, LAN discovery, screen capture or audio acceptance','gameStreamRequested':a.gamestream,'surfaceMode':a.surface,'acquireWithoutSignal':a.probe_texture};evidence=[]
 try:
+ status['phase']='package-service-readiness'
  # boot_completed can briefly precede PackageManager readiness or a system-server restart.
  end=time.monotonic()+180;ready=0
  while time.monotonic()<end:
@@ -19,17 +20,21 @@ try:
   time.sleep(3)
  if ready<3:raise RuntimeError('Emulator package service did not become stable; no app test executed')
  for file in [a.debug,a.test]:
+  status['phase']='install-'+file.name
   result=adb('install','-r','-t',file,timeout=180);evidence.append(result.stdout+result.stderr)
   if result.returncode or 'Success' not in result.stdout:raise RuntimeError('Fixture installation failed')
+ status['phase']='actual-isolated-native-load'
  result=adb('shell','am','instrument','-w','-r','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=180)
  load_text=result.stdout+result.stderr;evidence.append(load_text)
  status['nativeLoadPassed']=result.returncode==0 and 'actual Android sender/receiver JNI loads' in load_text and 'INSTRUMENTATION_CODE: -1' in load_text and 'INSTRUMENTATION_FAILED' not in load_text
  if not status['nativeLoadPassed']:raise RuntimeError('Actual sender/receiver library load or isolated process test failed')
+ status['phase']='airplay-session-'+a.surface
  result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','-e','surface',a.surface,'-e','acquireWithoutSignal',str(a.probe_texture).lower(),'com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
  text=result.stdout+result.stderr;evidence.append(text);status['returnCode']=result.returncode
  passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
  status['airplayReceiverPassed']=passed
  if a.gamestream:
+  status['phase']='gamestream-generated-session'
   game=adb('shell','am','instrument','-w','-r','-e','suite','gamestream-native','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=600)
   game_text=game.stdout+game.stderr;evidence.append(game_text)
   status['gameStreamPassed']=game.returncode==0 and 'GAMESTREAM_NATIVE_SESSION_PASSED' in game_text and 'INSTRUMENTATION_CODE: -1' in game_text and 'INSTRUMENTATION_FAILED' not in game_text
@@ -37,7 +42,7 @@ try:
 except subprocess.TimeoutExpired as failure:
  passed=False
  def decoded(value):return value.decode(errors='replace') if isinstance(value,bytes) else value or ''
- evidence.append(decoded(failure.stdout)+decoded(failure.stderr));status['failure']='command-timeout'
+ evidence.append(decoded(failure.stdout)+decoded(failure.stderr));status['failure']='command-timeout';status['timeoutSeconds']=failure.timeout
 except Exception as failure:
  passed=False
  status['failure']=str(failure)

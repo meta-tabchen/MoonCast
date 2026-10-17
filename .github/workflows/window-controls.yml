@@ -28,6 +28,7 @@ jobs:
       - name: Compile actual production window control in isolated test application
         run: gradle --no-daemon :window-tests:assembleDebug :window-tests:assembleDebugAndroidTest
       - name: Start Android 28 software emulator without KVM or permission changes
+        id: boot
         timeout-minutes: 12
         shell: bash
         run: |
@@ -59,6 +60,16 @@ jobs:
           grep -q SCREEN_DIM_DEVICE_PASSED "$RUNNER_TEMP/window-evidence/instrumentation.txt"
           grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/window-evidence/instrumentation.txt"
           ! grep -qE 'SCREEN_DIM_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/window-evidence/instrumentation.txt"
+      - name: Production GL held-frame pause and static-source resume
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          timeout 180s adb -s emulator-5554 shell am instrument -w -r -e suite pipeline com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/window-evidence/pipeline.txt" 2>&1
+          cat "$RUNNER_TEMP/window-evidence/pipeline.txt"
+          grep -q PIPELINE_PAUSE_DEVICE_PASSED "$RUNNER_TEMP/window-evidence/pipeline.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/window-evidence/pipeline.txt"
+          ! grep -qE 'PIPELINE_PAUSE_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/window-evidence/pipeline.txt"
       - name: Capture generated fixture evidence and stop software emulator
         if: always()
         run: |
