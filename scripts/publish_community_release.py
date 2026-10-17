@@ -5,7 +5,7 @@ existing tags/assets are never moved, deleted or overwritten.
 """
 import argparse,hashlib,json,os,pathlib,subprocess,tempfile,time,urllib.request
 R=pathlib.Path(__file__).resolve().parents[1];REPO='meta-tabchen/MoonCast';TAG='v0.9'
-p=argparse.ArgumentParser();p.add_argument('--directory',type=pathlib.Path,required=True);p.add_argument('--commit',required=True);a=p.parse_args();d=a.directory
+p=argparse.ArgumentParser();p.add_argument('--directory',type=pathlib.Path,required=True);p.add_argument('--commit',required=True);p.add_argument('--selection-proof',type=pathlib.Path,required=True);a=p.parse_args();d=a.directory
 NAMES={'MoonCast-0.9-arm64-v8a.apk','MoonCast-0.9-armeabi-v7a.apk','MoonCast-0.9-source.zip','MoonCast-0.9-notices.zip','RELEASE-PROVENANCE.json','SHA256SUMS'}
 OLD_TAG='0db24011fe59abd145f7839d5a00bb6d503954e7'
 OLD_ASSETS={'MoonCast-0.8-arm64-v8a.apk':(649762653,'1f8f33aad642c4afea44ee0c02aad4edeb2b121f7f5fd8380980208f5801b4f1'),'MoonCast-0.8-armeabi-v7a.apk':(649762465,'bb6863d5e4d71fb9eeccdad903efb7ead77294c6474358a5e29a3274e44fd20a'),'MoonCast-0.8-source.zip':(649770855,'b0bc3512d600c33b604bb1585dbd232dbbe28c601acf66cfc2570d0887f7c4bb'),'MoonCast-0.8-notices.zip':(649762388,'33444d419ff97315adc1518cd3cc743681cb31cdbc723bdb0defdaa89187b83e'),'RELEASE-PROVENANCE.json':(649762436,'799795b61b999e8542e3fa893393a0aeb23db5a2fea4e3c719ca8d246b29899f'),'SHA256SUMS':(649762307,'7c1d6cfa68a76807125565e0e5b43820323b8ae2136534cb67d3828d73cf3c47')}
@@ -33,6 +33,11 @@ expected={n:sha((d/n).read_bytes()) for n in NAMES}
 require(set(prov['assets'])==NAMES-{'RELEASE-PROVENANCE.json','SHA256SUMS'},'exact provenance asset inventory')
 for name,row in prov['assets'].items():require(row['sha256']==expected[name] and row['bytes']==(d/name).stat().st_size,'provenance inventory')
 checks={line.split('  ',1)[1]:line.split('  ',1)[0] for line in (d/'SHA256SUMS').read_text().splitlines()};require(checks=={n:h for n,h in expected.items() if n!='SHA256SUMS'},'complete checksums')
+selection=json.loads(a.selection_proof.read_text())
+require(selection['sourceCommit']==a.commit and selection['assets']=={n:{'sha256':expected[n],'bytes':(d/n).stat().st_size} for n in NAMES},'exact reviewed selection bytes')
+def reviewed_receipt_stable():
+ require(api('git/ref/heads/codex/mooncast-0.9')['object']['sha']==selection['reviewReceiptCommit'],'reviewed candidate receipt changed; no publication')
+reviewed_receipt_stable()
 require(api('git/ref/heads/main')['object']['sha']==a.commit,'remote main did not advance')
 old_snapshot();tag=api('git/ref/tags/'+TAG,optional=True)
 if tag is None:api('git/refs','POST',{'ref':'refs/tags/'+TAG,'sha':a.commit})
@@ -59,6 +64,7 @@ with tempfile.TemporaryDirectory(prefix='mooncast-draft-check-') as temp:
  for name in NAMES:require(sha((pathlib.Path(temp)/name).read_bytes())==expected[name],'draft download bytes '+name)
 require(api('git/ref/heads/main')['object']['sha']==a.commit,'remote main stable before publication')
 require(api('git/ref/tags/'+TAG)['object']['sha']==a.commit,'tag stable before publication');old_snapshot()
+reviewed_receipt_stable()
 if release['draft']:api('releases/'+str(release['id']),'PATCH',{'draft':False,'prerelease':False,'make_latest':'true'})
 public=api('releases/tags/'+TAG);require(not public['draft'] and not public['prerelease'],'public release state')
 require(api('releases/latest')['id']==public['id'],'Latest classification')

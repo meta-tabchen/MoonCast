@@ -1,8 +1,8 @@
-> Current release: **0.8 / code65**. Reuses the hash-locked sender AAR containing the validated legacy HTTP, framing and lifecycle corrections. [Validation and limits](release-0.8-validation.md).
+> Current source target: **0.9 / code66**. The Go sender AAR remains hash-locked; the receiver and Sunshine runtime require the verified native rebuild/override below. [Validation and limits](release-0.9-validation.md).
 
 # Build the community app / 构建社区版
 
-Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current application metadata is `0.8`, versionCode 65. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release.
+Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current application metadata is `0.9`, versionCode 66. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release.
 
 ## Full Git checkout: fixed community signing
 
@@ -10,6 +10,8 @@ Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Us
 git clone --branch main https://github.com/meta-tabchen/MoonCast.git
 cd MoonCast
 python3 scripts/restore_release_inputs.py
+# Do the 0.9 native rebuild (or strict CI-output reuse) described below FIRST.
+# A source-only C/C++ edit does not change the restored legacy .so bytes.
 python3 scripts/prepare_airplay.py --verify-sources
 python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
 python3 scripts/prepare_unified_native.py
@@ -19,7 +21,7 @@ python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/u
 
 `mooncastAbi` accepts `arm64-v8a`, `armeabi-v7a` or `x86_64`; omit it for a larger universal build. This does not promise every ABI is published as a release download.
 
-The normal community build uses `com.mooncast.community`, versionCode 65 for 0.8 (historical browser preview.4 used 55, preview.3 used 54 and 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
+The normal community build uses `com.mooncast.community`, versionCode 66 for 0.9 (historical browser preview.4 used 55, preview.3 used 54 and 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
 
 For subsequent releases add `--previous /path/to/previous-community.apk` to the identity verifier to check a matching identity and increasing versionCode. Old 0.5.0 is a different package with an unavailable disposable signing identity; it requires a one-time migration and cannot serve as a community in-place-update fixture.
 
@@ -52,13 +54,34 @@ For browser preview.3, runtime build `7a843a1` and source/documentation snapshot
 
 ## Native isolation and corresponding source
 
-Phone libraries remain pinned originals; Go sender source and lock files moved to
-native/airplay-sender to distinguish the TV receiver in native/airplay. Sender source
-and AAR bytes are unchanged; path-only helper edits are re-pinned in the migrated lock.
+The Go sender AAR remains pinned; its source/locks live under native/airplay-sender.
+The 0.9 receiver JNI-ownership and Sunshine JNI/capture changes are rebuilt native
+outputs, not the legacy binaries restored by a plain Git checkout.
 
-Receiver sources include the two audio transition patches and three rebuilt ABIs.
-First use scripts/build_airplay_patched.py with NDK27/CMake3.22.1, as documented in
-tv-airplay-audio-transitions.md. Then prepare_unified_native.py deterministically
+Receiver sources retain both audio transition patches plus the adapter ownership
+patch. For a fresh Linux native rebuild, first install the official locked NDK/SDK
+CMake toolchains under your existing SDK license, then use new empty work folders:
+
+```sh
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.0.12077973"
+PATH="$ANDROID_HOME/cmake/3.22.1/bin:$PATH" python3 scripts/build_airplay_receiver_candidate.py --source . --work /tmp/mooncast-receiver-new
+python3 scripts/install_receiver_candidate.py --work /tmp/mooncast-receiver-new
+PATH="$ANDROID_HOME/cmake/3.31.1/bin:$PATH" python3 scripts/build_sunshine_candidate.py --work /tmp/mooncast-sunshine-new
+python3 scripts/prepare_unified_native.py
+```
+
+These scripts verify locked source archives/toolchains, rebuild all three ABIs,
+and install only after their checks succeed; they never remove a nonempty work
+folder. The unified Actions route instead reuses the exact native artifact12102154262
+from run39035789360, ZIP SHA-256
+`d3817623086ad1d419ce996cf25d1143a239e9f6eef79634a781b97e69ace1cd`,
+through `reuse_native_candidate.py --bundle <downloaded-artifact-directory>`.
+Reuse checks every native source/archive/patch/recipe/output and retains the
+original build provenance; changed inputs require the rebuild above. The Release
+source ZIP already includes its verified generated native overrides and manifests.
+Do not overwrite those with old restored files or call a baseline-only build native-patched.
+
+`prepare_unified_native.py` then deterministically
 changes only the exact ELF DT_NEEDED/DT_SONAME string libcrypto.so to the equal-length
 libtvcryp.so and gives that library a distinct filename. It never modifies executable
 code, symbols, source archives or the original standalone binaries. The generated

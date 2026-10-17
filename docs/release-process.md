@@ -1,4 +1,4 @@
-> Current authorized release: **0.8 / code65 / v0.8**. Consolidates the local AirPlay candidates; see [validation and limitations](release-0.8-validation.md). Preserve all historical tags, assets and evidence.
+> Current authorized target: **0.9 / code66 / v0.9**. Publication follows exact candidate verification; see [validation and limitations](release-0.9-validation.md). Preserve all historical tags, assets and evidence.
 
 # Release procedure / 发布流程
 
@@ -9,10 +9,10 @@ This is the project workflow for an explicitly authorized release. It does not a
 ## 1. Freeze identity and scope before building
 
 - Primary source branch: **main**. Normal application target: **`:unified`**.
-- Copy the user's numeric version exactly. Current request: **0.8**, tag **v0.8**, title **MoonCast 0.8**. Do not silently change it to 0.8.0 or append browser/community/preview.
+- Copy the user's numeric version exactly. Current request: **0.9**, tag **v0.9**, title **MoonCast 0.9**. Do not silently change it to 0.9.0 or append browser/community/preview.
 - Determine a strictly increasing versionCode from real prior artifacts. Do not infer its final value from a document template. About must show the installed package's version/code; build identity remains separate.
 - Keep package **com.mooncast.community** and the existing fixed certificate SHA-256 **290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2**. Do not create a new key, regenerate the fixture or silently fall back. Normal signing checks fail closed.
-- State what changed and what did not. Do not describe 0.8 development as a final verified build before evidence exists.
+- State what changed and what did not. Do not describe 0.9 development as a final verified build before evidence exists.
 
 ## 2. One writer, no lost concurrent edits
 
@@ -38,17 +38,40 @@ For WebRTC, retain fixed source/DEPS coordinates, build/fetch mapping and origin
 
 ## 5. Prepare the Release before moving download links
 
-For version 0.8, use:
+For version 0.9, use:
 
-- `MoonCast-0.8-arm64-v8a.apk`
-- `MoonCast-0.8-armeabi-v7a.apk`
-- `MoonCast-0.8-source.zip`
-- `MoonCast-0.8-notices.zip`
+- `MoonCast-0.9-arm64-v8a.apk`
+- `MoonCast-0.9-armeabi-v7a.apk`
+- `MoonCast-0.9-source.zip`
+- `MoonCast-0.9-notices.zip`
+- `RELEASE-PROVENANCE.json`
 - `SHA256SUMS`
 
 Use bilingual English/Chinese notes with the same feature, verification, risk and upgrade scope. Keep package/signature continuity visible; the public test signer is not publisher authentication. Separate measured results from intended behavior and acknowledge remaining protocol/device limits.
 
 Use the requested **Latest** classification when publishing the authorized release. Latest and numeric naming are presentation choices, not guarantees of stability. Do not mark a newer draft public merely because a superseded release had permission. Do not delete/rename old tags, assets, Release notes or links to hide superseded work or failures.
+
+### Exact inspected candidate bytes in the 0.9 cloud route
+
+Freeze source commit **S** on `codex/mooncast-0.9`; complete its build/runtime checks
+and independently download/inspect its six-file release artifact. Record S/tree,
+run ID/attempt, artifact ID, external artifact ZIP digest/size and all six file hashes.
+Do not substitute a newer build merely because its source tree is similar.
+
+After inspection, append a direct child **P** on that candidate branch which only
+adds the regular file `release/reviewed-0.9.json` with those exact audit pins. This is
+an audit receipt, not a new application source release. The workflow ignores this
+receipt-only push. Recheck concurrency, then fast-forward **main to S**, not P.
+The final S commit's authorized publish marker triggers the bounded publisher.
+
+Main independently builds S again, but publication selects the unchanged artifact
+from the inspected candidate run. The selector requires P's sole parent S, its
+one-file receipt diff and regular Git blob, exact source/run/attempt/artifact pins,
+ZIP CRC and all six byte identities, then rereads the run/artifact/P/main state.
+The publisher checks the receipt before mutation, preserves candidate provenance,
+and never uploads main's newly generated substitute artifact. S remains the tag
+and APK build ID. Keep P stable until public verification completes. A failed or
+ambiguous selection stops publication; never update a pin to hide changed bytes.
 
 ## 6. Verify public downloads, then update README
 

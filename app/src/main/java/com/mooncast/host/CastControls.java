@@ -35,6 +35,7 @@ final class CastControls implements AutoCloseable {
     private boolean expanded,closed,resourcesReleased,rightEdge,dragging;
     private int viewportWidth,viewportHeight;
     private final ManualControlState state=new ManualControlState();
+    private final Runnable fitAfterLayout=this::fitOverlay;
     private final Runnable monitor=new Runnable(){public void run(){
         if(closed)return;
         if(viewportWidth!=service.getResources().getDisplayMetrics().widthPixels||viewportHeight!=service.getResources().getDisplayMetrics().heightPixels)draw();
@@ -82,8 +83,8 @@ final class CastControls implements AutoCloseable {
         GradientDrawable bg=new GradientDrawable();bg.setColor(0xed18354a);bg.setCornerRadius(dp(20));overlay.setBackground(bg);
         if(position==null){position=new WindowManager.LayoutParams(-2,-2,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,PixelFormat.TRANSLUCENT);position.gravity=Gravity.TOP|Gravity.LEFT;position.x=0;position.y=dp(180);}
-        overlay.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(closed||overlay!=v)return;if(viewportWidth!=service.getResources().getDisplayMetrics().widthPixels||viewportHeight!=service.getResources().getDisplayMetrics().heightPixels){main.post(this::draw);return;}fitOverlay();});
-        overlay.setOnApplyWindowInsetsListener((v,insets)->{v.post(this::fitOverlay);return insets;});
+        overlay.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{if(closed||overlay!=v)return;if(viewportWidth!=service.getResources().getDisplayMetrics().widthPixels||viewportHeight!=service.getResources().getDisplayMetrics().heightPixels){main.post(this::draw);return;}scheduleFit();});
+        overlay.setOnApplyWindowInsetsListener((v,insets)->{scheduleFit();return insets;});
         try{windows.addView(overlay,position);draw();}catch(RuntimeException denied){overlay=null;toast(R.string.controls_overlay_denied);}
     }
     private void draw(){
@@ -112,6 +113,12 @@ final class CastControls implements AutoCloseable {
             overlay.addView(scroll,new LinearLayout.LayoutParams(Math.max(dp(120),Math.min(dp(240),width-dp(24))),menuHeight));
             button(R.string.controls_dim_phone,this::requestDim);button(state.paused?R.string.controls_resume:R.string.controls_pause,this::togglePause);button(R.string.controls_screen_off,this::requestOff);button(R.string.ui_panel_restore,()->restore(false));label(R.string.controls_dim_notice);label(R.string.controls_capture_notice);
         }
+    }
+    private void scheduleFit(){
+        // Updating a WindowManager position inside onLayout can race the resize
+        // reply: on Android29 the View origin reverted after an edge move and
+        // taps stopped reaching the bubble. Refit after layout returns.
+        main.removeCallbacks(fitAfterLayout);main.post(fitAfterLayout);
     }
     private void fitOverlay(){
         if(overlay==null||closed)return;

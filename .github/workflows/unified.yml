@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ main, unified/android-0.5.0, unified/community, codex/mooncast-0.9 ]
+    paths-ignore: [release/reviewed-0.9.json]
   pull_request:
 jobs:
   verify:
@@ -54,6 +55,7 @@ jobs:
         run: |
           python3 scripts/run_release_asset_policy_tests.py
           python3 scripts/run_publication_policy_tests.py
+          python3 scripts/run_candidate_selection_tests.py
           python3 scripts/run_receiver_runner_tests.py
           python3 scripts/run_receiver_jni_thread_tests.py
           python3 scripts/run_sunshine_candidate_tests.py
@@ -139,15 +141,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v4
-        with:
-          name: community-release-candidates
-          path: ${{ runner.temp }}/community-release
+      - name: Select unchanged bytes from the inspected exact-source candidate run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/select_reviewed_release_candidate.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA" | tee "$RUNNER_TEMP/reviewed-candidate-selection.json"
       - name: Publish exact verified draft and verify unauthenticated public bytes
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/publish_community_release.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA" | tee "$RUNNER_TEMP/public-release-verification.json"
+        run: python3 scripts/publish_community_release.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA" --selection-proof "$RUNNER_TEMP/reviewed-candidate-selection.json" | tee "$RUNNER_TEMP/public-release-verification.json"
       - name: Correct obsolete historical source-upload banner after public source verification
         env:
           GH_TOKEN: ${{ github.token }}
@@ -156,7 +159,9 @@ jobs:
         if: always()
         with:
           name: public-release-verification
-          path: ${{ runner.temp }}/public-release-verification.json
+          path: |
+            ${{ runner.temp }}/public-release-verification.json
+            ${{ runner.temp }}/reviewed-candidate-selection.json
   device:
     # Prior software-emulator CPU starvation prevents treating routine reruns as
     # release evidence. Manual dispatch may investigate it; skipped is not passed.
