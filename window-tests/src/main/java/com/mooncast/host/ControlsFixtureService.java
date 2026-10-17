@@ -12,6 +12,9 @@ public final class ControlsFixtureService extends Service {
    data.putInt("pid",android.os.Process.myPid());data.putInt("instance",System.identityHashCode(this));data.putBoolean("paused",paused);data.putBoolean("stopped",stopped);data.putInt("pauseCommands",pauseCommands);
    android.graphics.Point physical=new android.graphics.Point();getSystemService(WindowManager.class).getDefaultDisplay().getRealSize(physical);data.putInt("screenWidth",physical.x);data.putInt("screenHeight",physical.y);data.putFloat("density",getResources().getDisplayMetrics().density);data.putFloat("fontScale",getResources().getConfiguration().fontScale);
    java.lang.reflect.Field field=CastControls.class.getDeclaredField("overlay");field.setAccessible(true);View root=(View)field.get(controls);
+   for(String name:new String[]{"rightEdge","dragging","expanded"}){java.lang.reflect.Field f=CastControls.class.getDeclaredField(name);f.setAccessible(true);data.putBoolean(name,f.getBoolean(controls));}
+   for(String name:new String[]{"viewportWidth","viewportHeight"}){java.lang.reflect.Field f=CastControls.class.getDeclaredField(name);f.setAccessible(true);data.putInt(name,f.getInt(controls));}
+   java.lang.reflect.Field pf=CastControls.class.getDeclaredField("position");pf.setAccessible(true);WindowManager.LayoutParams lp=(WindowManager.LayoutParams)pf.get(controls);if(lp!=null){data.putInt("positionX",lp.x);data.putInt("positionY",lp.y);}
    data.putBoolean("overlay",root!=null);if(root!=null){bounds(data,"window",root);Rect usable=new Rect();root.getWindowVisibleDisplayFrame(usable);data.putParcelable("usable",usable);data.putBoolean("layoutRequested",root.isLayoutRequested());walk(data,root);}
   }catch(Throwable error){data.putString("failure",android.util.Log.getStackTraceString(error));}
   if(message.replyTo!=null)try{Message reply=Message.obtain();reply.setData(data);message.replyTo.send(reply);}catch(RemoteException ignored){}
