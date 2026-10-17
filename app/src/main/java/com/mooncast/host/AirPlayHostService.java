@@ -31,6 +31,7 @@ public final class AirPlayHostService extends Service {
     private AirPlayPlaybackAudio audio;
     private LocalAudioMute localMute;
     private PowerManager.WakeLock wake;
+    private android.net.wifi.WifiManager.MulticastLock audioDiscoveryLock;
     private volatile boolean stopping;
     private boolean started, ownsCapture, cleanupStarted, connected, pinPending, wantsAudio, mutePhone, legacy, wholeScreen;
     private int width, height, fps, bitrate, scaleMode, port;
@@ -39,9 +40,17 @@ public final class AirPlayHostService extends Service {
     private long statusToken;
     private String protocolStage = "CONNECT";
     private boolean legacyHttpTransport;
+    private final CapturedContentSize capturedSize = new CapturedContentSize();
+    private String versionLabel = "unknown", stopOrigin = "running", nativeDiagnostic = "{}", lastVideoDiagnostic = "pending";
+    private String failureCode = "none";
+    private long lastDiagnosticSave;
+    private volatile long pcmFrames;
+    private volatile int pcmPeak;
 
     @Override public void onCreate() {
         super.onCreate(); commands.start();
+        try { android.content.pm.PackageInfo p=getPackageManager().getPackageInfo(getPackageName(),0); versionLabel=p.versionName+"/"+(Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode); }
+        catch (android.content.pm.PackageManager.NameNotFoundException ignored) {}
         binder = new Messenger(new Handler(commands.getLooper(), msg -> {
             if (msg.what == HostService.STOP) { stopSender(); return true; }
             Message copy = Message.obtain(msg);
@@ -82,15 +91,18 @@ public final class AirPlayHostService extends Service {
             fps = Math.max(15, Math.min(legacy ? 30 : 60, intent.getIntExtra("airplayFps", 30)));
             bitrate = Math.max(1_000_000, Math.min(40_000_000, intent.getIntExtra("airplayBitrate", 8_000_000)));
             scaleMode = Math.max(0, Math.min(CropGeometry.CINEMA, intent.getIntExtra("scaleMode", CropGeometry.VIDEO_REGION)));
-            wantsAudio = !legacy && intent.getBooleanExtra("audio", false);
+            wantsAudio = intent.getBooleanExtra("audio", false);
             mutePhone = wantsAudio && intent.getBooleanExtra("muteLocal", false);
             Intent grant = intent.getParcelableExtra("grant");
             if (grant == null) throw new IllegalArgumentException(getString(R.string.ui_missing_screen_capture_permission_start_again));
             projection = getSystemService(MediaProjectionManager.class).getMediaProjection(Activity.RESULT_OK, grant);
             if (projection == null) throw new IllegalStateException(getString(R.string.ui_screen_sharing_was_not_authorized));
             projection.registerCallback(new MediaProjection.Callback() {
-                @Override public void onStop() { stopSender(); }
-                @Override public void onCapturedContentResize(int w, int h) { if (video != null) video.resize(w, h); }
+                @Override public void onStop() { if (!stopping) { stopOrigin="projection-stop"; stopSender(); } }
+                @Override public void onCapturedContentResize(int w, int h) {
+                    if (stopping) return;
+                    if (capturedSize.update(w,h) && video != null) video.resize(w,h);
+                }
             }, main);
             wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MoonCast:AirPlay");
             wake.acquire(6 * 60 * 60 * 1000L);
@@ -115,7 +127,15 @@ public final class AirPlayHostService extends Service {
             || octets[0] == 169 && octets[1] == 254 || octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127;
     }
     private void connect(String pin) {
+        if (wantsAudio) try {
+            android.net.wifi.WifiManager wifi = (android.net.wifi.WifiManager)getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wifi != null && audioDiscoveryLock == null) {
+                audioDiscoveryLock = wifi.createMulticastLock("MoonCast:RAOP");
+                audioDiscoveryLock.setReferenceCounted(false); audioDiscoveryLock.acquire();
+            }
+        } catch (RuntimeException ignored) { releaseAudioDiscovery(); }
         int token = generation.incrementAndGet(); Session old = session; session = null;
+        connected = false; connectedFrames = 0;
         protocolStage = "GET/stream.xml";
         legacyHttpTransport = false;
         state = getString(R.string.ap_service_connecting); detail = host + ":" + port; publish();
@@ -139,7 +159,7 @@ public final class AirPlayHostService extends Service {
             main.post(() -> {
                 if (stopping || token != generation.get()) { discard(created); return; }
                 session = created;
-                try { created.connect(host, port, pin == null ? "" : pin, width, height, fps); }
+                try { created.setAudioEnabled(wantsAudio); created.setClockReference(System.nanoTime()/1000); created.connect(host, port, pin == null ? "" : pin, width, height, fps); }
                 catch (RuntimeException | LinkageError failure) { failProtocol(failure.getMessage()); }
             });
             } catch (RuntimeException | LinkageError failure) {
@@ -149,6 +169,8 @@ public final class AirPlayHostService extends Service {
         main.postDelayed(() -> { if (!stopping && token == generation.get() && !connected && !pinPending) fail(getString(R.string.ap_service_timeout, AirPlayDiagnostics.safeStage(protocolStage))); }, 25000);
     }
     private void failProtocol(String reason) {
+        stopOrigin=AirPlayDiagnostics.origin(reason);
+        failureCode=AirPlayDiagnostics.failure(reason, protocolStage);
         fail(getString(R.string.ap_service_protocol_failed, AirPlayDiagnostics.failure(reason, protocolStage)));
     }
     private static void discard(Session obsolete) {
@@ -156,33 +178,49 @@ public final class AirPlayHostService extends Service {
     }
     private void startCapture(int token) {
         if (stopping || connected || token != generation.get() || session == null) return;
+        releaseAudioDiscovery();
         Session active = session;
         try {
             int rw = (int)active.streamWidth(), rh = (int)active.streamHeight();
             if (rw > 0 && rh > 0) {
-                double ratio = Math.min(1d, Math.min(width / (double)rw, height / (double)rh));
-                width = Math.max(2, ((int)(rw * ratio)) & ~1); height = Math.max(2, ((int)(rh * ratio)) & ~1);
+                // Native already applied the requested quality ceiling. Use its
+                // exact canvas rather than scaling a second time after rotation.
+                width = rw & ~1; height = rh & ~1;
             }
             active.setAirPlay1FrameSize(width, height);
             video = new AirPlayVideoEncoder(this, new AirPlayVideoEncoder.Output() {
-                public void video(byte[] bytes, boolean keyframe) { if (!stopping && token == generation.get()) { active.sendFrame(bytes, keyframe); connectedFrames++; } }
+                public void video(byte[] bytes, boolean keyframe, long ptsMicros) { if (!stopping && token == generation.get()) { active.sendFrameAt(bytes, keyframe, ptsMicros); connectedFrames++; } }
                 public void error(String message) { main.post(() -> { if (token == generation.get()) fail(message); }); }
                 public void log(String message) { main.post(() -> AirPlayHostService.this.log(message)); }
             });
             boolean compatibility = legacy || legacyHttpTransport;
             int captureFps = legacyHttpTransport ? Math.min(fps, 30) : fps;
-            video.start(projection, width, height, captureFps, compatibility ? Math.min(bitrate, 4_000_000) : bitrate, compatibility, scaleMode, wholeScreen);
+            video.start(projection, width, height, captureFps, compatibility ? Math.min(bitrate, 4_000_000) : bitrate, compatibility, scaleMode, wholeScreen, capturedSize);
             connected = true; pinPending = false;
             state = getString(R.string.ap_service_casting); detail = getString(R.string.phone_airplay_stream,host,width,height,fps);
             if (wantsAudio && active.hasAudio()) startAudio(active, token);
-            else log(getString(legacy ? R.string.ap_service_legacy_video : wantsAudio ? R.string.ap_service_receiver_no_audio : R.string.ui_video_only_sound_stays_on_the_phone));
+            else log(getString(wantsAudio ? R.string.ap_service_receiver_no_audio : R.string.ui_video_only_sound_stays_on_the_phone));
             publish();
+            watchTransport(active, token);
         } catch (Exception | LinkageError failure) { fail(PhoneMessages.message(R.string.phone_capture_failed,failure.getMessage())); }
+    }
+    private void watchTransport(Session active, int token) {
+        main.postDelayed(() -> {
+            if (stopping || token != generation.get() || session != active) return;
+            try {
+                if (!active.isConnected()) { failProtocol("legacy transport connection closed"); return; }
+                publish();
+                watchTransport(active, token);
+            } catch (RuntimeException | LinkageError failure) { failProtocol(failure.getMessage()); }
+        }, 500);
     }
     private void startAudio(Session active, int token) {
         try {
             audio = new AirPlayPlaybackAudio(); audio.start(this, projection, new AirPlayPlaybackAudio.Output() {
-                public void audio(byte[] bytes) { if (!stopping && token == generation.get()) active.sendAudio(bytes); }
+                public void audio(byte[] bytes) { if (!stopping && token == generation.get()) {
+                    int peak=0; for(int i=0;i+1<bytes.length;i+=2) peak=Math.max(peak,Math.abs((int)(short)((bytes[i]&255)|(bytes[i+1]<<8))));
+                    pcmPeak=peak; pcmFrames++; active.sendAudio(bytes);
+                } }
                 public void failed(String reason) { main.post(() -> { if (!stopping && token == generation.get()) { closeAudio(); log(getString(R.string.ui_audio_capture_unavailable_video_continues) + reason); publish(); } }); }
             });
             // Local volume control is optional. A fixed-volume route or denied
@@ -208,6 +246,9 @@ public final class AirPlayHostService extends Service {
     private void closeAudio() { restoreVolume(); AirPlayPlaybackAudio old = audio; audio = null; if (old != null) old.close(); }
     private void fail(String message) {
         if (stopping) return;
+        if (stopOrigin.equals("running")) stopOrigin="capture-or-startup";
+        releaseAudioDiscovery();
+        connected = false; pinPending = false;
         error = boundedDiagnostic(PhoneMessages.render(this, message == null || message.isEmpty() ? getString(R.string.ap_service_failed) : message));
         state = getString(R.string.ap_service_failed); detail = error; log(error);
         HostFailureStore.failure(getFilesDir(), statusToken, AirPlayDiagnostics.safeStage(protocolStage), error, this::publish, this::stopSender);
@@ -216,12 +257,14 @@ public final class AirPlayHostService extends Service {
         if (stopping) return;
         if (!ownsCapture) { stopSelf(); return; }
         stopping = true; generation.incrementAndGet();
+        if (stopOrigin.equals("running")) stopOrigin="user-or-service-stop";
+        connected = false; pinPending = false;
         // Same bounded process isolation as GameStream; no consumed Android grant is reused.
         new Thread(() -> { SystemClock.sleep(4000); android.os.Process.killProcess(android.os.Process.myPid()); }, "AirPlayStopDeadline").start();
         main.post(this::finishStop);
     }
     private void finishStop() {
-        if (cleanupStarted) return; cleanupStarted = true; publish(); restoreVolume();
+        if (cleanupStarted) return; cleanupStarted = true; publish(); restoreVolume(); releaseAudioDiscovery();
         // Close Go pipes before waiting for audio/video workers blocked by network backpressure.
         Session old = session; session = null;
         new Thread(() -> {
@@ -229,6 +272,10 @@ public final class AirPlayHostService extends Service {
             catch (RuntimeException | LinkageError failure) { android.util.Log.w("MoonCast", "AirPlay disconnect failed; capture cleanup continues"); }
             finally { main.post(this::releaseCapture); }
         }, "AirPlayDisconnect").start();
+    }
+    private void releaseAudioDiscovery() {
+        android.net.wifi.WifiManager.MulticastLock lock = audioDiscoveryLock; audioDiscoveryLock = null;
+        if (lock != null) try { if (lock.isHeld()) lock.release(); } catch (RuntimeException ignored) {}
     }
     private void releaseCapture() {
         closeAudio();
@@ -260,13 +307,34 @@ public final class AirPlayHostService extends Service {
     }
     private void log(String message) { logs.add(boundedDiagnostic(PhoneMessages.render(this,message))); if (logs.size() > 60) logs.remove(0); }
     private void publish() {
+        String report=diagnosticReport();
+        long now=SystemClock.elapsedRealtime();
+        if(stopping || !error.isEmpty() || now-lastDiagnosticSave>5000) {AirPlayDiagnosticStore.save(getFilesDir(),report);lastDiagnosticSave=now;}
         if (subscriber == null) return;
         Bundle b = new Bundle(); b.putString("state", state); b.putString("detail", detail); b.putString("error", error);
         b.putBoolean("audioRunning", audio != null); b.putBoolean("stopping", stopping); b.putBoolean("connected", connected); b.putBoolean("pinPending", pinPending);
         b.putInt("scaleMode", scaleMode); b.putString("protocol", "airplay"); b.putInt("pid", android.os.Process.myPid());
+        b.putString("diagnosticReport",report);
+        if(wantsAudio && connected && audio==null) {
+            try {
+                org.json.JSONObject n=new org.json.JSONObject(nativeDiagnostic);if(n.has("last"))n=n.getJSONObject("last");
+                b.putString("audioHint",getString(R.string.ap_service_audio_reason,n.optString("audioStage","pending"),n.optString("audioError","none")));
+            } catch(org.json.JSONException ignored) {}
+        }
         b.putString("logs", String.join("\n", logs));
         FrameStatistics.Sample stats = video == null ? new FrameStatistics.Sample(0, 0, 0) : video.statistics();
         b.putString("metrics", getString(R.string.phone_airplay_metrics, connectedFrames, stats.fps(), audio == null ? getString(R.string.phone_video_only) : "44.1 kHz ALAC"));
         try { Message response = Message.obtain(null, HostService.STATUS); response.setData(b); subscriber.send(response); } catch (RemoteException ignored) { subscriber = null; }
+    }
+    private String diagnosticReport() {
+        Session current=session;
+        if(current!=null) try {nativeDiagnostic=current.diagnostics();}catch(RuntimeException | LinkageError ignored){}
+        if(video!=null)lastVideoDiagnostic=video.diagnostics();
+        return "MoonCast "+versionLabel+";sdk="+Build.VERSION.SDK_INT+
+            "\nsnapshotElapsedMs="+SystemClock.elapsedRealtime()+"\nsnapshotWallMs="+System.currentTimeMillis()+
+            "\nconnected="+connected+";source="+(wholeScreen?"screen":"app")+";mode="+scaleMode+
+            ";captured="+capturedSize.width(0)+"x"+capturedSize.height(0)+"\n"+lastVideoDiagnostic+
+            "\naudioRequested="+wantsAudio+";audioCapture="+(audio!=null)+";pcmFrames="+pcmFrames+";pcmPeak="+pcmPeak+
+            "\nstopOrigin="+stopOrigin+";failure="+failureCode+"\nnative="+nativeDiagnostic;
     }
 }

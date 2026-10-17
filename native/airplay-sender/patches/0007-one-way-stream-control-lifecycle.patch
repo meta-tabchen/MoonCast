@@ -1,0 +1,356 @@
+--- a/internal/airplay/legacy_http.go
++++ b/internal/airplay/legacy_http.go
+@@ -342,13 +342,33 @@
+ }
+ 
+ func (m *LegacyHTTPMirror) Watch(ctx context.Context, report func(error)) {
++	m.diag.controlState.Store("waiting")
+ 	for {
+-		response, err := http.ReadResponse(m.reader, &http.Request{Method: "POST"})
++		// net/http maps an EOF before any response line to UnexpectedEOF.
++		// Separate a bare TCP FIN from a truncated HTTP response first.
++		var response *http.Response
++		_, err := m.reader.Peek(1)
++		bareEOF := errors.Is(err, io.EOF)
+ 		if err == nil {
+-			io.Copy(io.Discard, io.LimitReader(response.Body, 65537))
+-			response.Body.Close()
++			response, err = http.ReadResponse(m.reader, &http.Request{Method: "POST"})
++		}
++		if err == nil {
++			m.diag.controlResponses.Add(1)
++			m.diag.controlStatus.Store(int64(response.StatusCode))
+ 			if response.StatusCode < 200 || response.StatusCode >= 300 {
+-				err = fmt.Errorf("legacy POST/stream: HTTP %d", response.StatusCode)
++				// A rejection is established by its status header. Waiting for a
++				// body (or closing/draining it first) can hide it indefinitely.
++				err = &HTTPStatusError{StatusCode: response.StatusCode}
++			} else {
++				m.diag.controlState.Store("response-body")
++				var n int64
++				n, err = io.Copy(io.Discard, io.LimitReader(response.Body, 65537))
++				if n > 65536 {
++					err = fmt.Errorf("legacy response body too large")
++				}
++				if err == nil {
++					err = response.Body.Close()
++				}
+ 			}
+ 		}
+ 		if err != nil {
+@@ -359,10 +379,24 @@
+ 				return
+ 			default:
+ 			}
++			if bareEOF {
++				// FIN ends only the peer's sending direction. The upgraded
++				// legacy channel is one-way media and need not send responses.
++				// Keep writing until a write/heartbeat fails or the owner stops.
++				m.diag.controlState.Store("peer-send-ended")
++				m.diag.controlEOF.Store(time.Since(m.started).Milliseconds())
++				return
++			}
++			m.diag.controlState.Store("failed")
++			m.diag.controlError.Store(SafeTransportError(err))
+ 			m.Close()
++			if response != nil {
++				response.Body.Close()
++			}
+ 			report(fmt.Errorf("legacy POST/stream: %w", err))
+ 			return
+ 		}
++		m.diag.controlState.Store("waiting")
+ 	}
+ }
+ 
+@@ -504,7 +538,19 @@
+ 			m.diag.firstPTS.Store(int64(ts>>32)*1000000 + int64((ts&0xffffffff)*1000000>>32))
+ 		}
+ 	case 2:
+-		m.diag.heartbeat.Add(1)
++		at := time.Since(m.started).Milliseconds()
++		if m.diag.heartbeat.Add(1) == 1 {
++			m.diag.firstHeartbeat.Store(at)
++		}
++		previous := m.diag.lastHeartbeat.Swap(at)
++		if previous > 0 {
++			gap := at - previous
++			for old := m.diag.maxHeartbeatGap.Load(); gap > old; old = m.diag.maxHeartbeatGap.Load() {
++				if m.diag.maxHeartbeatGap.CompareAndSwap(old, gap) {
++					break
++				}
++			}
++		}
+ 	}
+ 	return nil
+ }
+@@ -671,6 +717,14 @@
+ 		if !addr.IP.Equal(peer) {
+ 			continue
+ 		}
++		m.diag.timingPeerPackets.Add(1)
++		m.diag.lastPeerTiming.Store(time.Since(m.started).Milliseconds())
++		m.diag.timingLastSize.Store(int64(n))
++		mode := int64(-1)
++		if n > 0 {
++			mode = int64(b[0] & 7)
++		}
++		m.diag.timingLastMode.Store(mode)
+ 		// The shared master clock also answers RAOP's distinct 32-byte RTP
+ 		// timing requests; never mistake these for the HTTP mirror's 48-byte NTP.
+ 		if n == 32 && b[1]&0x7f == 0x52 {
+@@ -690,6 +744,7 @@
+ 			continue
+ 		}
+ 		if n < 48 || b[0]&7 != 3 {
++			m.diag.timingIgnored.Add(1)
+ 			continue
+ 		}
+ 		m.diag.ntp48rx.Add(1)
+--- a/internal/airplay/legacy_diagnostics.go
++++ b/internal/airplay/legacy_diagnostics.go
+@@ -13,6 +13,10 @@
+ )
+ 
+ type legacyDiagnostics struct {
++	controlState, controlError                                                        atomic.Value
++	controlEOF, controlResponses, controlStatus                                       atomic.Int64
++	firstHeartbeat, lastHeartbeat, maxHeartbeatGap                                    atomic.Int64
++	timingPeerPackets, timingIgnored, lastPeerTiming, timingLastSize, timingLastMode  atomic.Int64
+ 	media                                                                             legacyMediaTrace
+ 	firstRect                                                                         atomic.Value
+ 	firstPTS                                                                          atomic.Int64
+@@ -125,6 +129,9 @@
+ 		m.diag.media.socketSample(time.Since(m.started), legacySocketInfo(m.client.conn))
+ 	}
+ 	result["mediaTrace"] = m.diag.media.snapshot(time.Since(m.started))
++	result["controlRead"] = map[string]interface{}{"state": diagValue(&m.diag.controlState), "error": diagValue(&m.diag.controlError), "peerEOFMs": m.diag.controlEOF.Load(), "responses": m.diag.controlResponses.Load(), "lastHTTPStatus": m.diag.controlStatus.Load()}
++	result["heartbeatTiming"] = map[string]int64{"firstMs": m.diag.firstHeartbeat.Load(), "lastMs": m.diag.lastHeartbeat.Load(), "maxGapMs": m.diag.maxHeartbeatGap.Load()}
++	result["timingPeer"] = map[string]int64{"packets": m.diag.timingPeerPackets.Load(), "ignored": m.diag.timingIgnored.Load(), "lastMs": m.diag.lastPeerTiming.Load(), "lastSize": m.diag.timingLastSize.Load(), "lastMode": m.diag.timingLastMode.Load()}
+ 	b, _ := json.Marshal(result)
+ 	return string(b)
+ }
+--- /dev/null
++++ b/internal/airplay/legacy_lifecycle_test.go
+@@ -0,0 +1,195 @@
++package airplay
++
++import (
++	"bufio"
++	"context"
++	"encoding/binary"
++	"fmt"
++	"io"
++	"net"
++	"os"
++	"testing"
++	"time"
++)
++
++func TestLegacyTruncatedResponseStillFails(t *testing.T) {
++	for _, wire := range []string{"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nabc", "HTTP/1.1 200 OK\r\nContent-Len", "HTTP/1.1 200 OK\r\n"} {
++		sender, peer := net.Pipe()
++		ctx, cancel := context.WithCancel(context.Background())
++		m := &LegacyHTTPMirror{client: &AirPlayClient{conn: sender}, reader: bufio.NewReader(sender), closed: make(chan struct{}), started: time.Now()}
++		failure := make(chan error, 1)
++		go m.Watch(ctx, func(e error) { failure <- e })
++		go func() { io.WriteString(peer, wire); peer.Close() }()
++		select {
++		case e := <-failure:
++			if e == nil || diagValue(&m.diag.controlState) != "failed" {
++				t.Fatalf("truncated response accepted/misclassified: %v", e)
++			}
++		case <-time.After(time.Second):
++			t.Fatal("truncated response hidden as bare FIN")
++		}
++		cancel()
++		m.Close()
++		peer.Close()
++	}
++}
++
++func TestLegacyStreamRejectionDoesNotWaitForBody(t *testing.T) {
++	sender, peer := net.Pipe()
++	defer peer.Close()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: sender}, reader: bufio.NewReader(sender), closed: make(chan struct{}), started: time.Now()}
++	defer m.Close()
++	failure := make(chan error, 1)
++	go m.Watch(ctx, func(e error) { failure <- e })
++	go func() {
++		io.WriteString(peer, "HTTP/1.1 503 Service Unavailable\r\nContent-Length: 64\r\n\r\n")
++		<-ctx.Done()
++	}()
++	select {
++	case e := <-failure:
++		if SafeTransportError(e) != "HTTP-503" {
++			t.Fatalf("wrong rejection: %v", e)
++		}
++	case <-time.After(500 * time.Millisecond):
++		t.Fatal("HTTP rejection header hidden while waiting for body")
++	}
++}
++
++func TestLegacyTimingCountsIgnoredPeerPackets(t *testing.T) {
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	sock, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
++	if err != nil {
++		t.Fatal(err)
++	}
++	m := &LegacyHTTPMirror{client: &AirPlayClient{}, timing: sock, closed: make(chan struct{}), started: time.Now()}
++	defer m.Close()
++	go m.serveTiming(ctx, net.IPv4(127, 0, 0, 1))
++	peer, err := net.DialUDP("udp", nil, sock.LocalAddr().(*net.UDPAddr))
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer peer.Close()
++	peer.SetDeadline(time.Now().Add(50 * time.Millisecond))
++	peer.Write([]byte{0x22, 0, 0, 0, 0})
++	var reply [64]byte
++	if _, err = peer.Read(reply[:]); err == nil {
++		t.Fatal("unsupported timing packet received a reply")
++	}
++	req := make([]byte, 48)
++	req[0] = 0x23
++	peer.SetDeadline(time.Now().Add(time.Second))
++	peer.Write(req)
++	if n, e := peer.Read(reply[:]); e != nil || n != 48 {
++		t.Fatalf("valid NTP failed: %d %v", n, e)
++	}
++	if m.diag.timingPeerPackets.Load() != 2 || m.diag.timingIgnored.Load() != 1 || m.diag.ntp48rx.Load() != 1 || m.diag.timingLastMode.Load() != 3 {
++		t.Fatal("ignored peer traffic indistinguishable from no traffic")
++	}
++}
++
++// A TCP FIN ends the peer's sending direction, not our sending direction.
++// This peer explicitly half-closes replies and keeps consuming media packets.
++func TestLegacyPeerReadHalfCloseKeepsReceivingVideo(t *testing.T) {
++	data, err := os.ReadFile(os.Getenv("MOONCAST_LEGACY_FIXTURE"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	units := legacyFixtureAUs(data)
++	l, err := net.Listen("tcp", "127.0.0.1:0")
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer l.Close()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	halfClosed := make(chan struct{})
++	result := make(chan error, 1)
++	go func() {
++		c, e := l.Accept()
++		if e != nil {
++			result <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(8 * time.Second))
++		r, e := acceptLegacyMirror(c)
++		if e != nil {
++			result <- e
++			return
++		}
++		video, beats := 0, 0
++		started := time.Now()
++		for time.Since(started) < 3*time.Second {
++			var h [128]byte
++			if _, e = io.ReadFull(r, h[:]); e != nil {
++				result <- fmt.Errorf("media closed while peer still receiving: %w", e)
++				return
++			}
++			n := binary.LittleEndian.Uint32(h[:4])
++			if n > 16*1024*1024 {
++				result <- fmt.Errorf("invalid packet length")
++				return
++			}
++			if _, e = io.CopyN(io.Discard, r, int64(n)); e != nil {
++				result <- e
++				return
++			}
++			switch binary.LittleEndian.Uint16(h[4:6]) {
++			case 0:
++				video++
++				if video == 1 {
++					if e = c.(*net.TCPConn).CloseWrite(); e != nil {
++						result <- e
++						return
++					}
++					close(halfClosed)
++				}
++			case 2:
++				beats++
++			}
++		}
++		if video < 40 || beats < 2 {
++			result <- fmt.Errorf("half-close starved media: video=%d beats=%d", video, beats)
++			return
++		}
++		t.Logf("peer sent FIN and continued receiving: video=%d heartbeat=%d", video, beats)
++		result <- nil
++	}()
++	m, err := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 20, 0)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer m.Close()
++	failures := make(chan error, 8)
++	go m.Watch(ctx, func(e error) { failures <- e })
++	go m.Heartbeats(ctx, func(e error) { failures <- e })
++	tick := time.NewTicker(50 * time.Millisecond)
++	defer tick.Stop()
++	i := 0
++	for {
++		select {
++		case <-tick.C:
++			if e := m.SendFrame(units[i%len(units)], i%len(units) == 0); e != nil {
++				t.Fatalf("write after read-side FIN: %v", e)
++			}
++			i++
++		case e := <-failures:
++			t.Fatalf("read-side FIN incorrectly ended media: %v", e)
++		case e := <-result:
++			if e != nil {
++				t.Fatal(e)
++			}
++			select {
++			case <-halfClosed:
++			default:
++				t.Fatal("peer never half-closed")
++			}
++			return
++		case <-time.After(9 * time.Second):
++			t.Fatal("test did not finish")
++		}
++	}
++}
+--- a/internal/airplay/legacy_stability_test.go
++++ b/internal/airplay/legacy_stability_test.go
+@@ -103,6 +103,8 @@
+ 				return
+ 			}
+ 			started := time.Now()
++			peerFINAfter, _ := strconv.Atoi(os.Getenv("MOONCAST_LEGACY_PEER_FIN_AFTER_SECONDS"))
++			peerFIN := false
+ 			var lastStamp uint64
+ 			var lastBeat time.Time
+ 			videos, beats, configs := 0, 0, 0
+@@ -188,6 +190,14 @@
+ 						off += size
+ 					}
+ 					videos++
++					if session == 0 && peerFINAfter > 0 && !peerFIN && time.Since(started) >= time.Duration(peerFINAfter)*time.Second {
++						if e := c.(*net.TCPConn).CloseWrite(); e != nil {
++							result <- e
++							return
++						}
++						peerFIN = true
++						t.Logf("peer FIN at %v; continuing receive", time.Since(started))
++					}
+ 				default:
+ 					result <- fmt.Errorf("invalid packet type")
+ 					return

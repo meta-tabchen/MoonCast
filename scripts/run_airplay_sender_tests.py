@@ -10,9 +10,11 @@ java = Path(os.environ['JAVA_HOME']) / 'bin'
 src = root / 'app/src/main/java/com/mooncast/host'
 with tempfile.TemporaryDirectory(prefix='mooncast-airplay-policy-') as output:
     subprocess.run([java/'javac', '--release', '17', '-d', output,
-                    src/'AirPlayDiagnostics.java', src/'HostFailureStore.java',
+                    src/'AirPlayDiagnostics.java', src/'HostFailureStore.java', src/'CapturedContentSize.java', src/'CropGeometry.java', src/'AirPlayDiagnosticStore.java', root/'tests/AirPlayCaptureDiagnosticsTest.java',
                     root/'tests/AirPlayDiagnosticsTest.java'], check=True)
     subprocess.run([java/'java', '-cp', output, 'com.mooncast.host.AirPlayDiagnosticsTest'], check=True)
+
+    subprocess.run([java/'java', '-cp', output, 'com.mooncast.host.AirPlayCaptureDiagnosticsTest'], check=True)
 
 service = (src/'AirPlayHostService.java').read_text()
 # This wiring check prevents accidentally restoring upstream's bare /video path.

@@ -1,0 +1,1337 @@
+--- a/airplaylib/airplaylib.go
++++ b/airplaylib/airplaylib.go
+@@ -30,14 +30,17 @@
+ }
+ 
+ type Session struct {
+-	legacyHTTP *airplay.LegacyHTTPMirror
+-	lifecycle  sync.Mutex
+-	epoch      uint64
+-	mu         sync.Mutex
+-	client     *airplay.AirPlayClient
+-	mirror     *airplay.MirrorSession
+-	handler    EventHandler
+-	cancel     context.CancelFunc
++	legacyHTTP   *airplay.LegacyHTTPMirror
++	legacyAudio  *airplay.LegacyAudio
++	audioEnabled bool
++	connected    bool
++	lifecycle    sync.Mutex
++	epoch        uint64
++	mu           sync.Mutex
++	client       *airplay.AirPlayClient
++	mirror       *airplay.MirrorSession
++	handler      EventHandler
++	cancel       context.CancelFunc
+ 
+ 	pipeW        *io.PipeWriter
+ 	firstSendLog bool
+@@ -85,6 +88,26 @@
+ 
+ func NewSession(handler EventHandler) *Session {
+ 	return &Session{handler: handler}
++}
++
++// Audio is opt-in independently of encoder compatibility quality.
++func (s *Session) SetAudioEnabled(enabled bool) { s.mu.Lock(); s.audioEnabled = enabled; s.mu.Unlock() }
++func (s *Session) IsConnected() bool            { s.mu.Lock(); defer s.mu.Unlock(); return s.connected }
++
++// Clear transport state before notifying Android. The epoch gate coalesces
++// simultaneous EOF, heartbeat and video-write errors and rejects stale workers.
++func (s *Session) transportFailed(epoch uint64, err error) {
++	s.lifecycle.Lock()
++	s.mu.Lock()
++	current := s.epoch == epoch
++	s.mu.Unlock()
++	if !current {
++		s.lifecycle.Unlock()
++		return
++	}
++	s.disconnect()
++	s.lifecycle.Unlock()
++	s.handler.OnDisconnected(fmt.Sprintf("%v", err))
+ }
+ 
+ func (s *Session) logf(format string, args ...interface{}) {
+@@ -149,15 +172,44 @@
+ 				return
+ 			}
+ 			s.legacyHTTP = legacy
++			s.connected = true
++			wantsAudio := s.audioEnabled
+ 			s.streamWidth, s.streamHeight = legacy.Width, legacy.Height
+ 			s.mu.Unlock()
+ 			report := func(err error) {
+-				if s.current(ctx, epoch) {
+-					s.handler.OnError(err.Error())
+-				}
++				s.transportFailed(epoch, err)
+ 			}
+ 			go legacy.Watch(ctx, report)
+ 			go legacy.Heartbeats(ctx, report)
++			if wantsAudio {
++				a, err := legacy.SetupAudio(ctx, pin)
++				if err == nil {
++					capture, writer := airplay.NewPipeAudioCapture()
++					s.mu.Lock()
++					if s.epoch != epoch || ctx.Err() != nil {
++						s.mu.Unlock()
++						a.Close()
++						airplay.StopPipeAudioCapture(capture, writer)
++						return
++					}
++					s.legacyAudio, s.audioCapture, s.audioW = a, capture, writer
++					s.mu.Unlock()
++					go func() {
++						_ = a.Run(capture)
++						s.mu.Lock()
++						owned := s.audioW == writer
++						if owned {
++							s.audioW, s.audioCapture, s.legacyAudio = nil, nil, nil
++						}
++						s.mu.Unlock()
++						if owned {
++							airplay.StopPipeAudioCapture(capture, writer)
++						}
++					}()
++				} else {
++					s.logf("[LEGACYHTTP] AUDIO_UNAVAILABLE")
++				}
++			}
+ 			s.logf("[LEGACYHTTP] STREAM")
+ 			if s.current(ctx, epoch) {
+ 				s.handler.OnConnected()
+@@ -246,6 +298,7 @@
+ 			return
+ 		}
+ 		s.mirror, s.pipeW = mirror, pipeW
++		s.connected = true
+ 		s.audioCapture, s.audioW = capture, audioW
+ 		s.streamWidth, s.streamHeight = width, height
+ 		s.sessionStart = time.Now()
+@@ -259,9 +312,7 @@
+ 			} else {
+ 				streamErr = mirror.StreamFrames(ctx, pipeR, 0)
+ 			}
+-			if s.current(ctx, epoch) {
+-				s.handler.OnDisconnected(fmt.Sprintf("%v", streamErr))
+-			}
++			s.transportFailed(epoch, streamErr)
+ 		}()
+ 		if audioW != nil {
+ 			go func() {
+@@ -292,13 +343,7 @@
+ 	s.mu.Unlock()
+ 	if legacy != nil {
+ 		if err := legacy.SendFrame(annexBData, isKeyframe); err != nil {
+-			legacy.Close()
+-			s.mu.Lock()
+-			current := s.epoch == legacyEpoch
+-			s.mu.Unlock()
+-			if current {
+-				s.handler.OnError(err.Error())
+-			}
++			s.transportFailed(legacyEpoch, err)
+ 		}
+ 		return
+ 	}
+@@ -333,7 +378,7 @@
+ 	}
+ }
+ 
+-// airplay1 never negotiates one
++// True only while a negotiated audio forwarder owns a writable PCM pipe.
+ func (s *Session) HasAudio() bool {
+ 	s.mu.Lock()
+ 	defer s.mu.Unlock()
+@@ -364,6 +409,9 @@
+ 	s.epoch++
+ 	legacy := s.legacyHTTP
+ 	s.legacyHTTP = nil
++	legacyAudio := s.legacyAudio
++	s.legacyAudio = nil
++	s.connected = false
+ 	cancel, video, audio, capture, mirror := s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror
+ 	s.cancel, s.pipeW, s.audioW, s.audioCapture, s.mirror, s.client = nil, nil, nil, nil, nil, nil
+ 	s.streamWidth, s.streamHeight = 0, 0
+@@ -376,6 +424,9 @@
+ 	if legacy != nil {
+ 		legacy.Close()
+ 	}
++	if legacyAudio != nil {
++		legacyAudio.Close()
++	}
+ 	if video != nil {
+ 		video.Close()
+ 	}
+--- a/internal/airplay/audio.go
++++ b/internal/airplay/audio.go
+@@ -358,6 +358,7 @@
+ 
+ // AudioStream manages the RTP audio channel to the AirPlay receiver.
+ type AudioStream struct {
++	clock           func() uint64  // optional session-relative master clock for legacy HTTP
+ 	conn            net.PacketConn // local UDP socket for sending audio
+ 	ctrlConn        net.PacketConn // control port for sync/resend
+ 	remoteAddr      *net.UDPAddr   // receiver's audio data address
+@@ -698,7 +699,11 @@
+ 
+ 	// Send initial sync burst — real Apple senders send multiple identical sync
+ 	// packets (observed 7 in pcap) before any audio data, all with X=1 (0x90).
+-	ntpNow := ntpBootTimestamp()
++	clock := ntpBootTimestamp
++	if audioStream.clock != nil {
++		clock = audioStream.clock
++	}
++	ntpNow := clock()
+ 	for i := 0; i < 7; i++ {
+ 		if err := audioStream.sendSyncPacket(ntpNow, true); err != nil {
+ 			dbg("[AUDIO] initial sync error: %v", err)
+@@ -737,14 +742,14 @@
+ 					case <-ctx.Done():
+ 						return
+ 					case <-slowTick.C:
+-						nt := ntpBootTimestamp()
++						nt := clock()
+ 						if err := audioStream.sendSyncPacket(nt, false); err != nil {
+ 							dbg("[AUDIO] sync error: %v", err)
+ 						}
+ 					}
+ 				}
+ 			case <-fastTicker.C:
+-				nt := ntpBootTimestamp()
++				nt := clock()
+ 				if err := audioStream.sendSyncPacket(nt, false); err != nil {
+ 					dbg("[AUDIO] sync error: %v", err)
+ 				}
+--- /dev/null
++++ b/internal/airplay/legacy_audio.go
+@@ -0,0 +1,385 @@
++package airplay
++
++// Independent RAOP sender. Wire references: https://nto.github.io/AirPlay.html#audio
++// Discovery is restricted to the selected receiver IP; no port scanning/fallback
++// to an unadvertised encryption mode or microphone capture is permitted.
++import (
++	"bufio"
++	"context"
++	"encoding/base64"
++	"fmt"
++	"github.com/grandcat/zeroconf"
++	"io"
++	"net"
++	"strconv"
++	"strings"
++	"sync"
++	"time"
++)
++
++type legacyAudioEndpoint struct {
++	port               int
++	codecs, encryption string
++}
++
++func legacyAudioEndpointFor(ctx context.Context, host string) (legacyAudioEndpoint, error) {
++	ifaces, traffic, err := airPlayMDNSInterfaces()
++	if err != nil || len(ifaces) == 0 {
++		return legacyAudioEndpoint{}, fmt.Errorf("RAOP discovery unavailable")
++	}
++	resolver, err := zeroconf.NewResolver(zeroconf.SelectIfaces(ifaces), zeroconf.SelectIPTraffic(traffic))
++	if err != nil {
++		return legacyAudioEndpoint{}, err
++	}
++	query, cancel := context.WithTimeout(ctx, 1800*time.Millisecond)
++	defer cancel()
++	entries := make(chan *zeroconf.ServiceEntry, 16)
++	if err = resolver.Browse(query, "_raop._tcp", "local.", entries); err != nil {
++		return legacyAudioEndpoint{}, err
++	}
++	var found legacyAudioEndpoint
++	// Drain through cancellation: zeroconf may still be delivering entries when
++	// the selected peer is found. Never strand its worker on a channel send.
++	for entry := range entries {
++		same := false
++		for _, ip := range entry.AddrIPv4 {
++			same = same || ip.Equal(net.ParseIP(host))
++		}
++		if !same || entry.Port < 1 || entry.Port > 65535 {
++			continue
++		}
++		txt := map[string]string{}
++		for _, s := range entry.Text {
++			k, v, ok := strings.Cut(s, "=")
++			if ok {
++				txt[strings.ToLower(k)] = v
++			}
++		}
++		found = legacyAudioEndpoint{entry.Port, txt["cn"], txt["et"]}
++		cancel()
++	}
++	if found.port == 0 {
++		return found, fmt.Errorf("RAOP not advertised for selected receiver")
++	}
++	return found, nil
++}
++
++func legacyListContains(list, value string) bool {
++	for _, part := range strings.Split(list, ",") {
++		if strings.TrimSpace(part) == value {
++			return true
++		}
++	}
++	return false
++}
++
++type LegacyAudio struct {
++	conn                              net.Conn
++	reader                            *bufio.Reader
++	mu                                sync.Mutex
++	once                              sync.Once
++	cancel                            context.CancelFunc
++	ctx                               context.Context
++	seq                               int
++	nonceCount                        int
++	clientNonce                       string
++	uri, session, challenge, password string
++	deviceID                          uint64
++	stream                            *AudioStream
++	mirror                            *MirrorSession
++}
++
++func (m *LegacyHTTPMirror) SetupAudio(ctx context.Context, password string) (*LegacyAudio, error) {
++	endpoint, err := legacyAudioEndpointFor(ctx, m.client.host)
++	if err != nil {
++		return nil, err
++	}
++	return m.setupAudioEndpoint(ctx, password, endpoint)
++}
++
++func (m *LegacyHTTPMirror) setupAudioEndpoint(ctx context.Context, password string, endpoint legacyAudioEndpoint) (*LegacyAudio, error) {
++	if !legacyListContains(endpoint.codecs, "1") {
++		return nil, fmt.Errorf("RAOP ALAC not advertised")
++	}
++	// Prefer authenticated FairPlay where advertised. Plain transport is allowed
++	// only when the receiver explicitly lists et=0, never after an encryption failure.
++	encrypted := legacyListContains(endpoint.encryption, "4")
++	if !encrypted && !legacyListContains(endpoint.encryption, "0") {
++		return nil, fmt.Errorf("RAOP encryption unsupported")
++	}
++	child, cancel := context.WithCancel(ctx)
++	a := &LegacyAudio{ctx: child, cancel: cancel, password: password, deviceID: m.deviceID}
++	conn, err := (&net.Dialer{Timeout: 800 * time.Millisecond}).DialContext(child, "tcp", net.JoinHostPort(m.client.host, strconv.Itoa(endpoint.port)))
++	if err != nil {
++		cancel()
++		return nil, err
++	}
++	a.conn = conn
++	a.reader = bufio.NewReaderSize(conn, 4096)
++	context.AfterFunc(child, func() { conn.Close() })
++	if tcp, ok := conn.(*net.TCPConn); ok {
++		tcp.SetNoDelay(true)
++		tcp.SetKeepAlive(true)
++		tcp.SetKeepAlivePeriod(3 * time.Second)
++	}
++	keep := false
++	defer func() {
++		if !keep {
++			a.Close()
++		}
++	}()
++	// Entire optional setup is bounded, including malicious partial replies.
++	deadline := time.AfterFunc(5*time.Second, func() { conn.Close() })
++	defer deadline.Stop()
++	a.uri = fmt.Sprintf("rtsp://%s/%d", conn.LocalAddr().(*net.TCPAddr).IP.String(), m.deviceID)
++	if _, _, err = a.request("OPTIONS", "*", "", nil, nil); err != nil {
++		return nil, fmt.Errorf("RAOP OPTIONS: %w", err)
++	}
++	client := NewAirPlayClient(m.client.host, endpoint.port)
++	client.conn = conn
++	client.requestOverride = func(method, path, ct string, b []byte, extra ...map[string]string) ([]byte, error) {
++		hdr := map[string]string{}
++		for _, xs := range extra {
++			for k, v := range xs {
++				hdr[k] = v
++			}
++		}
++		data, _, e := a.request(method, path, ct, b, hdr)
++		return data, e
++	}
++	var aesKey, aesIV []byte
++	keySDP := ""
++	if encrypted {
++		client.infoUnavailable = true
++		if err = client.FairPlaySetup(child); err != nil {
++			return nil, fmt.Errorf("RAOP FairPlay: %w", err)
++		}
++		aesKey, aesIV = client.fpAesKey, client.fpIV
++		if len(aesKey) != 16 || len(aesIV) != 16 || len(client.FpEkey) != 72 {
++			return nil, fmt.Errorf("RAOP invalid encryption parameters")
++		}
++		keySDP = "a=fpaeskey:" + base64.RawStdEncoding.EncodeToString(client.FpEkey) + "\r\na=aesiv:" + base64.RawStdEncoding.EncodeToString(aesIV) + "\r\n"
++	}
++	localIP := conn.LocalAddr().(*net.TCPAddr).IP
++	sdp := fmt.Sprintf("v=0\r\no=AirTunes %d 0 IN IP4 %s\r\ns=AirTunes\r\nc=IN IP4 %s\r\nt=0 0\r\nm=audio 0 RTP/AVP 96\r\na=rtpmap:96 AppleLossless\r\na=fmtp:96 352 0 16 40 10 14 2 255 0 0 44100\r\n%sa=min-latency:2205\r\n", m.deviceID, localIP.String(), m.client.host, keySDP)
++	if _, _, err = a.request("ANNOUNCE", a.uri, "application/sdp", []byte(sdp), nil); err != nil {
++		return nil, fmt.Errorf("RAOP ANNOUNCE: %w", err)
++	}
++	ctrl, err := net.ListenUDP("udp", &net.UDPAddr{IP: localIP})
++	if err != nil {
++		return nil, err
++	}
++	defer func() {
++		if !keep {
++			ctrl.Close()
++		}
++	}()
++	data, err := net.ListenUDP("udp", &net.UDPAddr{IP: localIP})
++	if err != nil {
++		return nil, err
++	}
++	defer func() {
++		if !keep {
++			data.Close()
++		}
++	}()
++	transport := fmt.Sprintf("RTP/AVP/UDP;unicast;mode=record;control_port=%d;timing_port=%d", ctrl.LocalAddr().(*net.UDPAddr).Port, m.timing.LocalAddr().(*net.UDPAddr).Port)
++	_, headers, err := a.request("SETUP", a.uri, "", nil, map[string]string{"Transport": transport})
++	if err != nil {
++		return nil, fmt.Errorf("RAOP SETUP: %w", err)
++	}
++	ports := map[string]int{}
++	for _, part := range strings.Split(headers["transport"], ";") {
++		k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
++		if ok {
++			n, _ := strconv.Atoi(v)
++			ports[k] = n
++		}
++	}
++	dp, cp := ports["server_port"], ports["control_port"]
++	if dp < 1 || dp > 65535 || cp < 1 || cp > 65535 {
++		return nil, fmt.Errorf("RAOP invalid transport ports")
++	}
++	a.session = strings.Split(headers["session"], ";")[0]
++	if a.session == "" {
++		return nil, fmt.Errorf("RAOP missing session")
++	}
++	a.mirror = &MirrorSession{client: client, firstFrameSent: m.firstFrame}
++	a.stream, err = a.mirror.setupAudioStream(dp, cp, aesKey, aesIV, nil, audioSecurityLegacyAES, 2, 2205, ctrl, data)
++	if err != nil {
++		return nil, err
++	}
++	a.stream.clock = func() uint64 { return legacyTimestamp(time.Since(m.started)) }
++	if _, _, err = a.request("RECORD", a.uri, "", nil, map[string]string{"Range": "npt=0-", "RTP-Info": "seq=1;rtptime=2205"}); err != nil {
++		return nil, fmt.Errorf("RAOP RECORD: %w", err)
++	}
++	if _, _, err = a.request("SET_PARAMETER", a.uri, "text/parameters", []byte("volume: 0.000000\r\n"), nil); err != nil {
++		return nil, fmt.Errorf("RAOP volume: %w", err)
++	}
++	conn.SetDeadline(time.Time{})
++	keep = true
++	return a, nil
++}
++
++func (a *LegacyAudio) request(method, uri, ct string, body []byte, extra map[string]string) ([]byte, map[string]string, error) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	for attempt := 0; attempt < 2; attempt++ {
++		a.seq++
++		headers := map[string]string{"CSeq": strconv.Itoa(a.seq), "User-Agent": "AirTunes/150.33", "X-Apple-Device-ID": fmt.Sprintf("0x%012x", a.deviceID)}
++		for k, v := range extra {
++			headers[k] = v
++		}
++		if a.session != "" {
++			headers["Session"] = a.session
++		}
++		if a.challenge != "" {
++			a.nonceCount++
++			value, e := legacyAudioDigest(a.challenge, method, uri, a.password, a.nonceCount, a.clientNonce)
++			if e != nil {
++				return nil, nil, e
++			}
++			headers["Authorization"] = value
++		}
++		if ct != "" {
++			headers["Content-Type"] = ct
++		}
++		var b strings.Builder
++		fmt.Fprintf(&b, "%s %s RTSP/1.0\r\nContent-Length: %d\r\n", method, uri, len(body))
++		for k, v := range headers {
++			if strings.ContainsAny(k+v, "\r\n") {
++				return nil, nil, fmt.Errorf("RAOP invalid header")
++			}
++			fmt.Fprintf(&b, "%s: %s\r\n", k, v)
++		}
++		b.WriteString("\r\n")
++		a.conn.SetDeadline(time.Now().Add(2 * time.Second))
++		if err := writeLegacyAll(a.conn, append([]byte(b.String()), body...)); err != nil {
++			return nil, nil, err
++		}
++		statusBytes, err := a.reader.ReadSlice('\n')
++		status := string(statusBytes)
++		if err != nil {
++			return nil, nil, err
++		}
++		fields := strings.Fields(status)
++		if len(fields) < 2 || (fields[0] != "RTSP/1.0" && fields[0] != "HTTP/1.1") {
++			return nil, nil, fmt.Errorf("RAOP invalid response")
++		}
++		code, _ := strconv.Atoi(fields[1])
++		resp := map[string]string{}
++		size := len(status)
++		for {
++			lineBytes, e := a.reader.ReadSlice('\n')
++			line := string(lineBytes)
++			if e != nil {
++				return nil, nil, e
++			}
++			size += len(line)
++			if size > 16384 {
++				return nil, nil, fmt.Errorf("RAOP response too large")
++			}
++			if line == "\r\n" {
++				break
++			}
++			k, v, ok := strings.Cut(line, ":")
++			if !ok {
++				return nil, nil, fmt.Errorf("RAOP malformed header")
++			}
++			key := strings.ToLower(strings.TrimSpace(k))
++			if _, dup := resp[key]; dup {
++				return nil, nil, fmt.Errorf("RAOP duplicate header")
++			}
++			resp[key] = strings.TrimSpace(v)
++		}
++		n := 0
++		if value, ok := resp["content-length"]; ok {
++			n, err = strconv.Atoi(value)
++			if err != nil || n < 0 || n > 65536 {
++				return nil, nil, fmt.Errorf("RAOP invalid body size")
++			}
++		}
++		data := make([]byte, n)
++		if _, err = io.ReadFull(a.reader, data); err != nil {
++			return nil, nil, err
++		}
++		if code == 401 && attempt == 0 {
++			if a.password == "" {
++				return nil, resp, ErrAirPlay1PasswordRequired
++			}
++			a.challenge = resp["www-authenticate"]
++			a.nonceCount, a.clientNonce = 0, randomHex(8)
++			if a.challenge == "" {
++				return nil, resp, fmt.Errorf("RAOP missing authentication challenge")
++			}
++			continue
++		}
++		if code < 200 || code >= 300 {
++			return nil, resp, &HTTPStatusError{StatusCode: code}
++		}
++		return data, resp, nil
++	}
++	return nil, nil, ErrAirPlay1PasswordRequired
++}
++
++func legacyAudioDigest(challenge, method, uri, password string, count int, clientNonce ...string) (string, error) {
++	if !strings.HasPrefix(strings.ToLower(challenge), "digest ") {
++		return "", fmt.Errorf("RAOP unsupported authentication")
++	}
++	p := parseDigestParams(challenge)
++	for _, k := range []string{"realm", "nonce"} {
++		if p[k] == "" || strings.ContainsAny(p[k], "\r\n\"\\") {
++			return "", fmt.Errorf("RAOP invalid challenge")
++		}
++	}
++	if alg := p["algorithm"]; alg != "" && !strings.EqualFold(alg, "MD5") {
++		return "", fmt.Errorf("RAOP unsupported digest algorithm")
++	}
++	ha1 := md5Hex("iTunes:" + p["realm"] + ":" + password)
++	ha2 := md5Hex(method + ":" + uri)
++	suffix := ""
++	response := md5Hex(ha1 + ":" + p["nonce"] + ":" + ha2)
++	if p["qop"] != "" {
++		if !legacyListContains(p["qop"], "auth") {
++			return "", fmt.Errorf("RAOP unsupported digest qop")
++		}
++		cn := randomHex(8)
++		if len(clientNonce) > 0 && clientNonce[0] != "" {
++			cn = clientNonce[0]
++		}
++		nc := fmt.Sprintf("%08x", count)
++		response = md5Hex(ha1 + ":" + p["nonce"] + ":" + nc + ":" + cn + ":auth:" + ha2)
++		suffix = fmt.Sprintf(", qop=auth, nc=%s, cnonce=\"%s\"", nc, cn)
++	}
++	return fmt.Sprintf("Digest username=\"iTunes\", realm=\"%s\", nonce=\"%s\", uri=\"%s\", response=\"%s\"%s", p["realm"], p["nonce"], uri, response, suffix), nil
++}
++
++func (a *LegacyAudio) Run(capture *AudioCapture) error {
++	defer a.Close()
++	go func() {
++		ticker := time.NewTicker(5 * time.Second)
++		defer ticker.Stop()
++		for {
++			select {
++			case <-a.ctx.Done():
++				return
++			case <-ticker.C:
++				if _, _, err := a.request("OPTIONS", "*", "", nil, nil); err != nil {
++					a.Close()
++					capture.pcmPipe.Close()
++					return
++				}
++			}
++		}
++	}()
++	return a.mirror.StreamAudio(a.ctx, capture, a.stream)
++}
++func (a *LegacyAudio) Close() {
++	a.once.Do(func() {
++		a.cancel()
++		a.conn.Close()
++		if a.stream != nil {
++			a.stream.Close()
++		}
++	})
++}
+--- /dev/null
++++ b/internal/airplay/legacy_audio_test.go
+@@ -0,0 +1,245 @@
++package airplay
++
++import (
++	"bufio"
++	"bytes"
++	"context"
++	"encoding/binary"
++	"fmt"
++	"io"
++	"net"
++	"strconv"
++	"strings"
++	"sync/atomic"
++	"testing"
++	"time"
++)
++
++func readRAOPTest(r *bufio.Reader) (string, map[string]string, []byte, error) {
++	line, e := r.ReadString('\n')
++	if e != nil {
++		return "", nil, nil, e
++	}
++	fields := strings.Fields(line)
++	if len(fields) != 3 {
++		return "", nil, nil, fmt.Errorf("invalid request")
++	}
++	h := map[string]string{}
++	for {
++		line, e = r.ReadString('\n')
++		if e != nil {
++			return "", nil, nil, e
++		}
++		if line == "\r\n" {
++			break
++		}
++		k, v, ok := strings.Cut(line, ":")
++		if !ok {
++			return "", nil, nil, fmt.Errorf("invalid header")
++		}
++		h[strings.ToLower(k)] = strings.TrimSpace(v)
++	}
++	n, _ := strconv.Atoi(h["content-length"])
++	b := make([]byte, n)
++	_, e = io.ReadFull(r, b)
++	return fields[0], h, b, e
++}
++func replyRAOPTest(c net.Conn, status int, headers string) {
++	fmt.Fprintf(c, "RTSP/1.0 %d Test\r\nContent-Length: 0\r\n%s\r\n", status, headers)
++}
++
++func TestLegacyAudioAuthenticatedPCMToALACRTPAndClose(t *testing.T) {
++	tcp, e := net.Listen("tcp", "127.0.0.1:0")
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer tcp.Close()
++	data, e := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer data.Close()
++	ctrl, e := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer ctrl.Close()
++	timing, e := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer timing.Close()
++	server := make(chan error, 1)
++	go func() {
++		c, e := tcp.Accept()
++		if e != nil {
++			server <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(12 * time.Second))
++		r := bufio.NewReader(c)
++		for _, want := range []string{"OPTIONS", "ANNOUNCE", "ANNOUNCE", "SETUP", "RECORD", "SET_PARAMETER", "OPTIONS"} {
++			method, h, b, e := readRAOPTest(r)
++			if e != nil {
++				server <- e
++				return
++			}
++			if method != want {
++				server <- fmt.Errorf("method %s want %s", method, want)
++				return
++			}
++			if method == "ANNOUNCE" && h["authorization"] == "" {
++				replyRAOPTest(c, 401, "WWW-Authenticate: Digest realm=\"raop\", nonce=\"fixture\", qop=\"auth\"\r\n")
++				continue
++			}
++			if method == "ANNOUNCE" {
++				p := parseDigestParams(h["authorization"])
++				ha1 := md5Hex("iTunes:raop:test-password")
++				ha2 := md5Hex(method + ":" + p["uri"])
++				want := md5Hex(ha1 + ":fixture:" + p["nc"] + ":" + p["cnonce"] + ":auth:" + ha2)
++				if p["username"] != "iTunes" || p["nc"] != "00000001" || p["response"] != want || !bytes.Contains(b, []byte("AppleLossless")) {
++					server <- fmt.Errorf("bad auth/SDP")
++					return
++				}
++			}
++			if method == "SETUP" {
++				if !strings.Contains(h["transport"], fmt.Sprintf("timing_port=%d", timing.LocalAddr().(*net.UDPAddr).Port)) {
++					server <- fmt.Errorf("wrong timing socket")
++					return
++				}
++				replyRAOPTest(c, 200, fmt.Sprintf("Session: fixture-session\r\nTransport: RTP/AVP/UDP;server_port=%d;control_port=%d\r\n", data.LocalAddr().(*net.UDPAddr).Port, ctrl.LocalAddr().(*net.UDPAddr).Port))
++				continue
++			}
++			if method == "RECORD" && h["rtp-info"] != "seq=1;rtptime=2205" {
++				server <- fmt.Errorf("missing RTP origin")
++				return
++			}
++			if method == "SET_PARAMETER" && !bytes.Equal(b, []byte("volume: 0.000000\r\n")) {
++				server <- fmt.Errorf("bad volume")
++				return
++			}
++			if method == "OPTIONS" && h["session"] != "" {
++				server <- nil
++				return
++			} // close receiver during keepalive
++			replyRAOPTest(c, 200, "")
++		}
++	}()
++	ctx, cancel := context.WithCancel(context.Background())
++	defer cancel()
++	m := &LegacyHTTPMirror{client: &AirPlayClient{host: "127.0.0.1"}, timing: timing, started: time.Now(), deviceID: 7, firstFrame: make(chan struct{})}
++	a, e := m.setupAudioEndpoint(ctx, "test-password", legacyAudioEndpoint{tcp.Addr().(*net.TCPAddr).Port, "0,1,2", "0"})
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer a.Close()
++	capture, w := NewPipeAudioCapture()
++	defer StopPipeAudioCapture(capture, w)
++	run := make(chan error, 1)
++	go func() { run <- a.Run(capture) }()
++	data.SetReadDeadline(time.Now().Add(80 * time.Millisecond))
++	var packet [4096]byte
++	if _, _, e = data.ReadFromUDP(packet[:]); e == nil {
++		t.Fatal("audio before first video")
++	}
++	close(m.firstFrame)
++	pcm := make([]byte, 1408)
++	for i := 0; i < 704; i++ {
++		binary.LittleEndian.PutUint16(pcm[i*2:], uint16(int16(i*83-27000)))
++	}
++	sent := make(chan struct{})
++	go func() {
++		defer close(sent)
++		ticker := time.NewTicker(8 * time.Millisecond)
++		defer ticker.Stop()
++		for {
++			select {
++			case <-ctx.Done():
++				return
++			case <-ticker.C:
++				if _, e := w.Write(pcm); e != nil {
++					return
++				}
++			}
++		}
++	}()
++	var frames atomic.Int32
++	received := make(chan error, 1)
++	go func() {
++		var last uint32
++		for {
++			data.SetReadDeadline(time.Now().Add(7 * time.Second))
++			n, _, e := data.ReadFromUDP(packet[:])
++			if e != nil {
++				received <- nil
++				return
++			}
++			if n < 12+8 || packet[1]&0x7f != 96 {
++				received <- fmt.Errorf("bad RTP")
++				return
++			}
++			rtp := binary.BigEndian.Uint32(packet[4:8])
++			if rtp < last {
++				continue
++			}
++			last = rtp
++			// Decode the independently specified ALAC verbatim bitstream. Sample bits
++			// start at bit 55; stereo channels are interleaved, big-endian in the stream.
++			payload := packet[12:n]
++			if !bytes.Equal(payload[:6], []byte{0x20, 0, 0x12, 0, 0, 2}) || payload[6]&0xfe != 0xc0 {
++				received <- fmt.Errorf("bad ALAC header")
++				return
++			}
++			for i := 0; i < 704; i++ {
++				var sample uint16
++				for bit := 0; bit < 16; bit++ {
++					pos := 55 + i*16 + bit
++					sample = sample<<1 | uint16((payload[pos/8]>>uint(7-pos%8))&1)
++				}
++				if sample != binary.LittleEndian.Uint16(pcm[i*2:]) {
++					received <- fmt.Errorf("PCM changed at sample %d", i)
++					return
++				}
++			}
++			frames.Add(1)
++		}
++	}()
++	select {
++	case e = <-run:
++		if e == nil {
++			t.Error("close should end audio")
++		}
++	case <-time.After(9 * time.Second):
++		t.Fatal("audio keepalive failed to detect closed receiver")
++	}
++	cancel()
++	a.Close()
++	w.Close()
++	data.Close()
++	<-sent
++	if e = <-received; e != nil {
++		t.Fatal(e)
++	}
++	if e = <-server; e != nil {
++		t.Fatal(e)
++	}
++	if frames.Load() < 400 {
++		t.Fatalf("too few audio packets: %d", frames.Load())
++	}
++	t.Logf("decoded %d RTP ALAC frames byte-for-byte to captured PCM; receiver closure propagated", frames.Load())
++}
++
++func TestLegacyAudioRefusesUnadvertisedSecurityAndCodecs(t *testing.T) {
++	m := &LegacyHTTPMirror{}
++	for _, ep := range []legacyAudioEndpoint{{1, "2", "0"}, {1, "1", "1"}, {1, "1", ""}} {
++		if _, e := m.setupAudioEndpoint(context.Background(), "", ep); e == nil {
++			t.Fatal("unsupported capability accepted")
++		}
++	}
++	for _, challenge := range []string{"Basic x", "Digest realm=\"raop\", nonce=\"x\", algorithm=SHA-256", "Digest realm=\"raop\", nonce=\"x\", qop=\"auth-int\""} {
++		if _, e := legacyAudioDigest(challenge, "ANNOUNCE", "rtsp://fixture/1", "pw", 1); e == nil {
++			t.Fatal("unsupported digest accepted")
++		}
++	}
++}
+--- a/internal/airplay/legacy_http.go
++++ b/internal/airplay/legacy_http.go
+@@ -26,21 +26,25 @@
+ var ErrLegacyHTTPUnavailable = errors.New("legacy HTTP mirroring not advertised by stream.xml")
+ 
+ type LegacyHTTPMirror struct {
+-	client           *AirPlayClient
+-	reader           *bufio.Reader
+-	password         string
+-	deviceID         uint64
+-	started          time.Time
+-	mu               sync.Mutex
+-	closeOnce        sync.Once
+-	closed           chan struct{}
+-	timing           *net.UDPConn
+-	crypt            cipher.Stream
+-	sps, pps, config []byte
+-	awaitingIDR      bool
+-	lastClose        bool
+-	authenticated    bool
+-	Width, Height    int
++	client             *AirPlayClient
++	reader             *bufio.Reader
++	password           string
++	deviceID           uint64
++	started            time.Time
++	mu                 sync.Mutex
++	closeOnce          sync.Once
++	closed             chan struct{}
++	timing             *net.UDPConn
++	crypt              cipher.Stream
++	sps, pps, config   []byte
++	awaitingIDR        bool
++	lastClose          bool
++	authenticated      bool
++	Width, Height      int
++	displayW, displayH int
++	videoW, videoH     int
++	firstFrame         chan struct{}
++	firstFrameOnce     sync.Once
+ }
+ 
+ // TryLegacyHTTP probes only the explicitly selected numeric LAN receiver, at
+@@ -65,10 +69,15 @@
+ 		return nil, ErrLegacyHTTPUnavailable
+ 	}
+ 	client := NewAirPlayClient(host, port)
++	if tcp, ok := conn.(*net.TCPConn); ok {
++		tcp.SetNoDelay(true)
++		tcp.SetKeepAlive(true)
++		tcp.SetKeepAlivePeriod(3 * time.Second)
++	}
+ 	client.conn = conn
+ 	closeConn := conn
+ 	context.AfterFunc(ctx, func() { closeConn.Close() })
+-	m := &LegacyHTTPMirror{client: client, reader: bufio.NewReaderSize(conn, 4096), password: pin, started: time.Now(), closed: make(chan struct{})}
++	m := &LegacyHTTPMirror{client: client, reader: bufio.NewReaderSize(conn, 4096), password: pin, started: time.Now(), closed: make(chan struct{}), firstFrame: make(chan struct{})}
+ 	keep := false
+ 	defer func() {
+ 		if !keep {
+@@ -164,6 +173,7 @@
+ 	}
+ 	width, height = legacySize(width, height, w, h)
+ 	m.Width, m.Height = width, height
++	m.videoW, m.videoH, m.displayW, m.displayH = width, height, w, h
+ 	localIP := client.conn.LocalAddr().(*net.TCPAddr).IP
+ 	m.timing, err = net.ListenUDP("udp", &net.UDPAddr{IP: localIP, Port: timingPort})
+ 	if err != nil {
+@@ -437,7 +447,22 @@
+ 		flags = 0x1e
+ 	}
+ 	binary.LittleEndian.PutUint16(header[6:8], flags)
+-	binary.LittleEndian.PutUint64(header[8:16], legacyTimestamp(time.Since(m.started)))
++	// Heartbeats are an all-zero body/header apart from type and flags. They
++	// are not presentation samples and must not carry a media timestamp.
++	if kind != 2 {
++		binary.LittleEndian.PutUint64(header[8:16], legacyTimestamp(time.Since(m.started)))
++		if kind == 1 {
++			putFloat32LE(header[16:20], float32(m.videoW))
++			putFloat32LE(header[20:24], float32(m.videoH))
++		}
++		putFloat32LE(header[40:44], float32(m.videoW))
++		putFloat32LE(header[44:48], float32(m.videoH))
++		x, y, w, h := legacyDisplayRect(m.videoW, m.videoH, m.displayW, m.displayH)
++		putFloat32LE(header[48:52], x)
++		putFloat32LE(header[52:56], y)
++		putFloat32LE(header[56:60], w)
++		putFloat32LE(header[60:64], h)
++	}
+ 	m.client.conn.SetWriteDeadline(time.Now().Add(3 * time.Second))
+ 	if err := writeLegacyAll(m.client.conn, header[:]); err != nil {
+ 		return err
+@@ -502,6 +527,15 @@
+ 	config := buildAVCCConfig(m.sps, m.pps)
+ 	config = config[:len(config)-4]
+ 	if !bytes.Equal(config, m.config) {
++		// Do not replace the decoder configuration until its matching IDR is
++		// available. A P frame after a format change belongs to neither stream.
++		m.awaitingIDR = true
++		if !hasIDR {
++			return nil
++		}
++		if w, h, ok := spsDimensions(m.sps); ok {
++			m.videoW, m.videoH = w, h
++		}
+ 		if err := m.packet(1, config); err != nil {
+ 			return err
+ 		}
+@@ -518,7 +552,27 @@
+ 	if err := m.packet(0, video); err != nil {
+ 		return fmt.Errorf("legacy video write: %w", err)
+ 	}
++	m.firstFrameOnce.Do(func() {
++		if m.firstFrame != nil {
++			close(m.firstFrame)
++		}
++	})
+ 	return nil
++}
++
++func legacyDisplayRect(w, h, dw, dh int) (float32, float32, float32, float32) {
++	if w <= 0 || h <= 0 {
++		return 0, 0, 0, 0
++	}
++	if dw <= 0 || dh <= 0 {
++		dw, dh = w, h
++	}
++	scale := float32(dw) / float32(w)
++	if other := float32(dh) / float32(h); other < scale {
++		scale = other
++	}
++	outW, outH := float32(w)*scale, float32(h)*scale
++	return (float32(dw) - outW) / 2, (float32(dh) - outH) / 2, outW, outH
+ }
+ func (m *LegacyHTTPMirror) Heartbeats(ctx context.Context, report func(error)) {
+ 	ticker := time.NewTicker(time.Second)
+@@ -548,14 +602,29 @@
+ 		if err != nil {
+ 			return
+ 		}
+-		if n < 48 || !addr.IP.Equal(peer) || b[0]&7 != 3 {
++		if !addr.IP.Equal(peer) {
++			continue
++		}
++		// The shared master clock also answers RAOP's distinct 32-byte RTP
++		// timing requests; never mistake these for the HTTP mirror's 48-byte NTP.
++		if n == 32 && b[1]&0x7f == 0x52 {
++			var reply [32]byte
++			copy(reply[:8], b[:8])
++			reply[0], reply[1] = 0x80, 0xd3
++			copy(reply[8:16], b[24:32])
++			binary.BigEndian.PutUint64(reply[16:24], legacyTimestamp(time.Since(m.started)))
++			binary.BigEndian.PutUint64(reply[24:32], legacyTimestamp(time.Since(m.started)))
++			m.timing.WriteToUDP(reply[:], addr)
++			continue
++		}
++		if n < 48 || b[0]&7 != 3 {
+ 			continue
+ 		}
+ 		var reply [48]byte
+ 		reply[0] = 0x24
+ 		reply[1] = 1
+ 		reply[2] = 2
+-		reply[3] = 0xec
++		reply[3] = 0xe8
+ 		copy(reply[12:16], "AIRP")
+ 		copy(reply[24:32], b[40:48])
+ 		now := legacyTimestamp(time.Since(m.started))
+--- a/internal/airplay/legacy_http_test.go
++++ b/internal/airplay/legacy_http_test.go
+@@ -253,11 +253,13 @@
+ 			n := binary.LittleEndian.Uint32(header[:4])
+ 			kind := binary.LittleEndian.Uint16(header[4:6])
+ 			stamp := binary.LittleEndian.Uint64(header[8:16])
+-			if n > 2*1024*1024 || stamp < last || stamp>>32 > 10 {
++			if n > 2*1024*1024 || (kind != 2 && (stamp < last || stamp>>32 > 10)) {
+ 				done <- fmt.Errorf("invalid packet bound/timestamp")
+ 				return
+ 			}
+-			last = stamp
++			if kind != 2 {
++				last = stamp
++			}
+ 			payload := make([]byte, n)
+ 			if _, e = io.ReadFull(r, payload); e != nil {
+ 				done <- e
+--- /dev/null
++++ b/internal/airplay/legacy_stability_test.go
+@@ -0,0 +1,306 @@
++package airplay
++
++import (
++	"bufio"
++	"bytes"
++	"context"
++	"encoding/binary"
++	"fmt"
++	"io"
++	"math"
++	"net"
++	"os"
++	"strconv"
++	"testing"
++	"time"
++)
++
++func acceptLegacyMirror(c net.Conn) (*bufio.Reader, error) {
++	r := bufio.NewReader(c)
++	req, _, err := legacyReadRequest(r)
++	if err != nil {
++		return nil, err
++	}
++	if req.URL.Path != "/stream.xml" {
++		return nil, fmt.Errorf("missing probe")
++	}
++	legacyTestReply(c, 200, legacyCaps(), "")
++	req, _, err = legacyReadRequest(r)
++	if err != nil {
++		return nil, err
++	}
++	if req.URL.Path != "/fp-setup" {
++		return nil, fmt.Errorf("missing FairPlay negotiation")
++	}
++	legacyTestReply(c, 501, nil, "")
++	req, _, err = legacyReadRequest(r)
++	if err != nil {
++		return nil, err
++	}
++	if req.URL.Path != "/stream" {
++		return nil, fmt.Errorf("missing stream upgrade")
++	}
++	return r, nil
++}
++
++func TestLegacyWriteDeadline(t *testing.T) {
++	sender, receiver := net.Pipe()
++	defer receiver.Close()
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: sender}, closed: make(chan struct{}), started: time.Now()}
++	defer m.Close()
++	start := time.Now()
++	m.mu.Lock()
++	err := m.packet(2, nil)
++	m.mu.Unlock()
++	if err == nil || time.Since(start) > 4*time.Second {
++		t.Fatalf("blocked write not bounded: %v", err)
++	}
++}
++
++func TestLegacyLongStreamDisconnectAndReconnect(t *testing.T) {
++	seconds, _ := strconv.Atoi(os.Getenv("MOONCAST_LEGACY_SOAK_SECONDS"))
++	if seconds < 30 {
++		t.Skip("explicit >=30-second real-time soak required")
++	}
++	files := []string{os.Getenv("MOONCAST_LEGACY_FIXTURE"), os.Getenv("MOONCAST_LEGACY_LANDSCAPE"), os.Getenv("MOONCAST_LEGACY_PORTRAIT")}
++	var units [][][]byte
++	for _, file := range files {
++		b, e := os.ReadFile(file)
++		if e != nil {
++			t.Fatal(e)
++		}
++		u := legacyFixtureAUs(b)
++		if len(u) == 0 {
++			t.Fatal("empty fixture")
++		}
++		units = append(units, u)
++	}
++	output, err := os.Create(os.Getenv("MOONCAST_LEGACY_SOAK_OUTPUT"))
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer output.Close()
++	// A new socket and decoder state on reconnect must begin with config + IDR.
++	for session, duration := range []time.Duration{time.Duration(seconds) * time.Second, 1500 * time.Millisecond} {
++		l, e := net.Listen("tcp", "127.0.0.1:0")
++		if e != nil {
++			t.Fatal(e)
++		}
++		result := make(chan error, 1)
++		go func() {
++			c, e := l.Accept()
++			if e != nil {
++				result <- e
++				return
++			}
++			defer c.Close()
++			defer l.Close()
++			c.SetDeadline(time.Now().Add(duration + 8*time.Second))
++			r, e := acceptLegacyMirror(c)
++			if e != nil {
++				result <- e
++				return
++			}
++			started := time.Now()
++			var lastStamp uint64
++			var lastBeat time.Time
++			videos, beats, configs := 0, 0, 0
++			for time.Since(started) < duration {
++				var h [128]byte
++				if _, e = io.ReadFull(r, h[:]); e != nil {
++					result <- e
++					return
++				}
++				n := binary.LittleEndian.Uint32(h[:4])
++				kind := binary.LittleEndian.Uint16(h[4:6])
++				if n > 16*1024*1024 {
++					result <- fmt.Errorf("unbounded packet")
++					return
++				}
++				p := make([]byte, n)
++				if _, e = io.ReadFull(r, p); e != nil {
++					result <- e
++					return
++				}
++				if kind == 2 {
++					var want [128]byte
++					want[4], want[6] = 2, 30
++					if h != want || n != 0 {
++						result <- fmt.Errorf("noncanonical heartbeat")
++						return
++					}
++					if !lastBeat.IsZero() && time.Since(lastBeat) > 2500*time.Millisecond {
++						result <- fmt.Errorf("heartbeat stalled")
++						return
++					}
++					lastBeat = time.Now()
++					beats++
++					continue
++				}
++				stamp := binary.LittleEndian.Uint64(h[8:16])
++				if stamp < lastStamp {
++					result <- fmt.Errorf("clock moved backwards")
++					return
++				}
++				lastStamp = stamp
++				sw := math.Float32frombits(binary.LittleEndian.Uint32(h[40:44]))
++				sh := math.Float32frombits(binary.LittleEndian.Uint32(h[44:48]))
++				dw := math.Float32frombits(binary.LittleEndian.Uint32(h[56:60]))
++				dh := math.Float32frombits(binary.LittleEndian.Uint32(h[60:64]))
++				x := math.Float32frombits(binary.LittleEndian.Uint32(h[48:52]))
++				y := math.Float32frombits(binary.LittleEndian.Uint32(h[52:56]))
++				if sw < 16 || sh < 16 || dw < 16 || dh < 16 || x < 0 || y < 0 || math.Abs(float64(x*2+dw-1280)) > 0.01 || math.Abs(float64(y*2+dh-720)) > 0.01 {
++					result <- fmt.Errorf("invalid display rectangle %v %v %v %v %v %v", sw, sh, x, y, dw, dh)
++					return
++				}
++				switch kind {
++				case 1:
++					if sw != math.Float32frombits(binary.LittleEndian.Uint32(h[16:20])) || sh != math.Float32frombits(binary.LittleEndian.Uint32(h[20:24])) {
++						result <- fmt.Errorf("codec dimension mismatch")
++						return
++					}
++					off := 6
++					for group, count := 0, int(p[5]&31); group < 2; group++ {
++						for i := 0; i < count; i++ {
++							size := int(binary.BigEndian.Uint16(p[off : off+2]))
++							off += 2
++							output.Write([]byte{0, 0, 0, 1})
++							output.Write(p[off : off+size])
++							off += size
++						}
++						if group == 0 {
++							count = int(p[off])
++							off++
++						}
++					}
++					configs++
++				case 0:
++					if configs == 0 {
++						result <- fmt.Errorf("video before config")
++						return
++					}
++					for off := 0; off < len(p); {
++						size := int(binary.BigEndian.Uint32(p[off : off+4]))
++						off += 4
++						output.Write([]byte{0, 0, 0, 1})
++						output.Write(p[off : off+size])
++						off += size
++					}
++					videos++
++				default:
++					result <- fmt.Errorf("invalid packet type")
++					return
++				}
++			}
++			if videos < int(duration.Seconds()*15) || beats < int(duration.Seconds()*0.7) || configs < 1 {
++				result <- fmt.Errorf("stream starved: video=%d heartbeat=%d config=%d", videos, beats, configs)
++				return
++			}
++			if session == 0 && configs < 3 {
++				result <- fmt.Errorf("resolution changes not propagated")
++				return
++			}
++			t.Logf("session=%d duration=%v video=%d heartbeat=%d config=%d; closing receiver", session, duration, videos, beats, configs)
++			result <- nil
++		}()
++		ctx, cancel := context.WithCancel(context.Background())
++		m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 20, 0)
++		if e != nil {
++			cancel()
++			t.Fatal(e)
++		}
++		failures := make(chan error, 8)
++		go m.Watch(ctx, func(e error) { failures <- e })
++		go m.Heartbeats(ctx, func(e error) { failures <- e })
++		tick := time.NewTicker(50 * time.Millisecond)
++		started := time.Now()
++		index := 0
++		resultRead := false
++		clockDone := make(chan error, 1)
++		go func() { clockDone <- checkLegacyClocks(m, duration) }()
++	sendLoop:
++		for {
++			select {
++			case e := <-result:
++				resultRead = true
++				if e != nil {
++					t.Error(e)
++				}
++				break sendLoop
++			case <-tick.C:
++				phase := int(time.Since(started)/(10*time.Second)) % len(units)
++				u := units[phase]
++				if phase != index/1000000 {
++					index = phase * 1000000
++				}
++				pos := index % 1000000
++				frame := u[pos%len(u)]
++				index++
++				if e = m.SendFrame(frame, pos%len(u) == 0); e != nil {
++					break sendLoop
++				}
++			}
++		}
++		tick.Stop()
++		if !resultRead {
++			if e = <-result; e != nil {
++				t.Fatal(e)
++			}
++		}
++		select {
++		case e := <-failures:
++			if e == nil {
++				t.Error("missing close reason")
++			}
++		case <-time.After(4 * time.Second):
++			t.Error("receiver close was not detected")
++		}
++		cancel()
++		m.Close()
++		if e = <-clockDone; e != nil {
++			t.Fatal(e)
++		}
++	}
++}
++
++func checkLegacyClocks(m *LegacyHTTPMirror, duration time.Duration) error {
++	peer, err := net.DialUDP("udp", nil, m.timing.LocalAddr().(*net.UDPAddr))
++	if err != nil {
++		return err
++	}
++	defer peer.Close()
++	until := time.Now().Add(duration - 300*time.Millisecond)
++	for time.Now().Before(until) {
++		peer.SetDeadline(time.Now().Add(time.Second))
++		req := make([]byte, 48)
++		req[0] = 0x23
++		copy(req[40:], []byte("clock123"))
++		peer.Write(req)
++		var b [64]byte
++		n, e := peer.Read(b[:])
++		if e != nil {
++			return e
++		}
++		if n != 48 || b[0] != 0x24 || !bytes.Equal(b[24:32], req[40:48]) {
++			return fmt.Errorf("invalid NTP48")
++		}
++		now := legacyTimestamp(time.Since(m.started))
++		recv := binary.BigEndian.Uint64(b[32:40])
++		if now < recv || now-recv > 1<<32 {
++			return fmt.Errorf("clock basis mismatch")
++		}
++		req = make([]byte, 32)
++		req[0], req[1] = 0x80, 0xd2
++		copy(req[24:], []byte("raoptime"))
++		peer.Write(req)
++		n, e = peer.Read(b[:])
++		if e != nil {
++			return e
++		}
++		if n != 32 || b[1] != 0xd3 || !bytes.Equal(b[8:16], req[24:32]) {
++			return fmt.Errorf("invalid RAOP timing32")
++		}
++		time.Sleep(250 * time.Millisecond)
++	}
++	return nil
++}

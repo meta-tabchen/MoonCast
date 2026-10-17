@@ -1,4 +1,8 @@
 <resources>
+  <string name="ap_copy_diagnostic">复制投屏诊断</string>
+  <string name="ap_no_diagnostic">先开始一次投屏，即可收集诊断。</string>
+  <string name="ap_diagnostic_copied">诊断已复制，电视退出后也可以粘贴发送。</string>
+  <string name="ap_service_audio_reason">音频会话未建立：%1$s（%2$s），手机保留声音。</string>
   <string name="ap_service_projection_only">AirPlay 使用标准屏幕共享或 Android 14+ 单个应用捕获。</string>
   <string name="ap_service_bad_receiver">请输入接收端的局域网 IPv4 地址和有效端口。</string>
   <string name="ap_service_connecting">正在连接 AirPlay</string>
@@ -8,7 +12,7 @@
   <string name="ap_service_timeout">AirPlay 在 %1$s 阶段连接超时，请重新启动投屏重试。</string>
   <string name="ap_service_casting">正在通过 AirPlay 投屏</string>
   <string name="ap_service_legacy_video">兼容画质仅传画面，最高 720p30；仍使用完整 AirPlay 协商。</string>
-  <string name="ap_service_receiver_no_audio">接收端未协商音频流，画面继续。</string>
+  <string name="ap_service_receiver_no_audio">音频会话未能建立，画面继续，手机保留声音；这不代表电视不支持声音。</string>
   <string name="ap_service_audio">播放音频：44.1 kHz 双声道 ALAC。来源应用必须允许捕获。</string>
   <string name="ap_service_failed">AirPlay 已停止</string>
   <string name="ap_service_notification">MoonCast AirPlay 正在运行</string>

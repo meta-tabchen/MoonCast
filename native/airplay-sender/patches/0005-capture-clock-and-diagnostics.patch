@@ -1,0 +1,792 @@
+--- a/airplaylib/airplaylib.go
++++ b/airplaylib/airplaylib.go
+@@ -30,17 +30,19 @@
+ }
+ 
+ type Session struct {
+-	legacyHTTP   *airplay.LegacyHTTPMirror
+-	legacyAudio  *airplay.LegacyAudio
+-	audioEnabled bool
+-	connected    bool
+-	lifecycle    sync.Mutex
+-	epoch        uint64
+-	mu           sync.Mutex
+-	client       *airplay.AirPlayClient
+-	mirror       *airplay.MirrorSession
+-	handler      EventHandler
+-	cancel       context.CancelFunc
++	clock           func() uint64
++	lastDiagnostics string
++	legacyHTTP      *airplay.LegacyHTTPMirror
++	legacyAudio     *airplay.LegacyAudio
++	audioEnabled    bool
++	connected       bool
++	lifecycle       sync.Mutex
++	epoch           uint64
++	mu              sync.Mutex
++	client          *airplay.AirPlayClient
++	mirror          *airplay.MirrorSession
++	handler         EventHandler
++	cancel          context.CancelFunc
+ 
+ 	pipeW        *io.PipeWriter
+ 	firstSendLog bool
+@@ -94,6 +96,29 @@
+ func (s *Session) SetAudioEnabled(enabled bool) { s.mu.Lock(); s.audioEnabled = enabled; s.mu.Unlock() }
+ func (s *Session) IsConnected() bool            { s.mu.Lock(); defer s.mu.Unlock(); return s.connected }
+ 
++// Android supplies CLOCK_MONOTONIC / System.nanoTime, the same domain as encoder PTS.
++func (s *Session) SetClockReference(uptimeMicros int64) {
++	s.mu.Lock()
++	defer s.mu.Unlock()
++	at := time.Now()
++	s.clock = func() uint64 {
++		u := uptimeMicros + time.Since(at).Microseconds()
++		return uint64(u/1000000)<<32 | uint64(u%1000000)*(1<<32)/1000000
++	}
++}
++func (s *Session) Diagnostics() string {
++	s.mu.Lock()
++	m, connected, last := s.legacyHTTP, s.connected, s.lastDiagnostics
++	s.mu.Unlock()
++	if m == nil {
++		if last != "" {
++			return last
++		}
++		return fmt.Sprintf("{\"connected\":%v,\"transport\":\"idle-or-modern\"}", connected)
++	}
++	return m.Statistics()
++}
++
+ // Clear transport state before notifying Android. The epoch gate coalesces
+ // simultaneous EOF, heartbeat and video-write errors and rejects stale workers.
+ func (s *Session) transportFailed(epoch uint64, err error) {
+@@ -105,6 +130,11 @@
+ 		s.lifecycle.Unlock()
+ 		return
+ 	}
++	s.mu.Lock()
++	if s.legacyHTTP != nil {
++		s.lastDiagnostics = fmt.Sprintf("{\"origin\":%q,\"error\":%q,\"last\":%s}", airplay.SafeFailureOrigin(err), airplay.SafeTransportError(err), s.legacyHTTP.Statistics())
++	}
++	s.mu.Unlock()
+ 	s.disconnect()
+ 	s.lifecycle.Unlock()
+ 	s.handler.OnDisconnected(fmt.Sprintf("%v", err))
+@@ -156,6 +186,8 @@
+ 	s.mu.Lock()
+ 	s.cancel = cancel
+ 	epoch := s.epoch
++	clock := s.clock
++	s.lastDiagnostics = ""
+ 	s.mu.Unlock()
+ 	s.lifecycle.Unlock()
+ 	go func() {
+@@ -163,7 +195,7 @@
+ 			return
+ 		}
+ 		s.logf("[LEGACYHTTP] GET/stream.xml")
+-		legacy, legacyErr := airplay.TryLegacyHTTP(ctx, host, pin, width, height, fps)
++		legacy, legacyErr := airplay.TryLegacyHTTPWithClock(ctx, host, pin, width, height, fps, clock)
+ 		if legacyErr == nil {
+ 			s.mu.Lock()
+ 			if ctx.Err() != nil || s.epoch != epoch {
+@@ -195,7 +227,9 @@
+ 					s.legacyAudio, s.audioCapture, s.audioW = a, capture, writer
+ 					s.mu.Unlock()
+ 					go func() {
+-						_ = a.Run(capture)
++						if e := a.Run(capture); e != nil {
++							legacy.AudioFailure(e)
++						}
+ 						s.mu.Lock()
+ 						owned := s.audioW == writer
+ 						if owned {
+@@ -207,6 +241,7 @@
+ 						}
+ 					}()
+ 				} else {
++					legacy.AudioFailure(err)
+ 					s.logf("[LEGACYHTTP] AUDIO_UNAVAILABLE")
+ 				}
+ 			}
+@@ -338,11 +373,14 @@
+ }
+ 
+ func (s *Session) SendFrame(annexBData []byte, isKeyframe bool) {
++	s.SendFrameAt(annexBData, isKeyframe, 0)
++}
++func (s *Session) SendFrameAt(annexBData []byte, isKeyframe bool, ptsMicros int64) {
+ 	s.mu.Lock()
+ 	legacy, legacyEpoch := s.legacyHTTP, s.epoch
+ 	s.mu.Unlock()
+ 	if legacy != nil {
+-		if err := legacy.SendFrame(annexBData, isKeyframe); err != nil {
++		if err := legacy.SendFrameAt(annexBData, isKeyframe, ptsMicros); err != nil {
+ 			s.transportFailed(legacyEpoch, err)
+ 		}
+ 		return
+--- a/internal/airplay/audio.go
++++ b/internal/airplay/audio.go
+@@ -11,6 +11,7 @@
+ 	"os/exec"
+ 	"strings"
+ 	"sync"
++	"sync/atomic"
+ 	"time"
+ 
+ 	aeadchacha20poly1305 "github.com/aead/chacha20poly1305"
+@@ -358,24 +359,25 @@
+ 
+ // AudioStream manages the RTP audio channel to the AirPlay receiver.
+ type AudioStream struct {
+-	clock           func() uint64  // optional session-relative master clock for legacy HTTP
+-	conn            net.PacketConn // local UDP socket for sending audio
+-	ctrlConn        net.PacketConn // control port for sync/resend
+-	remoteAddr      *net.UDPAddr   // receiver's audio data address
+-	ctrlAddr        *net.UDPAddr   // receiver's audio control address
+-	rtpTime         uint32
+-	ssrc            uint32
+-	cipher          cipher.Block // AES-128 for audio encryption (nil = no encryption)
+-	aesIV           []byte       // 16-byte IV for AES-CBC
+-	chachaCipher    cipher.AEAD  // ChaCha20-Poly1305 for modern Apple receivers
+-	securityMode    audioSecurityMode
+-	chachaNonce     uint64
+-	chachaNonceMode audioChaChaNonceMode
+-	chachaAADMode   audioChaChaAADMode
+-	ct              byte   // compression type: 2=ALAC
+-	spf             uint16 // samples per frame
+-	latencySamples  uint32 // audio latency in samples (for sync packets)
+-	mu              sync.Mutex
++	diagnosticPackets *atomic.Int64
++	clock             func() uint64  // optional session-relative master clock for legacy HTTP
++	conn              net.PacketConn // local UDP socket for sending audio
++	ctrlConn          net.PacketConn // control port for sync/resend
++	remoteAddr        *net.UDPAddr   // receiver's audio data address
++	ctrlAddr          *net.UDPAddr   // receiver's audio control address
++	rtpTime           uint32
++	ssrc              uint32
++	cipher            cipher.Block // AES-128 for audio encryption (nil = no encryption)
++	aesIV             []byte       // 16-byte IV for AES-CBC
++	chachaCipher      cipher.AEAD  // ChaCha20-Poly1305 for modern Apple receivers
++	securityMode      audioSecurityMode
++	chachaNonce       uint64
++	chachaNonceMode   audioChaChaNonceMode
++	chachaAADMode     audioChaChaAADMode
++	ct                byte   // compression type: 2=ALAC
++	spf               uint16 // samples per frame
++	latencySamples    uint32 // audio latency in samples (for sync packets)
++	mu                sync.Mutex
+ }
+ 
+ // setupAudioStream creates the audio RTP stream state.
+@@ -602,6 +604,9 @@
+ 		return usedNonce, err
+ 	}
+ 
++	if as.diagnosticPackets != nil {
++		as.diagnosticPackets.Add(1)
++	}
+ 	// Track the latest RTP time for sync packets (only update forward)
+ 	if rtpTime >= as.rtpTime {
+ 		as.rtpTime = rtpTime
+--- a/internal/airplay/legacy_audio.go
++++ b/internal/airplay/legacy_audio.go
+@@ -74,6 +74,7 @@
+ }
+ 
+ type LegacyAudio struct {
++	diagnostics                       *legacyDiagnostics
+ 	conn                              net.Conn
+ 	reader                            *bufio.Reader
+ 	mu                                sync.Mutex
+@@ -90,6 +91,7 @@
+ }
+ 
+ func (m *LegacyHTTPMirror) SetupAudio(ctx context.Context, password string) (*LegacyAudio, error) {
++	m.diag.audioStage.Store("DISCOVERY")
+ 	endpoint, err := legacyAudioEndpointFor(ctx, m.client.host)
+ 	if err != nil {
+ 		return nil, err
+@@ -98,6 +100,8 @@
+ }
+ 
+ func (m *LegacyHTTPMirror) setupAudioEndpoint(ctx context.Context, password string, endpoint legacyAudioEndpoint) (*LegacyAudio, error) {
++	m.diag.audioCaps.Store(fmt.Sprintf("port=%d;cn=%s;et=%s", endpoint.port, safeCapability(endpoint.codecs), safeCapability(endpoint.encryption)))
++	m.diag.audioStage.Store("CAPABILITIES")
+ 	if !legacyListContains(endpoint.codecs, "1") {
+ 		return nil, fmt.Errorf("RAOP ALAC not advertised")
+ 	}
+@@ -108,7 +112,7 @@
+ 		return nil, fmt.Errorf("RAOP encryption unsupported")
+ 	}
+ 	child, cancel := context.WithCancel(ctx)
+-	a := &LegacyAudio{ctx: child, cancel: cancel, password: password, deviceID: m.deviceID}
++	a := &LegacyAudio{diagnostics: &m.diag, ctx: child, cancel: cancel, password: password, deviceID: m.deviceID}
+ 	conn, err := (&net.Dialer{Timeout: 800 * time.Millisecond}).DialContext(child, "tcp", net.JoinHostPort(m.client.host, strconv.Itoa(endpoint.port)))
+ 	if err != nil {
+ 		cancel()
+@@ -183,7 +187,7 @@
+ 			data.Close()
+ 		}
+ 	}()
+-	transport := fmt.Sprintf("RTP/AVP/UDP;unicast;mode=record;control_port=%d;timing_port=%d", ctrl.LocalAddr().(*net.UDPAddr).Port, m.timing.LocalAddr().(*net.UDPAddr).Port)
++	transport := fmt.Sprintf("RTP/AVP/UDP;unicast;mode=screen;interleaved=0-1;timing_port=%d;control_port=%d;redundant=2", m.timing.LocalAddr().(*net.UDPAddr).Port, ctrl.LocalAddr().(*net.UDPAddr).Port)
+ 	_, headers, err := a.request("SETUP", a.uri, "", nil, map[string]string{"Transport": transport})
+ 	if err != nil {
+ 		return nil, fmt.Errorf("RAOP SETUP: %w", err)
+@@ -209,7 +213,8 @@
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	a.stream.clock = func() uint64 { return legacyTimestamp(time.Since(m.started)) }
++	a.stream.clock = m.timestamp
++	a.stream.diagnosticPackets = &m.diag.audioPackets
+ 	if _, _, err = a.request("RECORD", a.uri, "", nil, map[string]string{"Range": "npt=0-", "RTP-Info": "seq=1;rtptime=2205"}); err != nil {
+ 		return nil, fmt.Errorf("RAOP RECORD: %w", err)
+ 	}
+@@ -218,12 +223,20 @@
+ 	}
+ 	conn.SetDeadline(time.Time{})
+ 	keep = true
++	m.diag.audioStage.Store("RUNNING")
+ 	return a, nil
+ }
+ 
+ func (a *LegacyAudio) request(method, uri, ct string, body []byte, extra map[string]string) ([]byte, map[string]string, error) {
+ 	a.mu.Lock()
+ 	defer a.mu.Unlock()
++	if a.diagnostics != nil {
++		stage := method
++		if method == "POST" {
++			stage = "FAIRPLAY"
++		}
++		a.diagnostics.audioStage.Store(stage)
++	}
+ 	for attempt := 0; attempt < 2; attempt++ {
+ 		a.seq++
+ 		headers := map[string]string{"CSeq": strconv.Itoa(a.seq), "User-Agent": "AirTunes/150.33", "X-Apple-Device-ID": fmt.Sprintf("0x%012x", a.deviceID)}
+@@ -365,6 +378,10 @@
+ 				return
+ 			case <-ticker.C:
+ 				if _, _, err := a.request("OPTIONS", "*", "", nil, nil); err != nil {
++					if a.diagnostics != nil {
++						a.diagnostics.audioStage.Store("KEEPALIVE-FAILED")
++						a.diagnostics.audioError.Store(SafeTransportError(err))
++					}
+ 					a.Close()
+ 					capture.pcmPipe.Close()
+ 					return
+--- a/internal/airplay/legacy_audio_test.go
++++ b/internal/airplay/legacy_audio_test.go
+@@ -104,7 +104,7 @@
+ 				}
+ 			}
+ 			if method == "SETUP" {
+-				if !strings.Contains(h["transport"], fmt.Sprintf("timing_port=%d", timing.LocalAddr().(*net.UDPAddr).Port)) {
++				if !strings.Contains(h["transport"], "mode=screen;interleaved=0-1;") || !strings.Contains(h["transport"], ";redundant=2") || !strings.Contains(h["transport"], fmt.Sprintf("timing_port=%d", timing.LocalAddr().(*net.UDPAddr).Port)) {
+ 					server <- fmt.Errorf("wrong timing socket")
+ 					return
+ 				}
+--- /dev/null
++++ b/internal/airplay/legacy_diagnostics.go
+@@ -0,0 +1,125 @@
++package airplay
++
++import (
++	"encoding/json"
++	"errors"
++	"fmt"
++	"io"
++	"net"
++	"strings"
++	"sync/atomic"
++	"syscall"
++	"time"
++)
++
++type legacyDiagnostics struct {
++	firstRect                                                                         atomic.Value
++	firstPTS                                                                          atomic.Int64
++	timingAlive                                                                       atomic.Bool
++	timingReadError                                                                   atomic.Value
++	video, config, heartbeat, bytes, ntp48rx, ntp48tx, ntp32rx, ntp32tx, timingErrors atomic.Int64
++	lastWrite, lastTiming, videoW, videoH, ptsDelta                                   atomic.Int64
++	audioStage, audioCaps, audioError                                                 atomic.Value
++	audioPackets                                                                      atomic.Int64
++}
++
++// Only structural error classes are exposed. Never receiver bodies, URLs,
++// addresses, authentication values, keys, device IDs, SDP or media bytes.
++func SafeTransportError(err error) string {
++	if err == nil {
++		return "none"
++	}
++	var status *HTTPStatusError
++	if errors.As(err, &status) {
++		return fmt.Sprintf("HTTP-%d", status.StatusCode)
++	}
++	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
++		return "EOF"
++	}
++	var timeout net.Error
++	if errors.As(err, &timeout) && timeout.Timeout() {
++		return "TIMEOUT"
++	}
++	var errno syscall.Errno
++	if errors.As(err, &errno) {
++		return fmt.Sprintf("ERRNO-%d", int(errno))
++	}
++	if errors.Is(err, net.ErrClosed) {
++		return "CLOSED"
++	}
++	return "PROTOCOL"
++}
++func SafeFailureOrigin(err error) string {
++	if err == nil {
++		return "none"
++	}
++	text := err.Error()
++	switch {
++	case strings.HasPrefix(text, "legacy heartbeat:"):
++		return "heartbeat-write"
++	case strings.HasPrefix(text, "legacy config write:"):
++		return "codec-write"
++	case strings.HasPrefix(text, "legacy video write:"):
++		return "video-write"
++	case strings.HasPrefix(text, "legacy POST/stream:"):
++		return "stream-read"
++	default:
++		return "transport"
++	}
++}
++func diagValue(v *atomic.Value) string {
++	if x := v.Load(); x != nil {
++		return x.(string)
++	}
++	return "none"
++}
++func safeCapability(value string) string {
++	if len(value) > 64 {
++		return "invalid"
++	}
++	for _, c := range value {
++		if !(c >= '0' && c <= '9' || c == ',' || c == ' ') {
++			return "invalid"
++		}
++	}
++	if value == "" {
++		return "missing"
++	}
++	return value
++}
++func (m *LegacyHTTPMirror) AudioFailure(err error) {
++	if diagValue(&m.diag.audioStage) == "KEEPALIVE-FAILED" {
++		return
++	}
++	text := err.Error()
++	stage := "SETUP-FAILED"
++	for _, s := range []string{"discovery", "not advertised", "ALAC", "encryption", "OPTIONS", "FairPlay", "ANNOUNCE", "SETUP", "RECORD", "volume", "transport", "session"} {
++		if strings.Contains(text, s) {
++			stage = strings.ToUpper(strings.ReplaceAll(s, " ", "-"))
++			break
++		}
++	}
++	m.diag.audioStage.Store(stage)
++	m.diag.audioError.Store(SafeTransportError(err))
++}
++func (m *LegacyHTTPMirror) timestamp() uint64 {
++	if m.clock != nil {
++		return m.clock()
++	}
++	return legacyTimestamp(time.Since(m.started))
++}
++func (m *LegacyHTTPMirror) Statistics() string {
++	w, h := int(m.diag.videoW.Load()), int(m.diag.videoH.Load())
++	x, y, dw, dh := legacyDisplayRect(w, h, m.displayW, m.displayH)
++	kind := "session-relative"
++	if m.clock != nil {
++		kind = "android-monotonic"
++	}
++	var firstRect interface{}
++	if v := m.diag.firstRect.Load(); v != nil {
++		firstRect = v.([6]float32)
++	}
++	result := map[string]interface{}{"firstHeader40to60": firstRect, "firstPtsUs": m.diag.firstPTS.Load(), "ntpAlive": m.diag.timingAlive.Load(), "ntpReadError": diagValue(&m.diag.timingReadError), "transport": "legacy-http", "elapsedMs": time.Since(m.started).Milliseconds(), "clock": kind, "receiver": []int{m.displayW, m.displayH}, "requestedCanvas": []int{m.Width, m.Height}, "encoded": []int{w, h}, "header40to60": []float32{float32(w), float32(h), x, y, dw, dh}, "video": m.diag.video.Load(), "config": m.diag.config.Load(), "heartbeat": m.diag.heartbeat.Load(), "bytes": m.diag.bytes.Load(), "lastWriteMs": m.diag.lastWrite.Load(), "ntpBound": m.timing != nil, "ntp48rx": m.diag.ntp48rx.Load(), "ntp48tx": m.diag.ntp48tx.Load(), "ntp32rx": m.diag.ntp32rx.Load(), "ntp32tx": m.diag.ntp32tx.Load(), "timingErrors": m.diag.timingErrors.Load(), "lastTimingMs": m.diag.lastTiming.Load(), "ptsAgeMs": m.diag.ptsDelta.Load(), "audioStage": diagValue(&m.diag.audioStage), "audioCaps": diagValue(&m.diag.audioCaps), "audioError": diagValue(&m.diag.audioError), "audioPackets": m.diag.audioPackets.Load()}
++	b, _ := json.Marshal(result)
++	return string(b)
++}
+--- /dev/null
++++ b/internal/airplay/legacy_diagnostics_test.go
+@@ -0,0 +1,90 @@
++package airplay
++
++import (
++	"bytes"
++	"encoding/binary"
++	"encoding/json"
++	"fmt"
++	"io"
++	"net"
++	"os"
++	"testing"
++	"time"
++)
++
++func TestLegacyCapturePTSAndStructuralDiagnostics(t *testing.T) {
++	file := os.Getenv("MOONCAST_LEGACY_FIXTURE")
++	if file == "" {
++		t.Skip("H264 fixture required")
++	}
++	data, e := os.ReadFile(file)
++	if e != nil {
++		t.Fatal(e)
++	}
++	frame := legacyFixtureAUs(data)[0]
++	sender, receiver := net.Pipe()
++	defer receiver.Close()
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: sender}, closed: make(chan struct{}), started: time.Now(), Width: 1280, Height: 720, displayW: 1920, displayH: 1080, clock: func() uint64 { return 7000 << 32 }}
++	defer m.Close()
++	done := make(chan error, 1)
++	go func() {
++		for _, kind := range []uint16{1, 0} {
++			var h [128]byte
++			if _, e := io.ReadFull(receiver, h[:]); e != nil {
++				done <- e
++				return
++			}
++			if binary.LittleEndian.Uint16(h[4:6]) != kind || binary.LittleEndian.Uint16(h[6:8]) != 6 {
++				done <- fmt.Errorf("invalid header kind/flags")
++				return
++			}
++			want := legacyTimestamp(6999975 * time.Millisecond)
++			if binary.LittleEndian.Uint64(h[8:16]) != want {
++				done <- fmt.Errorf("encoder PTS was replaced by write time")
++				return
++			}
++			n := binary.LittleEndian.Uint32(h[:4])
++			p := make([]byte, n)
++			if _, e := io.ReadFull(receiver, p); e != nil {
++				done <- e
++				return
++			}
++		}
++		done <- nil
++	}()
++	if e = m.SendFrameAt(frame, true, 6999975000); e != nil {
++		t.Fatal(e)
++	}
++	if e = <-done; e != nil {
++		t.Fatal(e)
++	}
++	var stats map[string]interface{}
++	if e = json.Unmarshal([]byte(m.Statistics()), &stats); e != nil {
++		t.Fatal(e)
++	}
++	if stats["clock"] != "android-monotonic" || (stats["ptsAgeMs"].(float64) < 25 || stats["ptsAgeMs"].(float64) > 26) || stats["video"].(float64) != 1 || stats["config"].(float64) != 1 {
++		t.Fatalf("bad diagnostic counters: %v", stats)
++	}
++	if !bytes.Contains([]byte(m.Statistics()), []byte(`"firstHeader40to60":[128,72,0,0,1920,1080]`)) {
++		t.Fatal("first actual wire rectangle missing")
++	}
++	if !bytes.Contains([]byte(m.Statistics()), []byte(`"receiver":[1920,1080]`)) {
++		t.Fatal("receiver space lost")
++	}
++	for _, err := range []error{&HTTPStatusError{StatusCode: 403, Body: []byte("PIN secret address")}, fmt.Errorf("credential secret: %w", io.EOF)} {
++		s := SafeTransportError(err)
++		if bytes.Contains([]byte(s), []byte("secret")) {
++			t.Fatal("private error forwarded")
++		}
++	}
++	t.Log("actual encoder PTS retained; receiver/canvas/encoded spaces remain distinct; structural errors omit bodies")
++}
++
++func TestLegacySizeUsesReceiverCeilingWithoutChangingDisplaySpace(t *testing.T) {
++	for _, tc := range []struct{ rw, rh, w, h int }{{640, 360, 640, 360}, {800, 480, 800, 450}, {1920, 1080, 1280, 720}} {
++		w, h := legacySize(1920, 1080, tc.rw, tc.rh)
++		if w != tc.w || h != tc.h {
++			t.Fatalf("receiver %dx%d => canvas %dx%d", tc.rw, tc.rh, w, h)
++		}
++	}
++}
+--- a/internal/airplay/legacy_http.go
++++ b/internal/airplay/legacy_http.go
+@@ -15,6 +15,7 @@
+ 	"fmt"
+ 	"howett.net/plist"
+ 	"io"
++	"math"
+ 	"net"
+ 	"net/http"
+ 	"strconv"
+@@ -26,6 +27,8 @@
+ var ErrLegacyHTTPUnavailable = errors.New("legacy HTTP mirroring not advertised by stream.xml")
+ 
+ type LegacyHTTPMirror struct {
++	diag               legacyDiagnostics
++	clock              func() uint64
+ 	client             *AirPlayClient
+ 	reader             *bufio.Reader
+ 	password           string
+@@ -53,7 +56,11 @@
+ 	return tryLegacyHTTPPort(ctx, host, 7100, pin, width, height, fps, 7010)
+ }
+ 
+-func tryLegacyHTTPPort(ctx context.Context, host string, port int, pin string, width, height, fps, timingPort int) (*LegacyHTTPMirror, error) {
++func TryLegacyHTTPWithClock(ctx context.Context, host, pin string, width, height, fps int, clock func() uint64) (*LegacyHTTPMirror, error) {
++	return tryLegacyHTTPPort(ctx, host, 7100, pin, width, height, fps, 7010, clock)
++}
++
++func tryLegacyHTTPPort(ctx context.Context, host string, port int, pin string, width, height, fps, timingPort int, clock ...func() uint64) (*LegacyHTTPMirror, error) {
+ 	ip := net.ParseIP(strings.Split(host, "%")[0])
+ 	if ip == nil || !(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()) {
+ 		return nil, ErrLegacyHTTPUnavailable
+@@ -78,6 +85,9 @@
+ 	closeConn := conn
+ 	context.AfterFunc(ctx, func() { closeConn.Close() })
+ 	m := &LegacyHTTPMirror{client: client, reader: bufio.NewReaderSize(conn, 4096), password: pin, started: time.Now(), closed: make(chan struct{}), firstFrame: make(chan struct{})}
++	if len(clock) > 0 {
++		m.clock = clock[0]
++	}
+ 	keep := false
+ 	defer func() {
+ 		if !keep {
+@@ -192,7 +202,7 @@
+ 	if _, err = rand.Read(sid[:]); err != nil {
+ 		return nil, err
+ 	}
+-	setup := map[string]interface{}{"deviceID": m.deviceID, "sessionID": int64(int32(binary.BigEndian.Uint32(sid[:]))), "latencyMs": int64(50), "version": "150.33", "fpsInfo": names("SubS", "B4En", "EnDp", "IdEn", "IdDp", "EQDp", "QueF", "Sent"), "timestampInfo": names("SubSu", "BePxT", "AfPxT", "BefEn", "EmEnc", "QueFr", "SndFr")}
++	setup := map[string]interface{}{"deviceID": m.deviceID, "sessionID": int64(int32(binary.BigEndian.Uint32(sid[:]))), "latencyMs": int64(50), "version": "150.33", "fpsInfo": names("SubS", "B4En", "EnDp", "IdEn", "IdDp", "EQDp", "QueF", "Sent"), "timestampInfo": names("SubSu", "BePxT", "AfPxt", "BefEn", "EmEnc", "QueFr", "SndFr")}
+ 	if client.FpEkey != nil {
+ 		if len(client.fpAesKey) != 16 || len(client.fpIV) != 16 {
+ 			return nil, fmt.Errorf("legacy encryption parameters invalid")
+@@ -230,13 +240,17 @@
+ 	if h > w {
+ 		w, h = h, w
+ 	}
+-	if w > 1280 {
+-		h = h * 1280 / w
+-		w = 1280
+-	}
+-	if h > 720 {
+-		w = w * 720 / h
+-		h = 720
++	limitW, limitH := min(1280, rw), min(720, rh)
++	if limitW < 16 || limitH < 16 {
++		limitW, limitH = 1280, 720
++	}
++	if w > limitW {
++		h = h * limitW / w
++		w = limitW
++	}
++	if h > limitH {
++		w = w * limitH / h
++		h = limitH
+ 	}
+ 	return max(16, w&^1), max(16, h&^1)
+ }
+@@ -438,7 +452,7 @@
+ func legacyTimestamp(d time.Duration) uint64 {
+ 	return uint64(d/time.Second)<<32 | (uint64(d%time.Second)<<32)/uint64(time.Second)
+ }
+-func (m *LegacyHTTPMirror) packet(kind uint16, payload []byte) error {
++func (m *LegacyHTTPMirror) packet(kind uint16, payload []byte, stamp ...uint64) error {
+ 	var header [128]byte
+ 	binary.LittleEndian.PutUint32(header[:4], uint32(len(payload)))
+ 	binary.LittleEndian.PutUint16(header[4:6], kind)
+@@ -450,7 +464,11 @@
+ 	// Heartbeats are an all-zero body/header apart from type and flags. They
+ 	// are not presentation samples and must not carry a media timestamp.
+ 	if kind != 2 {
+-		binary.LittleEndian.PutUint64(header[8:16], legacyTimestamp(time.Since(m.started)))
++		ts := m.timestamp()
++		if len(stamp) > 0 && stamp[0] > 0 {
++			ts = stamp[0]
++		}
++		binary.LittleEndian.PutUint64(header[8:16], ts)
+ 		if kind == 1 {
+ 			putFloat32LE(header[16:20], float32(m.videoW))
+ 			putFloat32LE(header[20:24], float32(m.videoH))
+@@ -467,11 +485,35 @@
+ 	if err := writeLegacyAll(m.client.conn, header[:]); err != nil {
+ 		return err
+ 	}
+-	return writeLegacyAll(m.client.conn, payload)
++	if err := writeLegacyAll(m.client.conn, payload); err != nil {
++		return err
++	}
++	m.diag.lastWrite.Store(time.Since(m.started).Milliseconds())
++	m.diag.bytes.Add(int64(len(header) + len(payload)))
++	switch kind {
++	case 0:
++		m.diag.video.Add(1)
++	case 1:
++		if m.diag.config.Add(1) == 1 {
++			var rect [6]float32
++			for i := range rect {
++				rect[i] = math.Float32frombits(binary.LittleEndian.Uint32(header[40+i*4 : 44+i*4]))
++			}
++			m.diag.firstRect.Store(rect)
++			ts := binary.LittleEndian.Uint64(header[8:16])
++			m.diag.firstPTS.Store(int64(ts>>32)*1000000 + int64((ts&0xffffffff)*1000000>>32))
++		}
++	case 2:
++		m.diag.heartbeat.Add(1)
++	}
++	return nil
+ }
+ 
+ // Each JNI call is a complete encoder access unit, including the final NAL.
+ func (m *LegacyHTTPMirror) SendFrame(frame []byte, keyframe bool) error {
++	return m.SendFrameAt(frame, keyframe, 0)
++}
++func (m *LegacyHTTPMirror) SendFrameAt(frame []byte, keyframe bool, ptsMicros int64) error {
+ 	m.mu.Lock()
+ 	defer m.mu.Unlock()
+ 	if len(frame) == 0 {
+@@ -480,6 +522,12 @@
+ 	if len(frame) > 16*1024*1024 {
+ 		return fmt.Errorf("legacy frame too large")
+ 	}
++	stamp := m.timestamp()
++	if ptsMicros > 0 {
++		stamp = legacyTimestamp(time.Duration(ptsMicros) * time.Microsecond)
++	}
++	now := m.timestamp()
++	m.diag.ptsDelta.Store((int64(now>>32)*1000 + int64((now&0xffffffff)*1000>>32)) - (int64(stamp>>32)*1000 + int64((stamp&0xffffffff)*1000>>32)))
+ 	var nalus [][]byte
+ 	start := findStartCode(frame, 0)
+ 	if start != 0 {
+@@ -535,9 +583,11 @@
+ 		}
+ 		if w, h, ok := spsDimensions(m.sps); ok {
+ 			m.videoW, m.videoH = w, h
+-		}
+-		if err := m.packet(1, config); err != nil {
+-			return err
++			m.diag.videoW.Store(int64(w))
++			m.diag.videoH.Store(int64(h))
++		}
++		if err := m.packet(1, config, stamp); err != nil {
++			return fmt.Errorf("legacy config write: %w", err)
+ 		}
+ 		m.config = append([]byte(nil), config...)
+ 		m.awaitingIDR = true
+@@ -549,7 +599,7 @@
+ 	if m.crypt != nil {
+ 		m.crypt.XORKeyStream(video, video)
+ 	}
+-	if err := m.packet(0, video); err != nil {
++	if err := m.packet(0, video, stamp); err != nil {
+ 		return fmt.Errorf("legacy video write: %w", err)
+ 	}
+ 	m.firstFrameOnce.Do(func() {
+@@ -596,30 +646,48 @@
+ 	}
+ }
+ func (m *LegacyHTTPMirror) serveTiming(ctx context.Context, peer net.IP) {
++	m.diag.timingAlive.Store(true)
++	defer m.diag.timingAlive.Store(false)
+ 	var b [512]byte
+ 	for {
+ 		n, addr, err := m.timing.ReadFromUDP(b[:])
+ 		if err != nil {
++			select {
++			case <-m.closed:
++			case <-ctx.Done():
++			default:
++				m.diag.timingReadError.Store(SafeTransportError(err))
++				m.diag.timingErrors.Add(1)
++			}
+ 			return
+ 		}
++		receivedAt := m.timestamp()
+ 		if !addr.IP.Equal(peer) {
+ 			continue
+ 		}
+ 		// The shared master clock also answers RAOP's distinct 32-byte RTP
+ 		// timing requests; never mistake these for the HTTP mirror's 48-byte NTP.
+ 		if n == 32 && b[1]&0x7f == 0x52 {
++			m.diag.ntp32rx.Add(1)
++			m.diag.lastTiming.Store(time.Since(m.started).Milliseconds())
+ 			var reply [32]byte
+ 			copy(reply[:8], b[:8])
+ 			reply[0], reply[1] = 0x80, 0xd3
+ 			copy(reply[8:16], b[24:32])
+-			binary.BigEndian.PutUint64(reply[16:24], legacyTimestamp(time.Since(m.started)))
+-			binary.BigEndian.PutUint64(reply[24:32], legacyTimestamp(time.Since(m.started)))
+-			m.timing.WriteToUDP(reply[:], addr)
++			binary.BigEndian.PutUint64(reply[16:24], receivedAt)
++			binary.BigEndian.PutUint64(reply[24:32], m.timestamp())
++			if _, e := m.timing.WriteToUDP(reply[:], addr); e == nil {
++				m.diag.ntp32tx.Add(1)
++			} else {
++				m.diag.timingErrors.Add(1)
++			}
+ 			continue
+ 		}
+ 		if n < 48 || b[0]&7 != 3 {
+ 			continue
+ 		}
++		m.diag.ntp48rx.Add(1)
++		m.diag.lastTiming.Store(time.Since(m.started).Milliseconds())
+ 		var reply [48]byte
+ 		reply[0] = 0x24
+ 		reply[1] = 1
+@@ -627,10 +695,13 @@
+ 		reply[3] = 0xe8
+ 		copy(reply[12:16], "AIRP")
+ 		copy(reply[24:32], b[40:48])
+-		now := legacyTimestamp(time.Since(m.started))
+-		binary.BigEndian.PutUint64(reply[32:40], now)
+-		binary.BigEndian.PutUint64(reply[40:48], now)
+-		m.timing.WriteToUDP(reply[:], addr)
++		binary.BigEndian.PutUint64(reply[32:40], receivedAt)
++		binary.BigEndian.PutUint64(reply[40:48], m.timestamp())
++		if _, e := m.timing.WriteToUDP(reply[:], addr); e == nil {
++			m.diag.ntp48tx.Add(1)
++		} else {
++			m.diag.timingErrors.Add(1)
++		}
+ 	}
+ }
+ func (m *LegacyHTTPMirror) Close() {
+--- a/internal/airplay/legacy_stability_test.go
++++ b/internal/airplay/legacy_stability_test.go
+@@ -204,7 +204,12 @@
+ 			result <- nil
+ 		}()
+ 		ctx, cancel := context.WithCancel(context.Background())
+-		m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 20, 0)
++		var clock func() uint64
++		if os.Getenv("MOONCAST_LEGACY_ANDROID_CLOCK") != "" {
++			anchor := time.Now()
++			clock = func() uint64 { return legacyTimestamp(1000*time.Second + time.Since(anchor)) }
++		}
++		m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "", 1280, 720, 20, 0, clock)
+ 		if e != nil {
+ 			cancel()
+ 			t.Fatal(e)
+@@ -236,7 +241,12 @@
+ 				pos := index % 1000000
+ 				frame := u[pos%len(u)]
+ 				index++
+-				if e = m.SendFrame(frame, pos%len(u) == 0); e != nil {
++				var pts int64
++				if m.clock != nil {
++					now := m.timestamp()
++					pts = int64(now>>32)*1000000 + int64((now&0xffffffff)*1000000>>32) - 5000
++				}
++				if e = m.SendFrameAt(frame, pos%len(u) == 0, pts); e != nil {
+ 					break sendLoop
+ 				}
+ 			}
+@@ -284,7 +294,7 @@
+ 		if n != 48 || b[0] != 0x24 || !bytes.Equal(b[24:32], req[40:48]) {
+ 			return fmt.Errorf("invalid NTP48")
+ 		}
+-		now := legacyTimestamp(time.Since(m.started))
++		now := m.timestamp()
+ 		recv := binary.BigEndian.Uint64(b[32:40])
+ 		if now < recv || now-recv > 1<<32 {
+ 			return fmt.Errorf("clock basis mismatch")

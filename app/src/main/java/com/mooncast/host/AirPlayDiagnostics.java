@@ -6,6 +6,14 @@ import java.util.regex.Pattern;
 /** Structural diagnostics only: never forward receiver bodies, identities or keys. */
 final class AirPlayDiagnostics {
     private static final Pattern STATUS = Pattern.compile("\\bHTTP ([1-5][0-9]{2})\\b");
+    static String origin(String message) {
+        String s=message==null?"":message;
+        if(s.startsWith("legacy heartbeat:"))return "heartbeat-write";
+        if(s.startsWith("legacy config write:"))return "codec-write";
+        if(s.startsWith("legacy video write:"))return "video-write";
+        if(s.startsWith("legacy POST/stream:"))return "stream-read";
+        return "transport";
+    }
 
     static String failure(String message, String previousStage) {
         String text = message == null ? "" : message;

@@ -1,4 +1,8 @@
 <resources>
+  <string name="ap_copy_diagnostic">Copy casting diagnostics</string>
+  <string name="ap_no_diagnostic">Start a cast first to collect diagnostics.</string>
+  <string name="ap_diagnostic_copied">Diagnostics copied. You can paste them after the TV exits.</string>
+  <string name="ap_service_audio_reason">Audio session unavailable: %1$s (%2$s). Phone audio stays on.</string>
   <string name="ap_service_projection_only">AirPlay uses standard screen or Android 14+ app capture.</string>
   <string name="ap_service_bad_receiver">Enter a receiver LAN IPv4 address and a valid port.</string>
   <string name="ap_service_connecting">Connecting to AirPlay</string>
@@ -8,7 +12,7 @@
   <string name="ap_service_timeout">AirPlay timed out at %1$s. Start again to retry.</string>
   <string name="ap_service_casting">Casting with AirPlay</string>
   <string name="ap_service_legacy_video">Compatibility quality: video-only, up to 720p30; full AirPlay negotiation.</string>
-  <string name="ap_service_receiver_no_audio">The receiver did not negotiate an audio stream. Video continues.</string>
+  <string name="ap_service_receiver_no_audio">The audio session could not be established. Video continues and phone audio stays on; this does not identify a TV limitation.</string>
   <string name="ap_service_audio">Playback audio: 44.1 kHz stereo ALAC. The source app must allow capture.</string>
   <string name="ap_service_failed">AirPlay stopped</string>
   <string name="ap_service_notification">MoonCast AirPlay is running</string>

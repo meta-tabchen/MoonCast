@@ -236,6 +236,10 @@
     "native/airplay-sender/module-proxy/howett.net/plist/@v/v1.0.1.ziphash": "f13c353c8d32d915fd41280af83b7e69a6191e4e7d41cb4c0e46fe3cb810aac1",
     "native/airplay-sender/modules-lock.json": "85a465e5e4ee7df6ab91b4e0fa23ec0d4fbea910df7f4179ad9dec06be405597",
     "native/airplay-sender/patches/0001-session-cancellation-and-private-logging.patch": "d5bb26eec19917fd1166be6fe7403ceaa0b31e943de9b3d5c5db68a2f833c9b8",
+    "native/airplay-sender/patches/0002-optional-info-capability-probe.patch": "eca84dcaecbcdf8cd3c6ea9d537c4a8cce138c3d866661ad6aa6e8c175fe8908",
+    "native/airplay-sender/patches/0003-legacy-http-mirroring.patch": "970f07ba05cff7f22fda7a1b5446e04602ba3f45be0e4fdb62d3482f175bcef4",
+    "native/airplay-sender/patches/0004-legacy-audio-and-stability.patch": "3171ca0928823af34d635395e7d4ad786623e84e6c3cec055c7505f6ee54c80d",
+    "native/airplay-sender/patches/0005-capture-clock-and-diagnostics.patch": "e1462c92e6e076c41296f04b40d2eec52c7ef8b6fe18afdb36fff40d8258eea0",
     "native/airplay-sender/source/android-display-mirror/LICENSE": "8b1ba204bb69a0ade2bfcf65ef294a920f6bb361b317dba43c7ef29d96332b9b",
     "native/airplay-sender/source/android-display-mirror/airplay1.go": "8e4848f42d52639bb2b05d72871bb263f3217515e2fcdad045eb6bf56f5bd216",
     "native/airplay-sender/source/android-display-mirror/airplaylib/airplay1.go": "866af178c585c7517d83b51f009950de99c40849390f7fe6911147feda9272a2",
@@ -295,10 +299,10 @@
     "native/airplay-sender/source/doubletake/plasmoid/README.md": "a4ba4e77ebb91656a4a47bd78f45b7aa2cd9ecd369aff991c003c146569b3115",
     "native/airplay-sender/source/doubletake/plasmoid/contents/ui/main.qml": "a1b71ed060308bfddf2d57d5e55d441c693e383764a81bde4bbfddd7c149461d",
     "native/airplay-sender/source/doubletake/plasmoid/metadata.json": "5a35277878b1fdd1227915c74d7cb6eea06e35e72da09181aaf29626c2388f71",
-    "native/airplay-sender/tests/airplaylib_test.go": "c740c33c8fc9cbffe69c91d2b1069bcbeb655af599b40302a7b8f4f65b3e2696",
-    "scripts/build_airplay.sh": "7fc16bb2969591020cbf109ca2752bb18d8ddc53189fac72c92e1de766211bb9",
+    "native/airplay-sender/tests/airplaylib_test.go": "ccc51c5d6bf110bf035ef2be9126014490ccae73d7a86bd70fb24e50f35f624b",
+    "scripts/build_airplay.sh": "4d29335c830b32ce3e6b7ae40d7912021ca0f4dd579a478f9625550cdd0faa3c",
     "scripts/prepare_airplay.py": "45d6ba46852434129ad649b5bb3359149c2098e928a03436b810ba8d732c9b9e",
-    "native/airplay-sender/patches/0002-optional-info-capability-probe.patch": "eca84dcaecbcdf8cd3c6ea9d537c4a8cce138c3d866661ad6aa6e8c175fe8908",
-    "native/airplay-sender/patches/0003-legacy-http-mirroring.patch": "a7a576d499ab864c8131ceb9948e79730b2050732e2f78e6acd5e1ae6e14424f"
+    "native/airplay-sender/patches/0006-bounded-media-and-tcp-observation.patch": "e4f9e2ff650df41470dfd9f1e8a0a3bb98fe31798d2e361f2a457e5ec2fe01da",
+    "native/airplay-sender/patches/0007-one-way-stream-control-lifecycle.patch": "a0fad08007c4f533819096bab1696542b5270408a2a333b89e9e1c7de8a1c2fe"
   }
 }

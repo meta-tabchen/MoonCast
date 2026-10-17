@@ -37,17 +37,25 @@ public final class CropGeometry {
     }
     /** RGBA bottom-up GL sample. Null means a dark/fade frame: keep the previous crop. */
     public static Bounds detect(byte[] rgba,int w,int h) {
+        return detect(rgba,w,h,.30f);
+    }
+    /** Explicit automatic-video modes may remove deep paired horizontal bars
+     * around landscape video inside a portrait capture; whole-screen mode never uses this. */
+    public static Bounds detectPortraitVideo(byte[] rgba,int w,int h) {
+        return detect(rgba,w,h,.45f);
+    }
+    private static Bounds detect(byte[] rgba,int w,int h,float verticalLimit) {
         int active=0;
         for(int i=0;i<w*h;i++) if(!black(rgba,i*4)) active++;
         if(active<w*h*.12f) return null;
         int left=0,right=0,bottom=0,top=0;
         while(left<w*.30f && columnBlack(rgba,w,h,left)) left++;
         while(right<w*.30f && columnBlack(rgba,w,h,w-1-right)) right++;
-        while(bottom<h*.30f && rowBlack(rgba,w,h,bottom)) bottom++;
-        while(top<h*.30f && rowBlack(rgba,w,h,h-1-top)) top++;
+        while(bottom<h*verticalLimit && rowBlack(rgba,w,h,bottom)) bottom++;
+        while(top<h*verticalLimit && rowBlack(rgba,w,h,h-1-top)) top++;
         // Require paired borders; sparse home indicators may be ignored, subtitles within video remain.
         if(Math.abs(left-right)>Math.max(3,w*.035f) || left>=w*.30f || right>=w*.30f) left=right=0;
-        if(Math.abs(top-bottom)>Math.max(3,h*.035f) || top>=h*.30f || bottom>=h*.30f) top=bottom=0;
+        if(Math.abs(top-bottom)>Math.max(3,h*.035f) || top>=h*verticalLimit || bottom>=h*verticalLimit) top=bottom=0;
         // One sample pixel of safety margin protects edge content and avoids filtering into a cut edge.
         left=Math.max(0,Math.min(left,right)-1); right=left;
         bottom=Math.max(0,Math.min(bottom,top)-1); top=bottom;

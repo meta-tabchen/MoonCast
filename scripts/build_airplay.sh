@@ -22,7 +22,7 @@ esac
 python3 "$ROOT/scripts/prepare_airplay.py" --verify-sources
 # Go records the local replacement module directory in its build information even
 # with -trimpath. Use a stable, non-personal path and exclusive mkdir ownership.
-WORK=/tmp/mooncast-airplay-073
+WORK=/tmp/mooncast-airplay-076
 mkdir "$WORK" || { echo "Build directory already exists: $WORK (another build or interrupted run)" >&2; exit 1; }
 trap 'chmod -R u+w "$WORK"; rm -rf "$WORK"' EXIT
 python3 "$ROOT/scripts/prepare_airplay.py" --prepare "$WORK/source"

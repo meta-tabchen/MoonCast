@@ -1,11 +1,8 @@
-> Current native follow-up: **0.7.2 / code59** rebuilds the sender AAR with
-> optional `/info` support and retained FairPlay negotiation. The committed AAR
-> and its new manifest supersede the historical restored sender. Earlier 0.7
-> and unchanged-native statements below describe the baseline.
+> Current release: **0.8 / code65**. Reuses the hash-locked sender AAR containing the validated legacy HTTP, framing and lifecycle corrections. [Validation and limits](release-0.8-validation.md).
 
 # Build the community app / 构建社区版
 
-Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current application metadata is `0.7`, versionCode 57. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release.
+Current source: [`main`](https://github.com/meta-tabchen/MoonCast/tree/main). Use JDK 17, Gradle 8.9 / AGP 8.7.3, Android SDK 35 and Build Tools 35.0.0. Each single-ABI APK contains both phone and TV roles. Historical 0.5.0 build results are in [the historical record](unified-validation.md); current browser evidence is in [browser validation](browser-validation.md). The [0.5.1/code51 record](community-validation.md) remains historical. Current application metadata is `0.8`, versionCode 65. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release.
 
 ## Full Git checkout: fixed community signing
 
@@ -22,7 +19,7 @@ python3 scripts/verify_community_identity.py unified/build/outputs/apk/release/u
 
 `mooncastAbi` accepts `arm64-v8a`, `armeabi-v7a` or `x86_64`; omit it for a larger universal build. This does not promise every ABI is published as a release download.
 
-The normal community build uses `com.mooncast.community`, versionCode 57 for 0.7 (historical browser preview.4 used 55, preview.3 used 54 and 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
+The normal community build uses `com.mooncast.community`, versionCode 65 for 0.8 (historical browser preview.4 used 55, preview.3 used 54 and 0.5.1 used 51), and the fixed public test fixture initialized by the owner once in commit `cd39378fceeea1814df1b3e849d1588081aa7735`. Certificate SHA-256: `290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2`. Git supplies the fixture, identity manifest and checksum records; the build verifies them. Missing material, changed bytes or an unexpected certificate must fail. Never regenerate a replacement on each build.
 
 For subsequent releases add `--previous /path/to/previous-community.apk` to the identity verifier to check a matching identity and increasing versionCode. Old 0.5.0 is a different package with an unavailable disposable signing identity; it requires a one-time migration and cannot serve as a community in-place-update fixture.
 

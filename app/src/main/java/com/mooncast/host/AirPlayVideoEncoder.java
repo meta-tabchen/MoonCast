@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 
 /** MediaProjection -> shared MoonCast GLES framing -> hardware H.264 -> AirPlay transport. */
 final class AirPlayVideoEncoder implements AutoCloseable {
-    interface Output { void video(byte[] bytes, boolean keyframe); void error(String message); void log(String message); }
+    interface Output { void video(byte[] bytes, boolean keyframe, long ptsMicros); void error(String message); void log(String message); }
     private final Context context;
     private final Output output;
     private final AirPlayH264 h264 = new AirPlayH264();
@@ -24,14 +24,22 @@ final class AirPlayVideoEncoder implements AutoCloseable {
     private volatile VideoPipeline pipeline;
     private volatile boolean running;
     private Thread drain;
+    private volatile String geometryState = "pending", encoderState = "pending";
+    private volatile long partialOutputs;
+    private volatile int lastOutputFlags, lastOutputOffset, lastOutputSize;
+    String diagnostics() { return encoderState + "\n" + geometryState + "\n" + h264.diagnostics() +
+        ";partialOutputs="+partialOutputs+";lastFlags="+lastOutputFlags+";lastOffset="+lastOutputOffset+";lastSize="+lastOutputSize; }
     AirPlayVideoEncoder(Context context, Output output) { this.context = context; this.output = output; }
-    void start(MediaProjection projection, int width, int height, int fps, int bitrate, boolean legacy, int mode, boolean wholeScreen) throws Exception {
+    void start(MediaProjection projection, int width, int height, int fps, int bitrate, boolean legacy, int mode, boolean wholeScreen, CapturedContentSize captured) throws Exception {
         java.util.List<String> encoders = EncoderSupport.hardware(MediaFormat.MIMETYPE_VIDEO_AVC);
         if (encoders.isEmpty()) throw new IllegalStateException(context.getString(R.string.ui_no_h_264_hardware_encoder_with_surface_input_found));
         MediaFormat format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height);
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitrate);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1);
+        // Surface producers may stop submitting when a screen is static. Keep
+        // an active mirror fed without inventing network frames or timestamps.
+        format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, 100_000L);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         if (Build.VERSION.SDK_INT >= 29) format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
         if (Build.VERSION.SDK_INT >= 30) format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
@@ -42,15 +50,30 @@ final class AirPlayVideoEncoder implements AutoCloseable {
         String selected = BrowserEncoderCapabilities.airPlayEncoder(format);
         if (selected == null) throw new IllegalStateException(context.getString(R.string.browser_quality_unsupported));
         codec = MediaCodec.createByCodecName(selected);
+        encoderState = "encoder=" + selected.replaceAll("[^A-Za-z0-9._-]", "?") + ";requested=" + width + "x" + height + ";fps=" + fps + ";bitrate=" + bitrate;
         codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         surface = codec.createInputSurface(); codec.start(); running = true;
         pipeline = new VideoPipeline(context, surface, width, height, mode, new VideoPipeline.Events() {
             public void message(String message) { output.log(message); }
             public void error(String message) { output.error(message); }
+            public void geometry(CropGeometry.Mapping m) {
+                CropGeometry.Bounds b=m.region(); CropGeometry.Viewport v=m.viewport();
+                geometryState=String.format(java.util.Locale.US,"geometry capture=%dx%d;texture=%dx%d;canvas=%dx%d;crop=%.4f,%.4f,%.4f,%.4f;viewport=%d,%d,%d,%d",m.screenW(),m.screenH(),m.sourceW(),m.sourceH(),m.outW(),m.outH(),b.left(),b.bottom(),b.right(),b.top(),v.x(),v.y(),v.width(),v.height());
+            }
         });
         pipeline.setFrameLimit(fps);
+        pipeline.setDetectPortraitContent(true);
         DisplayMetrics display = VideoPipeline.metrics(context.getSystemService(DisplayManager.class));
-        pipeline.start(display.widthPixels, display.heightPixels, wholeScreen, (input, w, h) -> projection.createVirtualDisplay(
+        if (Build.VERSION.SDK_INT >= 30) {
+            try {
+                android.view.Display physical=context.getSystemService(DisplayManager.class).getDisplay(android.view.Display.DEFAULT_DISPLAY);
+                Context window=context.createDisplayContext(physical).createWindowContext(android.view.WindowManager.LayoutParams.TYPE_APPLICATION,null);
+                android.graphics.Rect bounds=window.getSystemService(android.view.WindowManager.class).getMaximumWindowMetrics().getBounds();
+                display.widthPixels=bounds.width(); display.heightPixels=bounds.height();
+            } catch (RuntimeException ignored) { output.log("AirPlay window-metrics fallback"); }
+        }
+        pipeline.setCaptureDensity(display.densityDpi);
+        pipeline.start(captured.width(display.widthPixels), captured.height(display.heightPixels), wholeScreen && Build.VERSION.SDK_INT < 34, (input, w, h) -> projection.createVirtualDisplay(
             "MoonCast AirPlay", w, h, display.densityDpi, DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             input, null, new Handler(Looper.getMainLooper())));
         drain = new Thread(this::drain, "AirPlayVideo"); drain.start();
@@ -66,6 +89,7 @@ final class AirPlayVideoEncoder implements AutoCloseable {
                 int index = current.dequeueOutputBuffer(info, 100_000);
                 if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     MediaFormat format = current.getOutputFormat();
+                    encoderState += ";actual=" + format.getInteger(MediaFormat.KEY_WIDTH) + "x" + format.getInteger(MediaFormat.KEY_HEIGHT);
                     h264.configuration(bytes(format.getByteBuffer("csd-0")), bytes(format.getByteBuffer("csd-1")));
                 } else if (index >= 0) {
                     byte[] data = null; int flags = info.flags;
@@ -77,8 +101,10 @@ final class AirPlayVideoEncoder implements AutoCloseable {
                     } finally { current.releaseOutputBuffer(index, false); }
                     // Do not hold a MediaCodec output while network backpressure blocks Go.
                     if (data != null) {
+                        lastOutputFlags=flags;lastOutputOffset=info.offset;lastOutputSize=info.size;
+                        if((flags & MediaCodec.BUFFER_FLAG_PARTIAL_FRAME)!=0)partialOutputs++;
                         if ((flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) h264.configuration(data);
-                        else { boolean key = (flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0; output.video(h264.frame(data, key), key); }
+                        else { boolean key = (flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0; output.video(h264.frame(data, key), key, info.presentationTimeUs); }
                     }
                 }
             }

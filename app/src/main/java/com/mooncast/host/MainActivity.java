@@ -23,6 +23,7 @@ public final class MainActivity extends Activity {
     private final java.util.ArrayList<View> moonlightOnly=new java.util.ArrayList<>();
     private final java.util.ArrayList<View> nativeSenderOnly=new java.util.ArrayList<>();
     private LinearLayout airPanel, advancedContent, airAdvanced;
+    private String airDiagnosticReport="";
     private Button advancedToggle;
     private boolean advancedExpanded;
     private LinearLayout browserPanel,browserConnect;
@@ -134,10 +135,12 @@ public final class MainActivity extends Activity {
         int observedPid=b.getInt("pid",-1);
         if(observedPid>0 && observedPid!=senderPid){senderPid=observedPid;getPreferences(0).edit().putInt("activeHostPid",senderPid).apply();}
         String failure=b.getString("error","");
+        if(b.containsKey("diagnosticReport"))airDiagnosticReport=b.getString("diagnosticReport","");
         if(!failure.isEmpty()){lastFailure=failure;activeDetail().setText(failure);}
         if(stopPending || b.getBoolean("stopping")){
+            if(airMode()){airConnected=false;refreshAirSelection();}
             if(browserMode())showBrowserUrls("");
-            stopPending=true;session.stop();activeState().setText(R.string.ui_stopping);updateSessionUi();return;
+            stopPending=true;session.stop();activeState().setText(failure.isEmpty()?R.string.ui_stopping:R.string.ui_cast_failed);updateSessionUi();return;
         }
         session.connected();
         activeState().setText(b.getString("state",getString(R.string.ui_ready_to_cast)));
@@ -145,6 +148,7 @@ public final class MainActivity extends Activity {
         if(browserMode()){
             showBrowserUrls(b.getString("urls",b.getString("url","")));
         }else if(airMode()){
+            String audioHint=b.getString("audioHint","");if(!audioHint.isEmpty())airDetail.setText(b.getString("detail","")+"\n"+audioHint);
             airConnected=b.getBoolean("connected",false);refreshAirSelection();
             airLogs.setText(b.getString("logs",""));airMetrics.setText(b.getString("metrics",""));
             airPinBox.setVisibility(b.getBoolean("pinPending")?View.VISIBLE:View.GONE);
@@ -584,6 +588,14 @@ public final class MainActivity extends Activity {
         airSelection=text("",13,BLUE);hero.addView(airSelection);airSelection.setGravity(Gravity.CENTER);refreshAirSelection();
         airStart=button(getString(R.string.ui_airplay_start),BLUE);airStart.setTag("airplay_open_picker");airStart.setOnClickListener(v->showAirPicker());hero.addView(airStart);
         airStop=button(getString(R.string.ui_stop_casting),0xff8a97ad);airStop.setOnClickListener(v->{reopenAirPickerAfterStop=false;requestStop();});hero.addView(airStop);
+        Button copyDiagnostic=smallButton(getString(R.string.ap_copy_diagnostic));copyDiagnostic.setTag("airplay_copy_diagnostic");hero.addView(copyDiagnostic);
+        copyDiagnostic.setOnClickListener(v->{
+            String report=AirPlayDiagnosticSnapshot.newest(airDiagnosticReport,AirPlayDiagnosticStore.read(getFilesDir()),
+                SystemClock.elapsedRealtime(),System.currentTimeMillis());
+            if(report.isEmpty()){toast(getString(R.string.ap_no_diagnostic));return;}
+            getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("MoonCast AirPlay",report));
+            toast(getString(R.string.ap_diagnostic_copied));
+        });
         airChange=smallButton(getString(R.string.ui_airplay_change_device));airChange.setOnClickListener(v->changeAirReceiver());
         LinearLayout.LayoutParams changeLayout=new LinearLayout.LayoutParams(-1,dp(46));changeLayout.topMargin=dp(8);hero.addView(airChange,changeLayout);
         buildAirPicker();
@@ -718,7 +730,7 @@ public final class MainActivity extends Activity {
         if(grant==null || pendingEndpoint==null){session.denied(pendingToken);updateSessionUi();return;}
         AirQuality quality=pendingAirQuality;boolean legacy=quality.legacy;
         int width=quality.width,height=quality.height,fps=quality.fps,bitrate=quality.bitrate;
-        Intent intent=new Intent(this,AirPlayHostService.class).putExtra("grant",grant).putExtra("airplayHost",pendingEndpoint.host).putExtra("airplayPort",pendingEndpoint.port).putExtra("airplayPin","").putExtra("airplayLegacy",legacy).putExtra("airplayWidth",width).putExtra("airplayHeight",height).putExtra("airplayFps",fps).putExtra("airplayBitrate",bitrate).putExtra("source",effectiveSource()).putExtra("frameLimit",fps).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("audio",pendingAudioAllowed && !legacy).putExtra("muteLocal",pendingAudioAllowed && !legacy && muteLocal.isChecked());
+        Intent intent=new Intent(this,AirPlayHostService.class).putExtra("grant",grant).putExtra("airplayHost",pendingEndpoint.host).putExtra("airplayPort",pendingEndpoint.port).putExtra("airplayPin","").putExtra("airplayLegacy",legacy).putExtra("airplayWidth",width).putExtra("airplayHeight",height).putExtra("airplayFps",fps).putExtra("airplayBitrate",bitrate).putExtra("source",effectiveSource()).putExtra("frameLimit",fps).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("audio",pendingAudioAllowed).putExtra("muteLocal",pendingAudioAllowed && muteLocal.isChecked());
         saveAirPlay();startHost(intent);
     }
     private SharedPreferences settings(){return profiles.settings();}
@@ -766,7 +778,7 @@ public final class MainActivity extends Activity {
             return;
         }
         if(airMode()){
-            if(audio!=null){boolean allowed=Build.VERSION.SDK_INT>=29 && airLegacy!=null && !airLegacy.isChecked();audio.setEnabled(allowed && !session.busy());muteLocal.setEnabled(allowed && audio.isChecked() && !session.busy());}
+            if(audio!=null){boolean allowed=Build.VERSION.SDK_INT>=29;audio.setEnabled(allowed && !session.busy());muteLocal.setEnabled(allowed && audio.isChecked() && !session.busy());}
             return;
         }
         if(source.getSelectedItemPosition()==2 && controlBackend.getSelectedItemPosition()==0)controlBackend.setSelection(2);
@@ -820,7 +832,7 @@ public final class MainActivity extends Activity {
         pendingToken=session.begin();if(pendingToken<0)return;pendingMode=session.selected();lastFailure="";
         if(browserQuality!=null)pendingBrowserQuality=browserQuality;
         if(airQuality!=null)pendingAirQuality=airQuality;
-        pendingAudioAllowed=Build.VERSION.SDK_INT>=29 && (browserMode()?browserAudio.isChecked():audio.isChecked() && (airMode()?!airLegacy.isChecked():!root.isChecked() && effectiveSource()!=2));
+        pendingAudioAllowed=Build.VERSION.SDK_INT>=29 && (browserMode()?browserAudio.isChecked():audio.isChecked() && (airMode() || !root.isChecked() && effectiveSource()!=2));
         saveProfile();saveBrowser();updateSessionUi();
         java.util.ArrayList<String> permissions=new java.util.ArrayList<>();
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)permissions.add(Manifest.permission.POST_NOTIFICATIONS);

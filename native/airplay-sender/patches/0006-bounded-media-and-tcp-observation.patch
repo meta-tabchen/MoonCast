@@ -1,0 +1,720 @@
+--- a/internal/airplay/legacy_http.go
++++ b/internal/airplay/legacy_http.go
+@@ -569,6 +569,7 @@
+ 			video = append(video, avccWrap(n)...)
+ 		}
+ 	}
++	m.diag.media.input(nalus, keyframe, hasIDR)
+ 	if len(m.sps) == 0 || len(m.pps) == 0 {
+ 		return nil
+ 	}
+@@ -589,6 +590,7 @@
+ 		if err := m.packet(1, config, stamp); err != nil {
+ 			return fmt.Errorf("legacy config write: %w", err)
+ 		}
++		m.diag.media.configured(m.sps)
+ 		m.config = append([]byte(nil), config...)
+ 		m.awaitingIDR = true
+ 	}
+@@ -596,12 +598,16 @@
+ 		return nil
+ 	}
+ 	m.awaitingIDR = false
++	mask, validAVCC := legacyAVCCShape(video)
+ 	if m.crypt != nil {
+ 		m.crypt.XORKeyStream(video, video)
+ 	}
++	writeStarted := time.Now()
+ 	if err := m.packet(0, video, stamp); err != nil {
+ 		return fmt.Errorf("legacy video write: %w", err)
+ 	}
++	ptsUs := int64(stamp>>32)*1000000 + int64((stamp&0xffffffff)*1000000>>32)
++	m.diag.media.sent(time.Since(m.started), ptsUs, m.diag.ptsDelta.Load(), len(video), mask, validAVCC, hasIDR, time.Since(writeStarted))
+ 	m.firstFrameOnce.Do(func() {
+ 		if m.firstFrame != nil {
+ 			close(m.firstFrame)
+--- a/internal/airplay/legacy_diagnostics.go
++++ b/internal/airplay/legacy_diagnostics.go
+@@ -13,6 +13,7 @@
+ )
+ 
+ type legacyDiagnostics struct {
++	media                                                                             legacyMediaTrace
+ 	firstRect                                                                         atomic.Value
+ 	firstPTS                                                                          atomic.Int64
+ 	timingAlive                                                                       atomic.Bool
+@@ -120,6 +121,10 @@
+ 		firstRect = v.([6]float32)
+ 	}
+ 	result := map[string]interface{}{"firstHeader40to60": firstRect, "firstPtsUs": m.diag.firstPTS.Load(), "ntpAlive": m.diag.timingAlive.Load(), "ntpReadError": diagValue(&m.diag.timingReadError), "transport": "legacy-http", "elapsedMs": time.Since(m.started).Milliseconds(), "clock": kind, "receiver": []int{m.displayW, m.displayH}, "requestedCanvas": []int{m.Width, m.Height}, "encoded": []int{w, h}, "header40to60": []float32{float32(w), float32(h), x, y, dw, dh}, "video": m.diag.video.Load(), "config": m.diag.config.Load(), "heartbeat": m.diag.heartbeat.Load(), "bytes": m.diag.bytes.Load(), "lastWriteMs": m.diag.lastWrite.Load(), "ntpBound": m.timing != nil, "ntp48rx": m.diag.ntp48rx.Load(), "ntp48tx": m.diag.ntp48tx.Load(), "ntp32rx": m.diag.ntp32rx.Load(), "ntp32tx": m.diag.ntp32tx.Load(), "timingErrors": m.diag.timingErrors.Load(), "lastTimingMs": m.diag.lastTiming.Load(), "ptsAgeMs": m.diag.ptsDelta.Load(), "audioStage": diagValue(&m.diag.audioStage), "audioCaps": diagValue(&m.diag.audioCaps), "audioError": diagValue(&m.diag.audioError), "audioPackets": m.diag.audioPackets.Load()}
++	if m.client != nil {
++		m.diag.media.socketSample(time.Since(m.started), legacySocketInfo(m.client.conn))
++	}
++	result["mediaTrace"] = m.diag.media.snapshot(time.Since(m.started))
+ 	b, _ := json.Marshal(result)
+ 	return string(b)
+ }
+--- a/internal/airplay/legacy_stability_test.go
++++ b/internal/airplay/legacy_stability_test.go
+@@ -5,6 +5,7 @@
+ 	"bytes"
+ 	"context"
+ 	"encoding/binary"
++	"encoding/json"
+ 	"fmt"
+ 	"io"
+ 	"math"
+@@ -249,6 +250,13 @@
+ 				if e = m.SendFrameAt(frame, pos%len(u) == 0, pts); e != nil {
+ 					break sendLoop
+ 				}
++				if pos%20 == 0 {
++					report := m.Statistics()
++					if len(report) > 20000 || !json.Valid([]byte(report)) {
++						t.Error("invalid or oversized live diagnostic report")
++						break sendLoop
++					}
++				}
+ 			}
+ 		}
+ 		tick.Stop()
+@@ -264,6 +272,15 @@
+ 			}
+ 		case <-time.After(4 * time.Second):
+ 			t.Error("receiver close was not detected")
++		}
++		if dest := os.Getenv("MOONCAST_LEGACY_TRACE_OUTPUT"); dest != "" {
++			report := m.Statistics()
++			if len(report) > 20000 {
++				t.Error("oversized diagnostic history")
++			}
++			if e := os.WriteFile(fmt.Sprintf("%s-%d.json", dest, session), []byte(report), 0600); e != nil {
++				t.Error(e)
++			}
+ 		}
+ 		cancel()
+ 		m.Close()
+--- /dev/null
++++ b/internal/airplay/legacy_media_trace.go
+@@ -0,0 +1,295 @@
++package airplay
++
++// Bounded, metadata-only observation of the existing sender. This does not
++// change configuration, timestamps, packet bytes, pacing, or reconnect policy.
++import (
++	"encoding/binary"
++	"sync"
++	"time"
++)
++
++type legacySPSInfo struct {
++	Valid       bool `json:"valid"`
++	Profile     uint `json:"profile"`
++	Constraints uint `json:"constraints"`
++	Level       uint `json:"level"`
++	ID          uint `json:"id"`
++	Chroma      uint `json:"chroma"`
++	Refs        uint `json:"refs"`
++	FrameOnly   uint `json:"frameOnly"`
++}
++
++// Parse actual SPS syntax through frame_mbs_only_flag. Bound every loop and
++// report unknown on malformed/unsupported syntax rather than guessing values.
++func legacySPSMetadata(sps []byte) (out legacySPSInfo) {
++	if len(sps) < 4 || len(sps) > 65535 || sps[0]&31 != 7 {
++		return
++	}
++	r := &h264BitReader{data: stripEmulationPrevention(sps[1:])}
++	out.Profile = r.readBits(8)
++	out.Constraints = r.readBits(8)
++	out.Level = r.readBits(8)
++	out.ID = r.readUE()
++	out.Chroma = 1
++	switch out.Profile {
++	case 100, 110, 122, 244, 44, 83, 86, 118, 128, 138, 139, 134, 135:
++		out.Chroma = r.readUE()
++		if out.Chroma > 3 {
++			return
++		}
++		if out.Chroma == 3 {
++			r.readBit()
++		}
++		r.readUE()
++		r.readUE()
++		r.readBit()
++		if r.readBit() == 1 {
++			count := 8
++			if out.Chroma == 3 {
++				count = 12
++			}
++			for i := 0; i < count; i++ {
++				if r.readBit() == 1 {
++					size := 16
++					if i >= 6 {
++						size = 64
++					}
++					last, next := 8, 8
++					for j := 0; j < size; j++ {
++						if next != 0 {
++							next = (last + r.readSE() + 256) % 256
++						}
++						if next != 0 {
++							last = next
++						}
++					}
++				}
++			}
++		}
++	case 66, 77, 88:
++	default:
++		return
++	}
++	r.readUE()
++	poc := r.readUE()
++	switch poc {
++	case 0:
++		r.readUE()
++	case 1:
++		r.readBit()
++		r.readSE()
++		r.readSE()
++		n := r.readUE()
++		if n > 255 {
++			return
++		}
++		for i := uint(0); i < n; i++ {
++			r.readSE()
++		}
++	case 2:
++	default:
++		return
++	}
++	out.Refs = r.readUE()
++	r.readBit()
++	r.readUE()
++	r.readUE()
++	out.FrameOnly = r.readBit()
++	out.Valid = !r.err && out.ID <= 31 && out.Refs <= 16
++	return
++}
++
++type legacyMediaBucket struct {
++	Sec        int64  `json:"sec"`
++	Frames     int64  `json:"frames"`
++	IDR        int64  `json:"idr"`
++	Bytes      int64  `json:"bytes"`
++	NALMask    uint32 `json:"nalMask"`
++	Generation int64  `json:"gen"`
++	MaxGapUs   int64  `json:"gapUs"`
++	Backwards  int64  `json:"ptsBack"`
++	MaxWriteUs int64  `json:"writeUs"`
++	MaxAgeMs   int64  `json:"ageMs"`
++	BadAVCC    int64  `json:"badAvcc"`
++}
++type legacyMediaSnapshot struct {
++	TCPHistory   []legacyTCPInfo     `json:"tcpFourSecondSamples"`
++	SPS          legacySPSInfo       `json:"sps"`
++	Generation   int64               `json:"generation"`
++	Inputs       int64               `json:"inputs"`
++	Sent         int64               `json:"sent"`
++	Dropped      int64               `json:"notSentInputs"`
++	IDR          int64               `json:"idr"`
++	LastIDRAgeMs int64               `json:"lastIdrAgeMs"`
++	MaxIDRGapMs  int64               `json:"maxIdrGapMs"`
++	KeyMismatch  int64               `json:"keyMismatch"`
++	BSlices      int64               `json:"bSlices"`
++	SliceErrors  int64               `json:"sliceErrors"`
++	BadAVCC      int64               `json:"badAvcc"`
++	RepeatedPTS  int64               `json:"repeatedPts"`
++	BackwardsPTS int64               `json:"backwardsPts"`
++	LastPTSUs    int64               `json:"lastPtsUs"`
++	MaxGapUs     int64               `json:"maxGapUs"`
++	MaxWriteUs   int64               `json:"maxWriteUs"`
++	MinAgeMs     int64               `json:"minAgeMs"`
++	MaxAgeMs     int64               `json:"maxAgeMs"`
++	Buckets      []legacyMediaBucket `json:"fourSecondBuckets"`
++}
++type legacyMediaTrace struct {
++	mu                sync.Mutex
++	s                 legacyMediaSnapshot
++	lastIDRMs         int64
++	buckets           [30]legacyMediaBucket
++	count, next       int
++	tcpSamples        [30]legacyTCPInfo
++	tcpCount, tcpNext int
++}
++
++func (t *legacyMediaTrace) input(nalus [][]byte, key, idr bool) {
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	t.s.Inputs++
++	if key != idr {
++		t.s.KeyMismatch++
++	}
++	for _, n := range nalus {
++		if len(n) == 0 || (n[0]&31 != 1 && n[0]&31 != 5) {
++			continue
++		}
++		// Only the first slice-header fields are needed. Never retain NAL data.
++		r := &h264BitReader{data: stripEmulationPrevention(n[1:min(len(n), 129)])}
++		r.readUE()
++		kind := r.readUE()
++		if r.err || kind > 9 {
++			t.s.SliceErrors++
++		} else if kind%5 == 1 {
++			t.s.BSlices++
++		}
++	}
++}
++func (t *legacyMediaTrace) configured(sps []byte) {
++	info := legacySPSMetadata(sps)
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	t.s.SPS = info
++	t.s.Generation++
++}
++func legacyAVCCShape(payload []byte) (mask uint32, valid bool) {
++	if len(payload) == 0 {
++		return 0, false
++	}
++	for off := 0; off < len(payload); {
++		if len(payload)-off < 4 {
++			return mask, false
++		}
++		n := int64(binary.BigEndian.Uint32(payload[off : off+4]))
++		off += 4
++		if n < 1 || n > int64(len(payload)-off) {
++			return mask, false
++		}
++		mask |= uint32(1) << (payload[off] & 31)
++		off += int(n)
++	}
++	return mask, true
++}
++
++// All units/times here describe video packets successfully written to TCP.
++// A successful write is not an acknowledgement of receiver rendering.
++func (t *legacyMediaTrace) sent(elapsed time.Duration, pts, age int64, size int, mask uint32, valid, idr bool, write time.Duration) {
++	ms := elapsed.Milliseconds()
++	us := write.Microseconds()
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	s := &t.s
++	sec := ms / 4000 * 4
++	i := (t.next + len(t.buckets) - 1) % len(t.buckets)
++	if t.count == 0 || t.buckets[i].Sec != sec {
++		i = t.next
++		t.next = (t.next + 1) % len(t.buckets)
++		t.count = min(t.count+1, len(t.buckets))
++		t.buckets[i] = legacyMediaBucket{Sec: sec}
++	}
++	b := &t.buckets[i]
++	b.Frames++
++	b.Bytes += int64(size)
++	b.NALMask |= mask
++	b.Generation = s.Generation
++	if !valid {
++		s.BadAVCC++
++		b.BadAVCC++
++	}
++	if idr {
++		s.IDR++
++		b.IDR++
++		if s.IDR > 1 {
++			s.MaxIDRGapMs = traceMax(s.MaxIDRGapMs, ms-t.lastIDRMs)
++		}
++		t.lastIDRMs = ms
++	}
++	if s.Sent > 0 {
++		gap := pts - s.LastPTSUs
++		if gap < 0 {
++			s.BackwardsPTS++
++			b.Backwards++
++		} else if gap == 0 {
++			s.RepeatedPTS++
++		}
++		s.MaxGapUs = traceMax(s.MaxGapUs, gap)
++		b.MaxGapUs = traceMax(b.MaxGapUs, gap)
++	} else {
++		s.MinAgeMs = age
++		s.MaxAgeMs = age
++	}
++	s.Sent++
++	s.LastPTSUs = pts
++	s.MinAgeMs = traceMin(s.MinAgeMs, age)
++	s.MaxAgeMs = traceMax(s.MaxAgeMs, age)
++	s.MaxWriteUs = traceMax(s.MaxWriteUs, us)
++	b.MaxWriteUs = traceMax(b.MaxWriteUs, us)
++	b.MaxAgeMs = traceMax(b.MaxAgeMs, age)
++}
++func (t *legacyMediaTrace) snapshot(elapsed time.Duration) legacyMediaSnapshot {
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	s := t.s
++	s.Dropped = s.Inputs - s.Sent
++	s.LastIDRAgeMs = -1
++	if s.IDR > 0 {
++		s.LastIDRAgeMs = elapsed.Milliseconds() - t.lastIDRMs
++	}
++	s.TCPHistory = make([]legacyTCPInfo, 0, t.tcpCount)
++	for j := 0; j < t.tcpCount; j++ {
++		s.TCPHistory = append(s.TCPHistory, t.tcpSamples[(t.tcpNext-t.tcpCount+len(t.tcpSamples)+j)%len(t.tcpSamples)])
++	}
++	s.Buckets = make([]legacyMediaBucket, 0, t.count)
++	for j := 0; j < t.count; j++ {
++		s.Buckets = append(s.Buckets, t.buckets[(t.next-t.count+len(t.buckets)+j)%len(t.buckets)])
++	}
++	return s
++}
++
++func traceMax(a, b int64) int64 {
++	if a > b {
++		return a
++	}
++	return b
++}
++func traceMin(a, b int64) int64 {
++	if a < b {
++		return a
++	}
++	return b
++}
++
++func (t *legacyMediaTrace) socketSample(elapsed time.Duration, info legacyTCPInfo) {
++	info.Sec = elapsed.Milliseconds() / 4000 * 4
++	t.mu.Lock()
++	defer t.mu.Unlock()
++	i := (t.tcpNext + len(t.tcpSamples) - 1) % len(t.tcpSamples)
++	if t.tcpCount == 0 || t.tcpSamples[i].Sec != info.Sec {
++		i = t.tcpNext
++		t.tcpNext = (t.tcpNext + 1) % len(t.tcpSamples)
++		t.tcpCount = min(t.tcpCount+1, len(t.tcpSamples))
++	}
++	t.tcpSamples[i] = info
++}
+--- /dev/null
++++ b/internal/airplay/legacy_media_trace_test.go
+@@ -0,0 +1,110 @@
++package airplay
++
++import (
++	"bytes"
++	"encoding/hex"
++	"encoding/json"
++	"testing"
++	"time"
++)
++
++func TestLegacyActualSPSMetadata(t *testing.T) {
++	// Independent known SPS from the public MiraScreen sender's x264 output.
++	sps, _ := hex.DecodeString("6742c028da01e0089f961000000300100000030148f1832a")
++	s := legacySPSMetadata(sps)
++	if !s.Valid || s.Profile != 66 || s.Constraints != 192 || s.Level != 40 || s.Refs != 1 || s.FrameOnly != 1 || s.Chroma != 1 {
++		t.Fatalf("unexpected actual SPS: %+v", s)
++	}
++	for _, n := range [][]byte{nil, {0x67}, {0x67, 100, 0, 40}, {0x68, 66, 0, 40}, bytes.Repeat([]byte{0xff}, 65536)} {
++		if legacySPSMetadata(n).Valid {
++			t.Fatal("invalid SPS reported valid")
++		}
++	}
++}
++
++func TestLegacyAVCCShapeRejectsTruncationAndRetainsAllNALs(t *testing.T) {
++	p := append(avccWrap([]byte{0x06, 1, 2}), avccWrap([]byte{0x65, 3, 4})...)
++	p = append(p, avccWrap([]byte{0x65, 5, 6, 7})...)
++	mask, ok := legacyAVCCShape(p)
++	if !ok || mask != (1<<6|1<<5) {
++		t.Fatalf("missing multiple NALs: %x %v", mask, ok)
++	}
++	for _, bad := range [][]byte{nil, {0}, {0, 0, 0, 0}, {0xff, 0xff, 0xff, 0xff}, append(append([]byte(nil), p...), 0), p[:len(p)-1]} {
++		if _, ok := legacyAVCCShape(bad); ok {
++			t.Fatal("truncated/invalid length accepted")
++		}
++	}
++}
++
++func TestLegacyMediaTracePTSGapsBoundedHistoryAndNoPayload(t *testing.T) {
++	var tr legacyMediaTrace
++	secret := []byte("not-retained-payload-or-credentials")
++	for i := 0; i < 200; i++ {
++		pts := int64(i) * 50000
++		if i == 1 {
++			pts = -1
++		}
++		if i == 2 {
++			pts = -1
++		}
++		tr.input([][]byte{{0x41, 0xa0}, append([]byte{0x06}, secret...)}, false, false)
++		tr.sent(time.Duration(i)*4*time.Second, pts, 10, len(secret), 1<<1, true, i%3 == 0, time.Duration(i)*time.Microsecond)
++	}
++	s := tr.snapshot(800 * time.Second)
++	if s.Inputs != 200 || s.Sent != 200 || s.Dropped != 0 || s.BackwardsPTS != 1 || s.RepeatedPTS != 1 || s.LastPTSUs != 9950000 || s.MaxGapUs != 150001 || len(s.Buckets) != 30 || s.Buckets[0].Sec != 680 || s.Buckets[29].Sec != 796 || s.MaxWriteUs != 199 || s.MaxIDRGapMs != 12000 || s.LastIDRAgeMs != 8000 {
++		t.Fatalf("bad bounded history: %+v", s)
++	}
++	b, _ := json.Marshal(s)
++	if len(b) > 20000 || bytes.Contains(b, secret) {
++		t.Fatalf("unbounded/private diagnostics: %d bytes", len(b))
++	}
++	var fresh legacyMediaTrace
++	if f := fresh.snapshot(0); f.Generation != 0 || f.Sent != 0 || len(f.Buckets) != 0 || f.LastIDRAgeMs != -1 {
++		t.Fatal("state leaked across sessions")
++	}
++}
++
++func TestLegacyMediaTraceConcurrentSnapshots(t *testing.T) {
++	var tr legacyMediaTrace
++	done := make(chan bool)
++	go func() {
++		for i := 0; i < 10000; i++ {
++			tr.input([][]byte{{0x41, 0xa0}}, false, false)
++			tr.sent(time.Duration(i)*time.Millisecond, int64(i)*1000, 1, 4, 1<<1, true, false, 0)
++		}
++		close(done)
++	}()
++	for i := 0; i < 10000; i++ {
++		s := tr.snapshot(time.Second)
++		if len(s.Buckets) > 30 || s.Sent > s.Inputs {
++			t.Fatal("invalid concurrent snapshot")
++		}
++	}
++	<-done
++}
++
++func TestLegacyTCPHistoryBoundedAndExplicitlyUnknown(t *testing.T) {
++	var tr legacyMediaTrace
++	for i := 0; i < 200; i++ {
++		tr.socketSample(time.Duration(i)*4*time.Second, legacyTCPInfo{Available: true, State: 1, AckCounterKnown: true, BytesAcked: uint64(i) * 10000})
++	}
++	s := tr.snapshot(800 * time.Second)
++	if len(s.TCPHistory) != 30 || s.TCPHistory[0].Sec != 680 || s.TCPHistory[29].BytesAcked != 1990000 {
++		t.Fatal("unbounded/incorrect TCP history")
++	}
++	tr.socketSample(799*time.Second, legacyTCPInfo{})
++	s = tr.snapshot(800 * time.Second)
++	if s.TCPHistory[29].Available || s.TCPHistory[29].AckCounterKnown {
++		t.Fatal("missing kernel counters treated as zero ACKs")
++	}
++}
++
++func TestLegacyMediaTraceRecordsBSliceAndKeyMismatch(t *testing.T) {
++	var tr legacyMediaTrace
++	// first_mb_in_slice=0, slice_type=1 (B).
++	tr.input([][]byte{{0x41, 0xa0}, {0x41}}, true, false)
++	s := tr.snapshot(0)
++	if s.BSlices != 1 || s.SliceErrors != 1 || s.KeyMismatch != 1 || s.Dropped != 1 {
++		t.Fatalf("slice/key evidence lost: %+v", s)
++	}
++}
+--- /dev/null
++++ b/internal/airplay/legacy_wire_identity_test.go
+@@ -0,0 +1,142 @@
++package airplay
++
++import (
++	"bytes"
++	"crypto/sha256"
++	"encoding/binary"
++	"fmt"
++	"net"
++	"os"
++	"sync"
++	"testing"
++	"time"
++)
++
++type legacyTraceConn struct{ bytes.Buffer }
++
++func (c *legacyTraceConn) Read(p []byte) (int, error)       { return 0, net.ErrClosed }
++func (c *legacyTraceConn) Write(p []byte) (int, error)      { return c.Buffer.Write(p[:min(len(p), 7)]) }
++func (c *legacyTraceConn) Close() error                     { return nil }
++func (c *legacyTraceConn) LocalAddr() net.Addr              { return nil }
++func (c *legacyTraceConn) RemoteAddr() net.Addr             { return nil }
++func (c *legacyTraceConn) SetDeadline(time.Time) error      { return nil }
++func (c *legacyTraceConn) SetReadDeadline(time.Time) error  { return nil }
++func (c *legacyTraceConn) SetWriteDeadline(time.Time) error { return nil }
++
++func TestLegacyWireIdentityAndPartialWrites(t *testing.T) {
++	files := []string{os.Getenv("MOONCAST_LEGACY_FIXTURE"), os.Getenv("MOONCAST_LEGACY_LANDSCAPE"), os.Getenv("MOONCAST_LEGACY_PORTRAIT")}
++	if files[0] == "" {
++		t.Fatal("real encoder fixtures required")
++	}
++	c := &legacyTraceConn{}
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: c}, closed: make(chan struct{}), started: time.Now(), Width: 1280, Height: 720, displayW: 1280, displayH: 720, clock: func() uint64 { return 7000 << 32 }}
++	frames := 0
++	for _, file := range files {
++		b, e := os.ReadFile(file)
++		if e != nil {
++			t.Fatal(e)
++		}
++		units := legacyFixtureAUs(b)
++		for repeat := 0; repeat < 3; repeat++ {
++			for i, u := range units {
++				if e = m.SendFrameAt(u, i == 0, 6999000000+int64(frames)*50000); e != nil {
++					t.Fatal(e)
++				}
++				frames++
++				if frames%7 == 0 {
++					m.mu.Lock()
++					e = m.packet(2, nil)
++					m.mu.Unlock()
++					if e != nil {
++						t.Fatal(e)
++					}
++				}
++			}
++		}
++	}
++	data := c.Bytes()
++	sum := fmt.Sprintf("%x", sha256.Sum256(data))
++	t.Logf("wire_bytes=%d input_frames=%d sha256=%s", len(data), frames, sum)
++	if dest := os.Getenv("MOONCAST_WIRE_IDENTITY_SHA"); dest != "" {
++		if e := os.WriteFile(dest, []byte(sum+"\n"), 0600); e != nil {
++			t.Fatal(e)
++		}
++	}
++}
++
++func TestLegacyConcurrentHeartbeatVideoPacketBoundaries(t *testing.T) {
++	file := os.Getenv("MOONCAST_LEGACY_FIXTURE")
++	b, e := os.ReadFile(file)
++	if e != nil {
++		t.Fatal(e)
++	}
++	frame := legacyFixtureAUs(b)[0]
++	c := &legacyTraceConn{}
++	m := &LegacyHTTPMirror{client: &AirPlayClient{conn: c}, closed: make(chan struct{}), started: time.Now(), Width: 1280, Height: 720, displayW: 1280, displayH: 720}
++	var wg sync.WaitGroup
++	wg.Add(2)
++	go func() {
++		defer wg.Done()
++		for i := 0; i < 200; i++ {
++			if err := m.SendFrameAt(frame, true, int64(i+1)*50000); err != nil {
++				t.Error(err)
++				return
++			}
++		}
++	}()
++	go func() {
++		defer wg.Done()
++		for i := 0; i < 100; i++ {
++			m.mu.Lock()
++			err := m.packet(2, nil)
++			m.mu.Unlock()
++			if err != nil {
++				t.Error(err)
++				return
++			}
++		}
++	}()
++	wg.Wait()
++	p := c.Bytes()
++	video, config, beats := 0, 0, 0
++	for off := 0; off < len(p); {
++		if len(p)-off < 128 {
++			t.Fatal("header split/interleaved")
++		}
++		h := p[off : off+128]
++		off += 128
++		n := int(binary.LittleEndian.Uint32(h[:4]))
++		kind := binary.LittleEndian.Uint16(h[4:6])
++		if n > len(p)-off {
++			t.Fatal("payload split/interleaved")
++		}
++		switch kind {
++		case 0:
++			for pos := 0; pos < n; {
++				if n-pos < 4 {
++					t.Fatal("NAL header cut")
++				}
++				size := int(binary.BigEndian.Uint32(p[off+pos : off+pos+4]))
++				pos += 4
++				if size < 1 || size > n-pos {
++					t.Fatal("NAL body cut")
++				}
++				pos += size
++			}
++			video++
++		case 1:
++			config++
++		case 2:
++			if n != 0 {
++				t.Fatal("heartbeat contains media")
++			}
++			beats++
++		default:
++			t.Fatal("unexpected type")
++		}
++		off += n
++	}
++	if video != 200 || config != 1 || beats != 100 {
++		t.Fatalf("packet counts %d %d %d", video, config, beats)
++	}
++}
+--- /dev/null
++++ b/internal/airplay/legacy_tcp_info.go
+@@ -0,0 +1,14 @@
++package airplay
++
++// Kernel counters are evidence of TCP progress only, never decoded/displayed
++// frame acknowledgements. No packet contents or addresses are observed.
++type legacyTCPInfo struct {
++	Sec             int64  `json:"sec"`
++	Available       bool   `json:"available"`
++	State           uint8  `json:"state,omitempty"`
++	AckCounterKnown bool   `json:"ackCounterKnown,omitempty"`
++	BytesAcked      uint64 `json:"acked,omitempty"`
++	Unacked         uint32 `json:"unacked,omitempty"`
++	Retrans         uint32 `json:"retrans,omitempty"`
++	RTTUs           uint32 `json:"rttUs,omitempty"`
++}
+--- /dev/null
++++ b/internal/airplay/legacy_tcp_info_linux.go
+@@ -0,0 +1,38 @@
++//go:build linux
++
++package airplay
++
++import (
++	"golang.org/x/sys/unix"
++	"net"
++)
++
++func legacySocketInfo(conn net.Conn) (out legacyTCPInfo) {
++	tcp, ok := conn.(*net.TCPConn)
++	if !ok {
++		return
++	}
++	raw, err := tcp.SyscallConn()
++	if err != nil {
++		return
++	}
++	err = raw.Control(func(fd uintptr) {
++		info, e := unix.GetsockoptTCPInfo(int(fd), unix.IPPROTO_TCP, unix.TCP_INFO)
++		if e != nil {
++			return
++		}
++		out.Available = true
++		out.State = info.State
++		out.BytesAcked = info.Bytes_acked
++		// Old kernels may return only the prefix of tcp_info. An absent extended
++		// byte counter is explicitly unknown, rather than proof of zero ACKs.
++		out.AckCounterKnown = info.Bytes_acked > 0
++		out.Unacked = info.Unacked
++		out.Retrans = info.Total_retrans
++		out.RTTUs = info.Rtt
++	})
++	if err != nil {
++		return legacyTCPInfo{}
++	}
++	return
++}
+--- /dev/null
++++ b/internal/airplay/legacy_tcp_info_other.go
+@@ -0,0 +1,7 @@
++//go:build !linux
++
++package airplay
++
++import "net"
++
++func legacySocketInfo(net.Conn) legacyTCPInfo { return legacyTCPInfo{} }

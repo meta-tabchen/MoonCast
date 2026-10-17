@@ -1,6 +1,4 @@
-> Current follow-up: **0.7.2 / code59 / v0.7.2**. `/info` optional-capability repair; see [details](airplay-0.7.2.md). Earlier 0.7.1 instructions remain historical.
-
-> Current AirPlay repair: **0.7.1 / code58 / v0.7.1**. Apply this release procedure with `0.7.1` filenames. The 0.7 examples below describe the previous request and must not overwrite its published assets. See [AirPlay correction](airplay-0.7.1.md).
+> Current authorized release: **0.8 / code65 / v0.8**. Consolidates the local AirPlay candidates; see [validation and limitations](release-0.8-validation.md). Preserve all historical tags, assets and evidence.
 
 # Release procedure / 发布流程
 
@@ -11,10 +9,10 @@ This is the project workflow for an explicitly authorized release. It does not a
 ## 1. Freeze identity and scope before building
 
 - Primary source branch: **main**. Normal application target: **`:unified`**.
-- Copy the user's numeric version exactly. Current request: **0.7**, tag **v0.7**, title **MoonCast 0.7**. Do not silently change it to 0.7.0 or append browser/community/preview.
+- Copy the user's numeric version exactly. Current request: **0.8**, tag **v0.8**, title **MoonCast 0.8**. Do not silently change it to 0.8.0 or append browser/community/preview.
 - Determine a strictly increasing versionCode from real prior artifacts. Do not infer its final value from a document template. About must show the installed package's version/code; build identity remains separate.
 - Keep package **com.mooncast.community** and the existing fixed certificate SHA-256 **290e4372fff33c00848758b12275936900b2eccad053dc63c18622e1a1222bb2**. Do not create a new key, regenerate the fixture or silently fall back. Normal signing checks fail closed.
-- State what changed and what did not. Do not describe 0.7 development as a final verified build before evidence exists.
+- State what changed and what did not. Do not describe 0.8 development as a final verified build before evidence exists.
 
 ## 2. One writer, no lost concurrent edits
 
@@ -40,12 +38,12 @@ For WebRTC, retain fixed source/DEPS coordinates, build/fetch mapping and origin
 
 ## 5. Prepare the Release before moving download links
 
-For version 0.7, use:
+For version 0.8, use:
 
-- `MoonCast-0.7-arm64-v8a.apk`
-- `MoonCast-0.7-armeabi-v7a.apk`
-- `MoonCast-0.7-source.zip`
-- `MoonCast-0.7-notices.zip`
+- `MoonCast-0.8-arm64-v8a.apk`
+- `MoonCast-0.8-armeabi-v7a.apk`
+- `MoonCast-0.8-source.zip`
+- `MoonCast-0.8-notices.zip`
 - `SHA256SUMS`
 
 Use bilingual English/Chinese notes with the same feature, verification, risk and upgrade scope. Keep package/signature continuity visible; the public test signer is not publisher authentication. Separate measured results from intended behavior and acknowledge remaining protocol/device limits.
@@ -64,4 +62,4 @@ Confirm the approved commit/tree, tag, Release, both APKs, source/notices and ch
 
 ## Historical scope
 
-The older 0.5.0 dependency-bootstrap asset is intentionally still used for pinned legacy inputs; that does not make a newer app build version 0.5.0. Historical 0.5.1 and code54/code55 media and validation keep their own provenance. The c0936675193c49e3bcd64bb0a76171059b9f9210 build's last change from d44a4c4 was icon-only and had no extra device run; this historical fact is not 0.7 acceptance.
+The older 0.5.0 dependency-bootstrap asset is intentionally still used for pinned legacy inputs; that does not make a newer app build version 0.5.0. Historical 0.5.1 and code54/code55 media and validation keep their own provenance. The c0936675193c49e3bcd64bb0a76171059b9f9210 build's last change from d44a4c4 was icon-only and had no extra device run; this historical fact is not 0.8 acceptance.

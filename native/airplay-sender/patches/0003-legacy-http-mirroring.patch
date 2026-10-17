@@ -162,7 +162,7 @@
  	}
 --- /dev/null
 +++ b/internal/airplay/legacy_http.go
-@@ -0,0 +1,574 @@
+@@ -0,0 +1,600 @@
 +package airplay
 +
 +// Independent implementation of the public legacy HTTP mirroring wire format.
@@ -204,6 +204,7 @@
 +	sps, pps, config []byte
 +	awaitingIDR      bool
 +	lastClose        bool
++	authenticated    bool
 +	Width, Height    int
 +}
 +
@@ -268,10 +269,12 @@
 +	if !ok || !validLegacyVersion(version) || len(version) > 64 || w < 16 || h < 16 || w > 8192 || h > 8192 {
 +		return nil, ErrLegacyHTTPUnavailable
 +	}
++	requiredAuth := false
 +	for _, k := range []string{"passwordRequired", "requiresAuthentication", "pw"} {
-+		if caps[k] == true && pin == "" {
-+			return nil, ErrAirPlay1PasswordRequired
-+		}
++		requiredAuth = requiredAuth || caps[k] == true
++	}
++	if requiredAuth && pin == "" {
++		return nil, ErrAirPlay1PasswordRequired
 +	}
 +	if strings.EqualFold(headers["connection"], "close") {
 +		conn.Close()
@@ -286,6 +289,7 @@
 +	}
 +	// Reuse the existing reviewed FairPlay primitive with HTTP transport. Only
 +	// an explicitly unsupported endpoint permits optional plaintext mirroring.
++	fpReplies := 0
 +	client.requestOverride = func(method, path, ct string, b []byte, extra ...map[string]string) ([]byte, error) {
 +		hdr := map[string]string{}
 +		for _, x := range extra {
@@ -294,13 +298,15 @@
 +			}
 +		}
 +		data, _, e := m.request(method, path, ct, b, hdr)
++		if path == "/fp-setup" && e == nil {
++			fpReplies++
++		}
 +		return data, e
 +	}
 +	client.infoUnavailable = true
 +	err = client.FairPlaySetup(ctx)
 +	if err != nil {
-+		var status *HTTPStatusError
-+		unsupported := errors.Is(err, ErrFairPlayUnsupported) || (errors.As(err, &status) && (status.StatusCode == 404 || status.StatusCode == 405 || status.StatusCode == 501))
++		unsupported := legacyOptionalFPError(err, fpReplies)
 +		if !unsupported {
 +			return nil, fmt.Errorf("legacy POST/fp-setup: %w", err)
 +		}
@@ -362,6 +368,9 @@
 +	// remote rejections in Watch; never parse an HTTP error as media success.
 +	if err = m.startStream(payload); err != nil {
 +		return nil, fmt.Errorf("legacy POST/stream: %w", err)
++	}
++	if requiredAuth && !m.authenticated {
++		return nil, fmt.Errorf("legacy POST/stream: required authentication not negotiated")
 +	}
 +	client.conn.SetDeadline(time.Time{})
 +	context.AfterFunc(ctx, m.Close)
@@ -467,6 +476,9 @@
 +	if response.StatusCode < 200 || response.StatusCode >= 300 {
 +		return nil, hdr, &HTTPStatusError{StatusCode: response.StatusCode}
 +	}
++	if headers["Authorization"] != "" {
++		m.authenticated = true
++	}
 +	return data, hdr, nil
 +}
 +
@@ -524,6 +536,9 @@
 +			var timeout net.Error
 +			if errors.As(err, &timeout) && timeout.Timeout() && m.reader.Buffered() == 0 {
 +				m.client.conn.SetReadDeadline(time.Time{})
++				if auth["Authorization"] != "" {
++					m.authenticated = true
++				}
 +				return nil
 +			}
 +			return err
@@ -568,6 +583,9 @@
 +			return &HTTPStatusError{StatusCode: response.StatusCode}
 +		}
 +		m.client.conn.SetReadDeadline(time.Time{})
++		if auth["Authorization"] != "" {
++			m.authenticated = true
++		}
 +		return nil
 +	}
 +	return ErrAirPlay1PasswordRequired
@@ -737,9 +755,17 @@
 +	}
 +	return true
 +}
++
++func legacyOptionalFPError(err error, successfulReplies int) bool {
++	if successfulReplies != 0 {
++		return false
++	}
++	var status *HTTPStatusError
++	return errors.Is(err, ErrFairPlayUnsupported) || (errors.As(err, &status) && (status.StatusCode == 404 || status.StatusCode == 405 || status.StatusCode == 501))
++}
 --- /dev/null
 +++ b/internal/airplay/legacy_http_test.go
-@@ -0,0 +1,491 @@
+@@ -0,0 +1,565 @@
 +package airplay
 +
 +import (
@@ -1227,6 +1253,80 @@
 +		t.Fatal(e)
 +	}
 +	m.Close()
++	if e := <-done; e != nil {
++		t.Fatal(e)
++	}
++}
++
++func TestLegacyNoPartialFairPlayDowngrade(t *testing.T) {
++	for _, code := range []int{404, 405, 501} {
++		e := &HTTPStatusError{StatusCode: code}
++		if !legacyOptionalFPError(e, 0) {
++			t.Fatal("initial unsupported endpoint rejected")
++		}
++		if legacyOptionalFPError(e, 1) || legacyOptionalFPError(ErrFairPlayUnsupported, 1) {
++			t.Fatal("partial encryption handshake downgraded")
++		}
++	}
++	for _, code := range []int{401, 403, 470, 500} {
++		if legacyOptionalFPError(&HTTPStatusError{StatusCode: code}, 0) {
++			t.Fatal("security/server error downgraded")
++		}
++	}
++}
++
++func TestLegacyRequiredAuthenticationNeedsNegotiation(t *testing.T) {
++	l, e := net.Listen("tcp", "127.0.0.1:0")
++	if e != nil {
++		t.Fatal(e)
++	}
++	defer l.Close()
++	done := make(chan error, 1)
++	go func() {
++		c, e := l.Accept()
++		if e != nil {
++			done <- e
++			return
++		}
++		defer c.Close()
++		c.SetDeadline(time.Now().Add(4 * time.Second))
++		r := bufio.NewReader(c)
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		b, _ := plist.Marshal(map[string]interface{}{"width": int64(1280), "height": int64(720), "version": "150.33", "requiresAuthentication": true}, plist.XMLFormat)
++		legacyTestReply(c, 200, b, "")
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		legacyTestReply(c, 501, nil, "")
++		_, _, e = legacyReadRequest(r)
++		if e != nil {
++			done <- e
++			return
++		}
++		var one [1]byte
++		n, _ := r.Read(one[:])
++		if n != 0 {
++			done <- fmt.Errorf("screen data sent without required authentication")
++			return
++		}
++		done <- nil
++	}()
++	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
++	defer cancel()
++	m, e := tryLegacyHTTPPort(ctx, "127.0.0.1", l.Addr().(*net.TCPAddr).Port, "fixture-pin", 1280, 720, 30, 0)
++	if m != nil {
++		m.Close()
++		t.Fatal("PIN presence was mistaken for verified authentication")
++	}
++	if e == nil || errors.Is(e, ErrLegacyHTTPUnavailable) {
++		t.Fatalf("required authentication lost: %v", e)
++	}
 +	if e := <-done; e != nil {
 +		t.Fatal(e)
 +	}

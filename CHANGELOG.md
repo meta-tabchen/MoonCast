@@ -1,3 +1,12 @@
+# 0.8 (code 65)
+
+- Consolidate local AirPlay candidates without publishing intermediate releases; preserve package and the fixed community test signer.
+- Support legacy HTTP mirroring while retaining authenticated negotiation and bounded cleanup; preserve the corrected captured-content aspect ratio.
+- Parse explicitly declared AVCC framing before Annex B detection; retain SPS/NAL/PTS and bounded TCP/media diagnostics.
+- Keep writable media alive after a bare peer send-side FIN, report HTTP rejection before waiting for its body, and select the newest valid diagnostic snapshot.
+- Add race/loopback/strict-decode regressions and timestamped diagnostic provenance. Host checks are not target-TV acceptance: the reported receiver exit remains unverified.
+- The Mac full Java runner retains an OriginalMediaServerTest connection-reset failure; other eleven groups pass independently. See [validation](docs/release-0.8-validation.md).
+
 # 0.6.0 (code 56)
 
 - Use numeric version names throughout app metadata and About, and `MoonCast-0.6.0-<abi>.apk` release filenames.

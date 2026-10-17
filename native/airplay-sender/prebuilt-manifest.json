@@ -9,10 +9,10 @@
   },
   "aar": {
     "path": "app/libs/airplaylib.aar",
-    "sha256": "7097e0d7551abbfb3f11c7e5d7bf169a1d5bd3d6ed2592648bdb1c49b50b1794",
-    "size": 14728449
+    "sha256": "dca06ebcfcb2d737f24a2f34c228cc86858995f09dac6731d81e36fb4df0c4fa",
+    "size": 14938564
   },
-  "source_lock_sha256": "8991541cc95773ecb504b7cfef41d3f0cb895f0a83bb327762b4d2b5be085b91",
+  "source_lock_sha256": "45e6a84569675b4c185ff5c10d3805b1333fba6f3d312c0f360b515c525014fc",
   "toolchain": {
     "go": "go1.25.6",
     "gomobile": "v0.0.0-20260611195102-4dd8f1dbf5d2",
@@ -30,22 +30,23 @@
     "ndk_archive_url": "https://dl.google.com/android/repository/android-ndk-r29-darwin.zip",
     "ndk_archive_sha256": "ce5e4b100ec5fe5be4eb3edcb2c02528824ff9cda3860f5304619be6c3da34d3",
     "android_jar_sha256": "4566663c3876e022b4fa4ced8c8697c4ab1688267f090114fd92d027b32e619b",
-    "canonical_module_replacement": "/tmp/mooncast-airplay-073/source"
+    "canonical_module_replacement": "/tmp/mooncast-airplay-076/source"
   },
   "validation": {
-    "offline_rebuild": "PASS: one offline three-ABI build using the vendored file:// module proxy and recorded Darwin toolchain; no claim of two fresh-cache reproducible builds",
-    "go_race_tests": "PASS: focused legacy real-video/clock and continuous-CTR/cancellation tests with race detector",
-    "upstream_selected_tests": "PASS: legacy HTTP negotiation, 20-frame mock decode, digest authentication, continuous CTR/cancellation, UDP clock, optional-info/authentication/transport/unknown-FairPlay tests, negotiated SETUP wire shapes, selected FairPlay regressions and native wrapper lifecycle tests",
-    "elf": "PASS: all three ABIs have >=16 KiB LOAD alignment; final APK verifier checks Android system-only JNI dependency closure",
-    "java_api": "PASS: normalized classes.jar is byte-identical to previous AAR",
-    "developer_path_scan": "PASS: no personal /Users/chenjiahao path in any shipped native library",
-    "device_interoperability": "NOT TESTED on user TV; user reports previous modern SETUP/session501. Local legacy mock reconstructs and decodes20 frames; not physical capture/display.",
-    "date_utc": "2026-10-16"
+    "offline_rebuild": "PASS: one offline three-ABI Darwin build; pinned Go/JDK/NDK and file:// module proxy; no independent reproducibility claim",
+    "go_race_tests": "PASS: 31 named legacy/wrapper race cases; dedicated lifecycle tests reproduce old FIN-close and blocked status defects. The quick batch explicitly skipped the separate soak.",
+    "wire_identity": "Normal packets: 407808 bytes across 180 fixture AUs remain identical to code63/code62, SHA256 b08cccbeec37f981e6b9069290c041bde07f598a1177a4c009c73ef7350bae43; read-FIN/status lifecycle intentionally changed.",
+    "sustained_mock": "PASS: peer FIN at30s then receive through180s:3595 video,179 heartbeat,18 configs; fullclose and25-frame reconnect detected;3620 frames independently strict-decoded. Host only.",
+    "elf": "PASS all three JNI ABIs >=16 KiB LOAD alignment",
+    "java_api": "PASS code63 API preserved exactly; bindings rebuilt with matching native",
+    "developer_path_scan": "PASS personal home path absent from all three native libraries",
+    "device_interoperability": "Code63 FAILED target TV: system launcher first, FPS decline afterward. Code64 NOT tested on target; no root-cause or stability claim.",
+    "change_scope": "Read lifecycle only: bare FIN keeps media write open, non2xx status fails before body, truncated response fails. Structural control/HB/timing observation; Java fresh snapshot selection. Five encoder/framing/capture files unchanged from code63."
   },
   "jni": {
     "jni/arm64-v8a/libgojni.so": {
-      "sha256": "94d339a53f0ec2ce43b5838227b3809846c74068bd45f9baa7a972d272b50b03",
-      "size": 9268920,
+      "sha256": "74bbba8961b875d592bb5417541af95e2996438adcbbb873589f095d012ecdd0",
+      "size": 9408872,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -54,8 +55,8 @@
       "machine": "AArch64"
     },
     "jni/armeabi-v7a/libgojni.so": {
-      "sha256": "4474116d3e4116b241628240efa948e977e5d6974c86c2ddf9c71d3bb1289616",
-      "size": 8950832,
+      "sha256": "3ac2d791c0e21f5d702b8d8c1fc09301cc4819c45129b302973cb871ffca53fa",
+      "size": 9085320,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -64,8 +65,8 @@
       "machine": "ARM"
     },
     "jni/x86_64/libgojni.so": {
-      "sha256": "5a29f8b47259604ad6c534aecb50bd432e8523af63adca822d571d4cad073f1a",
-      "size": 9933864,
+      "sha256": "ab415de0352f1a282fc364c5bbd6a9e347712d79a764c5bb8dc416597991a05f",
+      "size": 10082720,
       "load_alignment": [
         "0x4000",
         "0x4000",
@@ -74,9 +75,9 @@
       "machine": "Advanced Micro Devices X86-64"
     }
   },
-  "classes_jar_sha256": "fd1e2202c0ced0bb48622a3b44e415c83bb6ee7f068703a55a48536ca903d31e",
+  "classes_jar_sha256": "e3bb53046274d35ab74a4dbff24ffb77b6ef13f3b59580a74469530a614f91f1",
   "original_source_lock_sha256": "b8c6f2370b06d35b35c41a2b769c1a41f30eb8eeb5d7f29b5a6145d2531c9e90",
-  "layout_note": "MoonCast 0.7.3 adds patches0002/0003 to the unchanged v0.0.33 upstream source snapshot. Native AAR rebuilt; original Go mobile Java bindings retained. Historical Linux build claims do not apply to this Darwin artifact.",
-  "previous_aar_sha256": "4efc111b5dc3118b20cf3eba0d667c9b8c57d4bbeb9d7c394c8152d5faa79a02",
-  "previous_source_lock_sha256": "6068f62be6d1a3d0b7db42f5000976ee7cfb82ee5cc00453861aadab0c777d02"
+  "layout_note": "Local 0.7.4/code62 adds patch0005 to pinned upstream plus patches0001-0004. Native and generated Java bindings rebuilt together. No upload or publication.",
+  "previous_aar_sha256": "0695b09bea60a23106765c0358bbb1e30bc90b66c76bc6f11e8c00db2b226e51",
+  "previous_source_lock_sha256": "378218c4f92f6cab266e06a76405e80c7205fff1002328a150cc6cdc2d5c9118"
 }

@@ -29,6 +29,10 @@ public final class VideoPipeline {
     private Handler handler;
     private volatile boolean closed;
     private boolean followsDisplay;
+    private boolean detectPortraitContent;
+    public void setDetectPortraitContent(boolean enabled){detectPortraitContent=enabled;}
+    private int captureDensityDpi=160;
+    public void setCaptureDensity(int densityDpi){captureDensityDpi=Math.max(1,densityDpi);}
     private int mode,sourceW,sourceH,screenW,screenH;
     private VirtualDisplay display;
     private Surface input;
@@ -54,7 +58,7 @@ public final class VideoPipeline {
     public void setFrameLimit(int fps){frameLimit=Math.max(15,Math.min(120,fps));}
     private final Runnable probe=new Runnable(){public void run(){
         if(closed)return;
-        try{if(haveFrame && autoMode() && sourceW>sourceH && detect())render(System.nanoTime());}
+        try{if(haveFrame && autoMode() && (sourceW>sourceH || detectPortraitContent) && detect())render(System.nanoTime());}
         catch(Exception e){events.error(PhoneMessages.message(R.string.phone_crop_sample_failed , e.getMessage()));close();return;}
         handler.postDelayed(this,250);
     }};
@@ -130,7 +134,7 @@ public final class VideoPipeline {
         int oldW=sourceW,oldH=sourceH;setInputSize(width,height);
         if(sourceW==oldW && sourceH==oldH)return;
         texture.setDefaultBufferSize(sourceW,sourceH);
-        if(display!=null)display.resize(sourceW,sourceH,160);
+        if(display!=null)display.resize(sourceW,sourceH,captureDensityDpi);
         tracker.reset();cinema.reset();lastProbeLog=0;haveFrame=false;
         events.message(PhoneMessages.message(R.string.phone_capture_resized , sourceW, sourceH));
     }
@@ -178,7 +182,7 @@ public final class VideoPipeline {
         pixels.clear();GLES20.glReadPixels(0,0,192,128,GLES20.GL_RGBA,GLES20.GL_UNSIGNED_BYTE,pixels);
         int error=GLES20.glGetError();if(error!=GLES20.GL_NO_ERROR)throw new IllegalStateException("glReadPixels 0x"+Integer.toHexString(error));
         pixels.position(0);pixels.get(sample);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
-        CropGeometry.Bounds detected=CropGeometry.detect(sample,192,128);
+        CropGeometry.Bounds detected=detectPortraitContent && sourceW<sourceH ? CropGeometry.detectPortraitVideo(sample,192,128) : CropGeometry.detect(sample,192,128);
         long now=SystemClock.elapsedRealtime();
         if(now-lastProbeLog>5000){
             lastProbeLog=now;events.message(PhoneMessages.message(R.string.phone_crop_sample , sourceW, sourceH, (detected==null?PhoneMessages.message(R.string.phone_crop_dark):Math.round(detected.width()*100)+"% × "+Math.round(detected.height()*100)+"%")));
@@ -191,12 +195,12 @@ public final class VideoPipeline {
     private void render(long timestamp){
         long submissionStart=System.nanoTime();
         CropGeometry.Bounds region=mode==CropGeometry.VIDEO_REGION?CropGeometry.videoRegion(sourceW,sourceH):
-            (mode==CropGeometry.SCREEN || sourceW<=sourceH?CropGeometry.Bounds.FULL:mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds());
+            (mode==CropGeometry.SCREEN || sourceW<=sourceH && !detectPortraitContent?CropGeometry.Bounds.FULL:mode==CropGeometry.CINEMA?cinema.bounds():tracker.bounds());
         for(var entry:targets.entrySet()){
         Target target=entry.getValue();int outW=target.width,outH=target.height;EGLSurface window=target.window;
         current(window);GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
         GLES20.glClearColor(0,0,0,1);GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-        CropGeometry.Viewport v=CropGeometry.viewport(sourceW,sourceH,region,outW,outH,mode==CropGeometry.VIDEO_FILL && sourceW>sourceH);
+        CropGeometry.Viewport v=CropGeometry.viewport(sourceW,sourceH,region,outW,outH,mode==CropGeometry.VIDEO_FILL && (sourceW>sourceH || detectPortraitContent));
         GLES20.glViewport(v.x(),v.y(),v.width(),v.height());draw(region);
         events.geometry(entry.getKey(),new CropGeometry.Mapping(sourceW,sourceH,screenW,screenH,outW,outH,region,v));
         target.timestamp=Math.max(timestamp,target.timestamp+1);

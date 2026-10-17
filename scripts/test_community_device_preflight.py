@@ -16,7 +16,7 @@ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 class Metadata(unittest.TestCase):
  def fixture(self):
   cert='a'*64
-  rows={n:{'applicationId':m.PACKAGE,'versionCode':v,'versionName':m.VERSION_NAME,'certificateSha256':cert,'debuggable':n=='debug'} for n,v in [('baseline',58),('candidate',59),('debug',59)]}
+  rows={n:{'applicationId':m.PACKAGE,'versionCode':v,'versionName':m.VERSION_NAME,'certificateSha256':cert,'debuggable':n=='debug'} for n,v in [('baseline',m.BASELINE_VERSION_CODE),('candidate',m.CANDIDATE_VERSION_CODE),('debug',m.CANDIDATE_VERSION_CODE)]}
   rows['test']={'applicationId':m.TEST_PACKAGE,'versionCode':None,'versionName':'','certificateSha256':cert,'debuggable':True}
   return rows,cert
  def test_test_apk_empty_version(self):
@@ -48,7 +48,7 @@ class Metadata(unittest.TestCase):
      bad=copy.deepcopy(rows);bad[name]['versionCode']=value
      with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_exact_browser_release_contract(self):
-  self.assertEqual((m.BASELINE_VERSION_CODE,m.CANDIDATE_VERSION_CODE,m.VERSION_NAME),(58,59,'0.7.2'))
+  self.assertEqual((m.BASELINE_VERSION_CODE,m.CANDIDATE_VERSION_CODE,m.VERSION_NAME),(64,65,'0.8'))
   rows,cert=self.fixture()
   for name in ('baseline','candidate','debug'):
    for value in (None,'','0.5.1-community','0.7-browser-preview.2'):
@@ -57,13 +57,13 @@ class Metadata(unittest.TestCase):
      with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_baseline_and_candidate_are_not_interchangeable(self):
   rows,cert=self.fixture()
-  for name,value in (('baseline',59),('candidate',58),('debug',58)):
+  for name,value in (('baseline',65),('candidate',64),('debug',64)):
    with self.subTest(name=name):
     bad=copy.deepcopy(rows);bad[name]['versionCode']=value
     with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_workflow_version_and_manual_device_contract(self):
   workflow=(p.parents[1]/'.github/workflows/unified.yml').read_text()
-  for label in ('baseline58.apk','candidate59.apk','debug59.apk','MoonCast-0.7.2-arm64-v8a.apk','MoonCast-0.7.2-armeabi-v7a.apk','MoonCast-0.7.2-source.zip'):
+  for label in ('baseline64.apk','candidate65.apk','debug65.apk','MoonCast-0.8-arm64-v8a.apk','MoonCast-0.8-armeabi-v7a.apk','MoonCast-0.8-source.zip'):
    self.assertIn(label,workflow)
   for stale in ('baseline50.apk','candidate51.apk','debug51.apk','MoonCast-0.5.1-community-'):
    self.assertNotIn(stale,workflow)
