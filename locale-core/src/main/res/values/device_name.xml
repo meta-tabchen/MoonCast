@@ -2,7 +2,7 @@
 <resources>
     <string name="device_name_title">Device name</string>
     <string name="device_name_hint">Used for discovery and phone/TV roles. A running connection keeps its current name; the saved name applies on the next start. Pairing is preserved.</string>
-    <string name="device_name_invalid">Enter a device name (up to 63 UTF-8 bytes).</string>
+    <string name="device_name_invalid">Enter a name of up to 60 UTF-8 bytes, without the reserved text .local.</string>
     <string name="device_name_failed">Could not save the name. Try again.</string>
     <string name="device_name_saved">Saved. Applies when the receiver or sender next starts.</string>
 </resources>

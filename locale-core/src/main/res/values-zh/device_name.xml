@@ -2,7 +2,7 @@
 <resources>
     <string name="device_name_title">设备名称</string>
     <string name="device_name_hint">手机与电视角色、局域网发现共用此名称。当前连接保留原名称，下次启动时应用新名称，不影响配对。</string>
-    <string name="device_name_invalid">请输入设备名称（最多 63 个 UTF-8 字节）。</string>
+    <string name="device_name_invalid">请输入最多 60 个 UTF-8 字节的设备名称，不能包含协议保留文本 .local。</string>
     <string name="device_name_failed">名称保存失败，请重试。</string>
     <string name="device_name_saved">已保存，下次启动发送端或接收端时生效。</string>
 </resources>

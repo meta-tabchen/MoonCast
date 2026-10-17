@@ -367,7 +367,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         return address;
     }
     private void register(String name, String type, int port, Map<String, String> records) {
-        NsdServiceInfo info = new NsdServiceInfo(); info.setServiceName(name); info.setServiceType(type); info.setPort(port);
+        NsdServiceInfo info = new NsdServiceInfo(); info.setServiceName(com.mooncast.locale.DeviceNamePolicy.truncate(name,63)); info.setServiceType(type); info.setPort(port);
         if (records != null) for (Map.Entry<String, String> record : records.entrySet()) info.setAttribute(record.getKey(), record.getValue());
         final int registeredGeneration = generation;
         NsdManager.RegistrationListener registration = new NsdManager.RegistrationListener() {

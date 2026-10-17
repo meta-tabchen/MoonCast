@@ -54,9 +54,9 @@ jobs:
           echo no | avdmanager create avd --force --name aosp --package 'system-images;android-29;default;x86_64' --device pixel_2
           sed -i 's/^hw.lcd.density=.*/hw.lcd.density=160/' "$ANDROID_AVD_HOME/aosp.avd/config.ini"
           grep -qx 'hw.lcd.density=160' "$ANDROID_AVD_HOME/aosp.avd/config.ini"
+          adb start-server
           "$ANDROID_HOME/emulator/emulator" -avd aosp -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 480x800 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/aosp-evidence/emulator.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/aosp-emulator.pid"
-          adb start-server
           (timeout 780s adb -s emulator-5554 wait-for-device && adb -s emulator-5554 logcat -v threadtime) > "$RUNNER_TEMP/aosp-evidence/continuous-logcat.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/aosp-logcat.pid"
           deadline=$((SECONDS+780))
@@ -93,6 +93,16 @@ jobs:
           grep -q PIPELINE_PAUSE_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
           grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
           ! grep -qE 'PIPELINE_PAUSE_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/pipeline.txt"
+      - name: Actual cross-process name persistence and identity sentinels
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          timeout 120s adb -s emulator-5554 shell am instrument -w -r -e suite name com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/aosp-evidence/name.txt" 2>&1
+          cat "$RUNNER_TEMP/aosp-evidence/name.txt"
+          grep -q DEVICE_NAME_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/name.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/name.txt"
+          ! grep -qE 'DEVICE_NAME_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/name.txt"
       - name: Actual floating control layout and taps at 320dp and landscape
         if: always() && steps.boot.conclusion == 'success'
         timeout-minutes: 5
@@ -121,6 +131,17 @@ jobs:
             if ! python3 scripts/run_receiver_session_device.py --serial emulator-5554 --surface "$surface" --debug unified/build/outputs/apk/debug/unified-debug.apk --test unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk --output "$RUNNER_TEMP/aosp-evidence/$surface"; then failed=1; fi
           done
           exit "$failed"
+      - name: Unchanged Sunshine encoder and native-session capability on ordinary AOSP
+        if: always() && steps.boot.conclusion == 'success'
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          timeout 600s adb -s emulator-5554 shell am instrument -w -r -e suite gamestream-native com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation > "$RUNNER_TEMP/aosp-evidence/gamestream.txt" 2>&1
+          cat "$RUNNER_TEMP/aosp-evidence/gamestream.txt"
+          timeout 20s adb -s emulator-5554 logcat -d -v threadtime > "$RUNNER_TEMP/aosp-evidence/gamestream-logcat.txt" 2>&1 || true
+          grep -q GAMESTREAM_NATIVE_SESSION_PASSED "$RUNNER_TEMP/aosp-evidence/gamestream.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/gamestream.txt"
+          ! grep -qE 'GAMESTREAM_NATIVE_SESSION_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/gamestream.txt"
       - name: Preserve system and generated fixture evidence and stop emulator
         if: always()
         shell: bash

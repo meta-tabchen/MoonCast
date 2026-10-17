@@ -164,7 +164,7 @@ public final class ApkReceiveController {
     }
     private void showExpiredReview(){showDialog();message.setText(R.string.apk_restore_expired);}
     private void register(int epoch,int port) {
-        NsdServiceInfo info=new NsdServiceInfo();info.setServiceName(com.mooncast.locale.DeviceName.get(activity)+" APK");info.setServiceType(ApkTransfer.SERVICE_TYPE);info.setPort(port);
+        NsdServiceInfo info=new NsdServiceInfo();info.setServiceName(com.mooncast.locale.DeviceNamePolicy.serviceLabel("",com.mooncast.locale.DeviceName.get(activity)," APK"));info.setServiceType(ApkTransfer.SERVICE_TYPE);info.setPort(port);
         info.setAttribute("v","2");info.setAttribute("apk","1");
         info.setAttribute("pairing","none");info.setAttribute("id",receiverId);
         NsdManager.RegistrationListener listener=new NsdManager.RegistrationListener(){

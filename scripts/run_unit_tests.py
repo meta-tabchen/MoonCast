@@ -14,6 +14,7 @@ java = str(bin_path / ('java' + suffix)) if bin_path else 'java'
 sources = [java_root / (name + '.java') for name in ('BrowserQuality', 'CropGeometry', 'AutoCropTracker', 'CinemaCropTracker', 'MediaVolumeSession', 'FrameStatistics', 'TrafficRate', 'OriginalMediaServer', 'BrowserSignalingServer', 'DisplayPowerLease', 'AirPlayH264', 'AirPlayDiagnosticSnapshot', 'SenderOwnership', 'CastSessionCoordinator', 'AirPlayEndpoint', 'SenderLiveness', 'OutputSizePolicy', 'ManualControlState', 'PanelRecoveryState', 'PanelRecoveryJournal', 'ScreenDimState')]
 sources += [root / 'tests/BrowserQualityTest.java', root / 'tests/CropGeometryTest.java', root / 'tests/MediaVolumeSessionTest.java', root / 'tests/StatisticsTest.java', root / 'tests/OriginalMediaServerTest.java', root / 'tests/BrowserSignalingServerTest.java', root / 'tests/DisplayPowerLeaseTest.java', root / 'tests/AirPlayH264Test.java', root / 'tests/AirPlayDiagnosticSnapshotTest.java', root / 'tests/CastSessionCoordinatorTest.java', root / 'tests/AirPlayEndpointTest.java', root / 'tests/SenderLivenessTest.java', root / 'tests/OutputSizePolicyTest.java', root / 'tests/ManualControlStateTest.java', root / 'tests/PanelRecoveryStateTest.java', root / 'tests/PanelRecoveryJournalTest.java', root / 'tests/ScreenDimStateTest.java']
 sources += [root / 'tv/src/main/java/com/mooncast/tv/airplay/ReceiverTimeline.java', root / 'tests/ReceiverTimelineTest.java']
+sources += [root / 'locale-core/src/main/java/com/mooncast/locale/DeviceNamePolicy.java', root / 'tests/DeviceNamePolicyTest.java']
 flags = ['-source', '17', '-target', '17'] if os.environ.get('MOONCAST_TEST_JAVAC_SOURCE_ONLY') == '1' else ['--release', '17']
 with tempfile.TemporaryDirectory(prefix='mooncast-tests-') as directory:
     subprocess.run([javac, *flags, '-encoding', 'UTF-8', '-d', directory, *map(str, sources)], check=True)
@@ -21,3 +22,5 @@ with tempfile.TemporaryDirectory(prefix='mooncast-tests-') as directory:
         subprocess.run([java, '-cp', directory, 'com.mooncast.host.' + test], check=True)
 
     subprocess.run([java, '-cp', directory, 'com.mooncast.tv.airplay.ReceiverTimelineTest'], check=True)
+
+    subprocess.run([java, '-cp', directory, 'com.mooncast.locale.DeviceNamePolicyTest'], check=True)

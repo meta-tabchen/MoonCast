@@ -12,7 +12,7 @@ MoonCast 0.9 · versionCode 66 · com.mooncast.community
 
 完整证据与各轮失败见 [0.9 验证记录](https://github.com/meta-tabchen/MoonCast/blob/v0.9/docs/release-0.9-validation.md)。构建、签名和源码核验结果以随包 RELEASE-PROVENANCE.json 为准。
 
-真实 AirPlay 回环已经覆盖原生握手、JNI、MediaCodec、不同颜色像素、停止及第二会话。离屏 EGL 测试发现复用 Surface 时消费者等待信号的问题，fresh Surface/主动采样对照能继续取得第二轮像素；该测试现象尚不能归因于用户电视，不能称电视退出已根治。实际 TvActivity TextureView 用独立测试继续验证。
+真实 AirPlay 回环已经覆盖原生握手、JNI、MediaCodec、不同颜色像素、停止及第二会话。离屏 EGL 测试发现复用 Surface 时消费者等待信号的问题，fresh Surface/主动采样对照能继续取得第二轮像素；该测试现象尚不能归因于用户电视，不能称电视退出已根治。普通 AOSP29 模拟器上的真实 TvActivity/TextureView 已通过两次原生会话、不同颜色像素、持续解码和 Activity 清理；这仍不是用户电视的实物验收。
 
 **Root/Shizuku 物理关屏保持安全门槛，未开放为通用功能。** 隐藏系统电源接口的返回不能证明手机真的恢复；手机/OEM/权限撤销/进程退出故障必须有实物验证。调暗功能不替代这项尚未完成的验收。
 
@@ -25,7 +25,7 @@ MoonCast 0.9 · versionCode 66 · com.mooncast.community
 - One device-name setting preserves persistent identities and pairing, with pending application during busy sessions. GameStream honors client resolution/FPS and reports negotiated/encoded/decoded status separately from physical TV output.
 - Rebuilt native receiver libraries correct JNI thread-attachment ownership. Bounded private lifecycle/decoder diagnostics avoid content, URLs, addresses and pairing secrets; nothing uploads automatically.
 
-See the linked validation record for exact checks, failed comparisons and hardware limits. Physical Root/Shizuku panel-off stays gated until device-specific restoration and fault-injection evidence exists. Real generated-media AirPlay loopback does not establish target-TV acceptance; an off-screen EGL consumer failure is not a diagnosed TV crash. The software emulator cannot configure the unchanged Sunshine Surface-input encoder, so it does not pass multi-client/resolution stream tests. Historical Mac test failures remain documented.
+See the linked validation record for exact checks, failed comparisons and hardware limits. Physical Root/Shizuku panel-off stays gated until device-specific restoration and fault-injection evidence exists. Actual TvActivity/TextureView passed two generated-media native AirPlay sessions, distinct pixels, sustained decode and Activity cleanup on ordinary AOSP29. This does not establish target-TV acceptance; an off-screen EGL consumer failure is not a diagnosed TV crash. The software emulator cannot configure the unchanged Sunshine Surface-input encoder, so it does not pass multi-client/resolution stream tests. Historical Mac test failures remain documented.
 
 ## Downloads / 下载
 
