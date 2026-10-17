@@ -235,4 +235,8 @@ Submission: %3$.2f ms · Battery: %4$s °C · Thermal: %5$s</string>
     <string name="controls_recovery_required">Screen restoration is unconfirmed. New screen-off commands are disabled and the helper is closing. The button becomes available only after delayed screen-off commands can no longer run. If you can see this message, hold it for two seconds and release. Verification is reset. Do not guess where to tap on a dark screen.</string>
     <string name="controls_recovery_visible">I can see this screen · hold 2 seconds</string>
     <string name="controls_recovery_disabled">Physical screen-off is disabled after uncertain restoration. It needs device validation before it can be enabled again. Casting, pause and Stop remain available.</string>
+    <string name="controls_dim_phone">Dim phone screen</string>
+    <string name="controls_dim_countdown">Dimming in 3 seconds. Tap anywhere to cancel. Close the notification shade yourself.</string>
+    <string name="controls_dim_active">Minimum brightness requested. Tap once to restore; casting continues.</string>
+    <string name="controls_dim_notice">Dimming lowers display brightness without hiding the cast picture. It is not physical screen-off; minimum brightness depends on the phone.</string>
 </resources>

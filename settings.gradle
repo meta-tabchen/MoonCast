@@ -16,3 +16,4 @@ include ':phone-ui', ':tv-ui', ':unified'
 include ':transfer-core'
 
 include ':locale-core'
+include ':window-tests'

@@ -5,4 +5,6 @@
 <service android:name=".SlowFileProbe" android:process=":files" android:exported="false"/><service android:name="com.mooncast.host.GameStreamHostFixture" android:process=":stream" android:exported="false"/>
 <service android:name="com.mooncast.host.GameStreamClientOneFixture" android:process=":test_client_one" android:exported="false"/>
 <service android:name="com.mooncast.host.GameStreamClientTwoFixture" android:process=":test_client_two" android:exported="false"/>
+<service android:name="com.mooncast.host.DimFixtureService" android:process=":dim_test" android:exported="false"/>
+<activity android:name=".DimFixtureActivity" android:process=":receiver" android:exported="false" android:screenOrientation="landscape" android:theme="@android:style/Theme.Material.NoActionBar"/>
 </application></manifest>

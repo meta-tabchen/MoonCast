@@ -5,6 +5,7 @@ public final class UnifiedInstrumentation extends Instrumentation {
  private Bundle arguments;
  @Override public void onCreate(Bundle b){super.onCreate(b);arguments=b;start();}
  @Override public void onStart(){Bundle result=new Bundle();try{
+  if(arguments!=null&&"screen-dim".equals(arguments.getString("suite"))){new ScreenDimDeviceTest(this,arguments).run();return;}
   if(arguments!=null&&"gamestream-native".equals(arguments.getString("suite"))){new GameStreamNativeDeviceTest(this,arguments).run();return;}
   if(arguments!=null&&"airplay-receiver".equals(arguments.getString("suite"))){new AirPlayReceiverDeviceTest(this,arguments).run();return;}
   if(arguments!=null&&("tv".equals(arguments.getString("suite"))||"apk".equals(arguments.getString("suite")))){

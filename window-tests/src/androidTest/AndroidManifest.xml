@@ -1,0 +1,1 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"><instrumentation android:name="com.mooncast.unified.WindowInstrumentation" android:targetPackage="com.mooncast.windowtest" android:targetProcesses="com.mooncast.windowtest:receiver" android:functionalTest="true"/></manifest>

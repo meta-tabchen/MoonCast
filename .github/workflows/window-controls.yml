@@ -1,0 +1,72 @@
+name: Window dimming software-runtime checks
+on:
+  push:
+    branches: [codex/mooncast-0.9, main]
+    paths: ['app/src/main/java/com/mooncast/host/ScreenDim*','app/src/main/java/com/mooncast/host/CastControls.java','unified/src/debug/java/com/mooncast/host/DimFixtureService.java','unified/src/debug/java/com/mooncast/unified/DimFixtureActivity.java','unified/src/androidTest/java/com/mooncast/unified/ScreenDimDeviceTest.java','window-tests/**','.github/workflows/window-controls.yml']
+jobs:
+  software-window:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          accept-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-28;default;x86'
+      - name: Compile actual production window control in isolated test application
+        run: gradle --no-daemon :window-tests:assembleDebug :window-tests:assembleDebugAndroidTest
+      - name: Start lightweight AOSP software emulator without KVM or permission changes
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/window-evidence"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/window-avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --force --name window --package 'system-images;android-28;default;x86' --device pixel_2
+          "$ANDROID_HOME/emulator/emulator" -avd window -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 1536 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/window-evidence/emulator.txt" 2>&1 &
+          echo $! > "$RUNNER_TEMP/window-emulator.pid"
+          deadline=$((SECONDS+660))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            kill -0 "$(cat "$RUNNER_TEMP/window-emulator.pid")" || exit 1
+            if [ "$(timeout 5s adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then exit 0; fi
+            sleep 3
+          done
+          echo 'Software emulator failed to boot: no device test passed' >&2; exit 1
+      - name: Real window brightness, touch, pixels and owner-death checks
+        timeout-minutes: 7
+        shell: bash
+        run: |
+          adb -s emulator-5554 wait-for-device
+          adb -s emulator-5554 install -r -t window-tests/build/outputs/apk/debug/window-tests-debug.apk
+          adb -s emulator-5554 install -r -t window-tests/build/outputs/apk/androidTest/debug/window-tests-debug-androidTest.apk
+          timeout 300s adb -s emulator-5554 shell am instrument -w -r com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/window-evidence/instrumentation.txt" 2>&1
+          cat "$RUNNER_TEMP/window-evidence/instrumentation.txt"
+          grep -q SCREEN_DIM_DEVICE_PASSED "$RUNNER_TEMP/window-evidence/instrumentation.txt"
+          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/window-evidence/instrumentation.txt"
+          ! grep -qE 'SCREEN_DIM_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/window-evidence/instrumentation.txt"
+      - name: Capture generated fixture evidence and stop software emulator
+        if: always()
+        run: |
+          mkdir -p "$RUNNER_TEMP/window-evidence"
+          timeout 20s adb -s emulator-5554 logcat -d -t 1500 > "$RUNNER_TEMP/window-evidence/logcat.txt" 2>&1 || true
+          timeout 15s adb -s emulator-5554 emu kill || true
+          if [ -f "$RUNNER_TEMP/window-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/window-emulator.pid")" 2>/dev/null || true; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generated-window-runtime-evidence
+          path: |
+            ${{ runner.temp }}/window-evidence
+            window-tests/build/outputs/apk
