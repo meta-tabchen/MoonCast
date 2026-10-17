@@ -30,10 +30,9 @@ public final class ReceiverDiagnostics {
         event("process-start",Build.VERSION.SDK_INT);
     }
     public static synchronized void event(String code,long value){
-        timeline.add(SystemClock.elapsedRealtime(),code,value);
-        if(file==null)return;FileOutputStream out=null;
-        try{out=file.startWrite();out.write((anchor+timeline.text()).getBytes(StandardCharsets.UTF_8));file.finishWrite(out);}
-        catch(Exception ignored){if(out!=null)file.failWrite(out);}
+        FileOutputStream out=null;
+        try{timeline.add(SystemClock.elapsedRealtime(),code,value);if(file==null)return;out=file.startWrite();out.write((anchor+timeline.text()).getBytes(StandardCharsets.UTF_8));file.finishWrite(out);}
+        catch(Exception ignored){if(out!=null)try{file.failWrite(out);}catch(RuntimeException ignoredCleanup){}}
     }
     public static synchronized String report(){return "receiver-events v2 (elapsed ms / event / numeric value; exception/codec values are class/name hashes)\n"+anchor+timeline.text()+"\nprevious-process:\n"+previous+"\nAndroid exit reasons (if available):\n"+exits;}
 }

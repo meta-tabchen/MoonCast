@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run real generated-media AirPlay loopback against a disposable emulator only."""
 import argparse,pathlib,subprocess,json,time
-p=argparse.ArgumentParser();p.add_argument('--gamestream',action='store_true');p.add_argument('--surface',choices=['reuse','fresh'],default='reuse');p.add_argument('--probe-texture',action='store_true');p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--gamestream',action='store_true');p.add_argument('--surface',choices=['reuse','fresh','tv-ui'],default='reuse');p.add_argument('--probe-texture',action='store_true');p.add_argument('--serial',required=True);p.add_argument('--debug',type=pathlib.Path,required=True);p.add_argument('--test',type=pathlib.Path,required=True);p.add_argument('--output',type=pathlib.Path,required=True);a=p.parse_args()
 if not a.serial.startswith('emulator-'):raise SystemExit('This suite is restricted to a disposable emulator, never a personal device')
 a.output.mkdir(parents=True,exist_ok=True)
 def adb(*args,**kwargs):return subprocess.run(['adb','-s',a.serial,*map(str,args)],text=True,capture_output=True,**kwargs)

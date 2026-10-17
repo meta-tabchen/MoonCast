@@ -10,16 +10,22 @@ public final class AirPlayReceiverDeviceTest {
  private final Instrumentation runner;private final Bundle arguments;
  private volatile Messenger sender;private volatile String senderError;private volatile int stopped,sentFrames,sessionToken;private volatile boolean stopping;private volatile String senderStats="";
  private final AtomicInteger recoveries=new AtomicInteger();
+ private com.mooncast.tv.TvActivity tvActivity;private android.view.TextureView tvTexture;
+ private boolean tvMode(){return "tv-ui".equals(arguments.getString("surface","reuse"));}
  public AirPlayReceiverDeviceTest(Instrumentation runner,Bundle arguments){this.runner=runner;this.arguments=arguments;}
  public void run(){Bundle result=new Bundle();int resultCode=Activity.RESULT_CANCELED;AirPlayEngine engine=null;PixelSink sink=null;ServiceConnection connection=null;StringBuilder progress=new StringBuilder();
   try{
    if(!android.os.Build.FINGERPRINT.contains("generic")&&!android.os.Build.MODEL.contains("sdk"))throw new AssertionError("Disposable emulator only");
-   int pid=android.os.Process.myPid();ReceiverDiagnostics.initialize(runner.getTargetContext());sink=new PixelSink();
+   int pid=android.os.Process.myPid();ReceiverDiagnostics.initialize(runner.getTargetContext());
+   if(tvMode()){
+    tvActivity=(com.mooncast.tv.TvActivity)runner.startActivitySync(new Intent(runner.getTargetContext(),com.mooncast.tv.TvActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));runner.waitForIdleSync();
+    engine=(AirPlayEngine)tvField("airplay");tvTexture=(android.view.TextureView)tvField("mirrorTexture");waitTvReady(engine);
+   }else{sink=new PixelSink();
    engine=new AirPlayEngine(runner.getTargetContext(),new AirPlayEngine.Listener(){
     public void onStatus(AirPlayEngine.Status s,String m){}public void onVideoSize(int w,int h){}
     public void onVideoPlay(String location,float position){}public void onVideoScrub(float v){}public void onVideoRate(float v){}public void onVideoStop(){}
     public void onRecoveryRequired(String reason){recoveries.incrementAndGet();}
-   });engine.setWatchdogTimeoutSeconds(15);engine.setSurface(sink.surface);
+   });engine.setWatchdogTimeoutSeconds(15);engine.setSurface(sink.surface);}
    CountDownLatch bound=new CountDownLatch(1);
    connection=new ServiceConnection(){public void onServiceConnected(ComponentName name,IBinder binder){sender=new Messenger(binder);bound.countDown();}public void onServiceDisconnected(ComponentName name){senderError="sender-process-lost";}};
    require(runner.getTargetContext().bindService(new Intent().setClassName(runner.getTargetContext().getPackageName(),"com.mooncast.host.AirPlayFixtureSender"),connection,Context.BIND_AUTO_CREATE),"sender bind");
@@ -27,38 +33,55 @@ public final class AirPlayReceiverDeviceTest {
    long frames=0;
    for(int cycle=0;cycle<2;cycle++){
     sessionToken=cycle+1;stopping=false;senderError=null;senderStats="";sentFrames=0;recoveries.set(0);
-    if(cycle>0&&"fresh".equals(arguments.getString("surface","reuse"))){engine.setSurface(null);sink.close();sink=new PixelSink();engine.setSurface(sink.surface);}
-    long priorTextureTimestamp=sink.texture.getTimestamp();sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);
+    if(cycle>0&&!tvMode()&&"fresh".equals(arguments.getString("surface","reuse"))){engine.setSurface(null);sink.close();sink=new PixelSink();engine.setSurface(sink.surface);}
+    long priorTextureTimestamp=tvMode()?0:sink.texture.getTimestamp();
+    if(tvMode()){if(cycle>0){tvAction("startReceiver");waitTvReady(engine);}}else{sink.clearFrameSignal();engine.start("MoonCast generated test",640,360,30,false);}
+    int nativeGeneration=engineGeneration(engine);
     Bundle data=new Bundle();data.putInt("port",engine.getPort());data.putByteArray("frame",keyframe(cycle));send(1,data);
     long until=SystemClock.elapsedRealtime()+45000,lastSample=0,firstOutputAt=0;boolean pixels=false,probeAttempted=false;ArrayDeque<String> samples=new ArrayDeque<>();
     while(SystemClock.elapsedRealtime()<until){
+     require(engineGeneration(engine)==nativeGeneration,"receiver generation stays stable during decode");
      if(senderError!=null){progress.append(String.join("\n",samples)).append("\nsender=").append(senderStats).append("\n");throw new AssertionError(senderError);}
-     if(sink.available.get()>0){ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
+     if(tvMode()){pixels=tvPixels(cycle);}else if(sink.available.get()>0){ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
      if(firstOutputAt==0&&engine.getDecodedFrames()>0)firstOutputAt=SystemClock.elapsedRealtime();
-     if(!probeAttempted&&Boolean.parseBoolean(arguments.getString("acquireWithoutSignal","false"))&&firstOutputAt!=0&&SystemClock.elapsedRealtime()-firstOutputAt>=500){probeAttempted=true;ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
-     long now=SystemClock.elapsedRealtime();if(now-lastSample>=1000){lastSample=now;AirPlayEngine.RuntimeStats sample=engine.getRuntimeStats();String row="cycle="+cycle+" receivedVcl="+sample.receivedVclCallbacks+" decoded="+sample.decodedFrames+" dropped="+sample.droppedFrames+" surfaceSignals="+sink.available.get()+" textureNs="+sink.texture.getTimestamp()+" priorTextureNs="+priorTextureTimestamp+" pixels="+pixels+" probeRan="+probeAttempted+" sender="+senderStats;android.util.Log.i("MoonCastReceiverFixture",row);samples.addLast(row);if(samples.size()>12)samples.removeFirst();}
+     if(!tvMode()&&!probeAttempted&&Boolean.parseBoolean(arguments.getString("acquireWithoutSignal","false"))&&firstOutputAt!=0&&SystemClock.elapsedRealtime()-firstOutputAt>=500){probeAttempted=true;ByteBuffer rendered=sink.readPixels();if(sink.texture.getTimestamp()>priorTextureTimestamp){pixels=expectedPixels(rendered,cycle);}}
+     long now=SystemClock.elapsedRealtime();if(now-lastSample>=1000){lastSample=now;AirPlayEngine.RuntimeStats sample=engine.getRuntimeStats();String row="cycle="+cycle+" receivedVcl="+sample.receivedVclCallbacks+" decoded="+sample.decodedFrames+" dropped="+sample.droppedFrames+" surfaceSignals="+(tvMode()?(Boolean.TRUE.equals(tvField("mirrorHasFrame"))?1:0):sink.available.get())+" textureNs="+(tvMode()?0:sink.texture.getTimestamp())+" priorTextureNs="+priorTextureTimestamp+" pixels="+pixels+" probeRan="+probeAttempted+" sender="+senderStats;android.util.Log.i("MoonCastReceiverFixture",row);samples.addLast(row);if(samples.size()>12)samples.removeFirst();}
      if(pixels&&engine.getDecodedFrames()>=20)break;SystemClock.sleep(50);
     }
-    progress.append("cycle=").append(cycle).append(" surface=").append(arguments.getString("surface","reuse")).append(" sent=").append(sentFrames).append(" decoded=").append(engine.getDecodedFrames()).append(" surfaceSignals=").append(sink.available.get()).append(" pixels=").append(pixels).append(" probeRan=").append(probeAttempted).append(" recoveries=").append(recoveries.get()).append('\n');
+    progress.append("cycle=").append(cycle).append(" surface=").append(arguments.getString("surface","reuse")).append(" sent=").append(sentFrames).append(" decoded=").append(engine.getDecodedFrames()).append(" surfaceSignals=").append(tvMode()?(Boolean.TRUE.equals(tvField("mirrorHasFrame"))?1:0):sink.available.get()).append(" pixels=").append(pixels).append(" probeRan=").append(probeAttempted).append(" recoveries=").append(tvMode()?-1:recoveries.get()).append('\n');
     if(!pixels||engine.getDecodedFrames()<20)progress.append(String.join("\n",samples)).append('\n');
     require(pixels&&engine.getDecodedFrames()>=20,"actual received and decoded frames");
     AirPlayEngine.RuntimeStats stats=engine.getRuntimeStats();
     require(stats.decodedWidth==WIDTH&&stats.decodedHeight==HEIGHT,"actual SPS dimensions distinct from request");
     long before=engine.getDecodedFrames(),hold=SystemClock.elapsedRealtime()+20000;
-    while(SystemClock.elapsedRealtime()<hold){if(sink.available.get()>0)require(expectedPixels(sink.readPixels(),cycle),"current-cycle generated pixels during hold");require(senderError==null,"sender alive");require(recoveries.get()==0,"no watchdog recovery during valid static video");SystemClock.sleep(100);}
-    require(engine.getDecodedFrames()>before,"decode continues beyond watchdog interval");frames+=engine.getDecodedFrames();progress.append("static-hold decoded=").append(engine.getDecodedFrames()).append(" recovery=").append(recoveries.get()).append('\n');
+    while(SystemClock.elapsedRealtime()<hold){if(tvMode())require(tvPixels(cycle),"actual TV TextureView keeps current-cycle pixels");else if(sink.available.get()>0)require(expectedPixels(sink.readPixels(),cycle),"current-cycle generated pixels during hold");require(senderError==null,"sender alive");require(engineGeneration(engine)==nativeGeneration,"no receiver restart during valid static video");if(!tvMode())require(recoveries.get()==0,"no watchdog recovery during valid static video");SystemClock.sleep(100);}
+    require(engine.getDecodedFrames()>before,"decode continues beyond watchdog interval");frames+=engine.getDecodedFrames();progress.append("static-hold decoded=").append(engine.getDecodedFrames()).append(" recovery=").append(tvMode()?-1:recoveries.get()).append('\n');
     int wasStopped=stopped;stopping=true;send(2,new Bundle());long stopDeadline=SystemClock.elapsedRealtime()+20000;
     while(stopped==wasStopped&&senderError==null&&SystemClock.elapsedRealtime()<stopDeadline)SystemClock.sleep(50);
     require(senderError==null,"sender cleanup succeeds: "+senderError);
-    require(stopped>wasStopped,"sender disconnect completes");engine.stop();require(!engine.hasVideoReleaseFailure(),"receiver decoder release confirmed");SystemClock.sleep(1500);
+    require(stopped>wasStopped,"sender disconnect completes");if(tvMode()){tvAction("stopReceiver");tvBarrier();}else engine.stop();require(!engine.hasVideoReleaseFailure(),"receiver decoder release confirmed");SystemClock.sleep(1500);
     require(android.os.Process.myPid()==pid,"receiver survives native callback thread exit");require(!engine.isRunning(),"receiver stopped");
    }
-   result.putString("stream","AIRPLAY_RECEIVER_SESSION_PASSED cycles=2 decoded="+frames+" scope=loopback-generated-media-native-transport-and-decode\n"+progress+ReceiverDiagnostics.report()+"\n");
+   result.putString("stream","AIRPLAY_RECEIVER_SESSION_PASSED cycles=2 decoded="+frames+" scope=loopback-generated-media-native-transport-and-decode surface="+arguments.getString("surface","reuse")+"\n"+progress+ReceiverDiagnostics.report()+"\n");
    resultCode=Activity.RESULT_OK;
   }catch(Throwable failure){result.putString("stream","AIRPLAY_RECEIVER_SESSION_FAILED\n"+android.util.Log.getStackTraceString(failure)+"\n"+progress+ReceiverDiagnostics.report());resultCode=Activity.RESULT_CANCELED;}
-  finally{stopping=true;try{if(sender!=null)send(2,new Bundle());}catch(Exception ignored){}if(engine!=null){engine.stop();if(engine.hasVideoReleaseFailure()){resultCode=Activity.RESULT_CANCELED;result.putString("stream",result.getString("stream","").replace("AIRPLAY_RECEIVER_SESSION_PASSED","AIRPLAY_RECEIVER_SESSION_FAILED")+"\nDecoder release unconfirmed during final cleanup");}}if(connection!=null)try{runner.getTargetContext().unbindService(connection);}catch(Exception ignored){}if(sink!=null&&(engine==null||!engine.hasVideoReleaseFailure()))sink.close();}
+  finally{
+   stopping=true;ArrayList<String> cleanup=new ArrayList<>();
+   try{if(sender!=null)send(2,new Bundle());}catch(Throwable failure){cleanup.add("sender final stop: "+android.util.Log.getStackTraceString(failure));}
+   try{if(tvMode()&&tvActivity!=null){tvAction("stopReceiver");tvBarrier();}if(engine!=null){engine.stop();require(!engine.hasVideoReleaseFailure(),"decoder release confirmed during final cleanup");}}catch(Throwable failure){cleanup.add("receiver final stop: "+android.util.Log.getStackTraceString(failure));}
+   if(connection!=null)try{runner.getTargetContext().unbindService(connection);}catch(Throwable failure){cleanup.add("sender unbind: "+failure.getClass().getName());}
+   if(sink!=null&&(engine==null||!engine.hasVideoReleaseFailure()))try{sink.close();}catch(Throwable failure){cleanup.add("surface final release: "+android.util.Log.getStackTraceString(failure));}
+   if(tvActivity!=null)try{runner.runOnMainSync(tvActivity::finish);}catch(Throwable failure){cleanup.add("TV activity finish: "+failure.getClass().getName());}
+   if(!cleanup.isEmpty()){resultCode=Activity.RESULT_CANCELED;result.putString("stream",result.getString("stream","").replace("AIRPLAY_RECEIVER_SESSION_PASSED","AIRPLAY_RECEIVER_SESSION_FAILED")+"\nCleanup failures (primary outcome preserved):\n"+String.join("\n",cleanup));}
+  }
   runner.finish(resultCode,result);
  }
+ private int engineGeneration(AirPlayEngine engine)throws Exception{java.lang.reflect.Field f=AirPlayEngine.class.getDeclaredField("generation");f.setAccessible(true);return f.getInt(engine);}
+ private Object tvField(String name)throws Exception{java.lang.reflect.Field f=com.mooncast.tv.TvActivity.class.getDeclaredField(name);f.setAccessible(true);return f.get(tvActivity);}
+ private void tvAction(String name)throws Exception{java.lang.reflect.Method method=com.mooncast.tv.TvActivity.class.getDeclaredMethod(name);method.setAccessible(true);Throwable[] error={null};runner.runOnMainSync(()->{try{method.invoke(tvActivity);}catch(Throwable failure){error[0]=failure;}});if(error[0]!=null)throw new AssertionError("TV lifecycle action "+name,error[0]);}
+ private void tvBarrier()throws Exception{((ExecutorService)tvField("networkWorker")).submit(()->{}).get(30,TimeUnit.SECONDS);}
+ private void waitTvReady(AirPlayEngine engine)throws Exception{long end=SystemClock.elapsedRealtime()+60000;while(SystemClock.elapsedRealtime()<end){require(!tvActivity.isFinishing()&&!tvActivity.isDestroyed(),"TV Activity survives");boolean[] available={false};runner.runOnMainSync(()->available[0]=tvTexture.isAvailable());if(engine.isRunning()&&engine.getPort()>0&&available[0])return;SystemClock.sleep(100);}throw new AssertionError("Actual TV receiver startup/TextureView unavailable: "+ReceiverDiagnostics.report());}
+ private boolean tvPixels(int cycle)throws Exception{if(!Boolean.TRUE.equals(tvField("mirrorHasFrame")))return false;android.graphics.Bitmap[] bitmap={null};runner.runOnMainSync(()->bitmap[0]=tvTexture.getBitmap(WIDTH,HEIGHT));android.graphics.Bitmap b=bitmap[0];if(b==null)return false;int left=b.getPixel(WIDTH/4,HEIGHT/2),right=b.getPixel(WIDTH*3/4,HEIGHT/2);b.recycle();int red=cycle==0?left:right,blue=cycle==0?right:left;return android.graphics.Color.red(red)>150&&android.graphics.Color.blue(red)<90&&android.graphics.Color.blue(blue)>150&&android.graphics.Color.red(blue)<90;}
  private void send(int what,Bundle data)throws RemoteException{
   Message message=Message.obtain();message.what=what;data.putInt("token",sessionToken);message.setData(data);
   message.replyTo=new Messenger(new Handler(Looper.getMainLooper(),reply->{Bundle b=reply.getData();if(b.getInt("token")!=sessionToken)return true;

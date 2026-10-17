@@ -24,18 +24,18 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-28;default;x86'
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' emulator 'system-images;android-28;google_apis;x86_64'
       - name: Compile actual production window control in isolated test application
         run: gradle --no-daemon :window-tests:assembleDebug :window-tests:assembleDebugAndroidTest
-      - name: Start lightweight AOSP software emulator without KVM or permission changes
+      - name: Start Android 28 software emulator without KVM or permission changes
         timeout-minutes: 12
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/window-evidence"
           export ANDROID_AVD_HOME="$RUNNER_TEMP/window-avd"
           mkdir -p "$ANDROID_AVD_HOME"
-          echo no | avdmanager create avd --force --name window --package 'system-images;android-28;default;x86' --device pixel_2
-          "$ANDROID_HOME/emulator/emulator" -avd window -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 1536 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/window-evidence/emulator.txt" 2>&1 &
+          echo no | avdmanager create avd --force --name window --package 'system-images;android-28;google_apis;x86_64' --device pixel_2
+          "$ANDROID_HOME/emulator/emulator" -avd window -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/window-evidence/emulator.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/window-emulator.pid"
           deadline=$((SECONDS+660))
           while [ "$SECONDS" -lt "$deadline" ]; do
