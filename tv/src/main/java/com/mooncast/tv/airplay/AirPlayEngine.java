@@ -119,7 +119,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     private WifiManager.MulticastLock multicast;
     private long handle;
     private volatile boolean running;
-    private long diagnosticFrames;
+    private long diagnosticFrames,diagnosticPackets;
     private volatile int boundPort;
     private volatile int generation;
     private boolean mirroring, mirrorReady, mirrorUiReady, surfaceAvailable, startupScheduled;
@@ -141,6 +141,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         audio = (AudioManager) this.context.getSystemService(Context.AUDIO_SERVICE);
         nsd = (NsdManager) this.context.getSystemService(Context.NSD_SERVICE);
         decoder = new MirrorDecoder(new MirrorDecoder.Events() {
+            @Override public void diagnostic(String code,long value){ReceiverDiagnostics.event(code,value);}
             @Override public void size(int w, int h) { post(() -> listener.onVideoSize(w, h)); }
             @Override public void failure() { requestRecovery(resources.getString(R.string.tv_video_decoder_failed), true); }
             @Override public void output() { watchdog.videoOutput();long count=++diagnosticFrames;if(count==1||count%600==0)ReceiverDiagnostics.event("decoded-frame",count); }
@@ -151,13 +152,13 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     }
     public void start(String name, int width, int height, int fps, boolean requirePin) throws Exception {
         if (running) return;
-        ReceiverDiagnostics.event("native-start",generation);diagnosticFrames=0;
+        diagnosticFrames=0;diagnosticPackets=0;
         name = name == null || name.trim().isEmpty() ? "MoonCast TV" : name.trim();
         while (name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 60)
             name = name.substring(0, name.offsetByCodePoints(name.length(), -1));
         if (Looper.myLooper() == Looper.getMainLooper())
             throw new IllegalStateException("Start AirPlay on a background executor");
-        generation++; lastStatus = ""; audioDesired = false; audioHasFocus = false;
+        generation++; ReceiverDiagnostics.event("native-start",generation); lastStatus = ""; audioDesired = false; audioHasFocus = false;
         recoveryPending = false; audioStats = null; audioUsingScreen = false;
         pinRequired = requirePin; activePinRequired = requirePin;
         sessionState = SessionState.STOPPED; watchdog.reset(); decoder.resetStatistics();
@@ -320,7 +321,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
             if (!running || recoveryPending) return;
             recoveryPending = true; sessionState = SessionState.RECOVERING;
             wasMirroring = mirroring; mirroring = mirrorReady = mirrorUiReady = false;
-            mirrorEpoch++; startupFrames.clear(); startupBytes = 0;
+            mirrorEpoch++; ReceiverDiagnostics.event("mirror-epoch",mirrorEpoch); startupFrames.clear(); startupBytes = 0;
         }
         // The owner's lifecycle worker releases MediaCodec/native sockets, never this callback.
         audioDesired = false; controlAudio(); watchdog.endMirror();
@@ -456,7 +457,9 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     @Override public void onVideoData(byte[] bytes, long ntp, boolean hevc) {
         if (!running || recoveryPending || bytes == null || bytes.length < 5 || bytes.length > 16 * 1024 * 1024) return;
         beginMirror();
-        watchdog.videoPacket(SystemClock.elapsedRealtime(), MirrorDecoder.hasVcl(bytes, hevc));
+        boolean vcl=MirrorDecoder.hasVcl(bytes,hevc);
+        watchdog.videoPacket(SystemClock.elapsedRealtime(),vcl);
+        if(vcl){long count=++diagnosticPackets;if(count==1||count%600==0)ReceiverDiagnostics.event("received-vcl",count);}
         final int expectedGeneration = generation, expectedMirror;
         synchronized (mirrorGate) {
             expectedMirror = mirrorEpoch;

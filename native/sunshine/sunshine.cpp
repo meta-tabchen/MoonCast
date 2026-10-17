@@ -296,9 +296,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -306,7 +306,7 @@ namespace sunshine_callbacks {
         jmethodID onPinRequestedMethod = env->GetStaticMethodID(sunshineServerClass, "onPinRequested", "()V");
         if (onPinRequestedMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find onPinRequested method"sv;
-            jvm->DetachCurrentThread();
+            if(env->ExceptionCheck())env->ExceptionClear();
             return;
         }
 
@@ -317,7 +317,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void createVirtualDisplay(JNIEnv *env, jlong session, jint width, jint height, jint frameRate, jint packetDuration, jobject surface, jboolean shouldMute) {
@@ -751,9 +751,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -775,7 +775,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnAbsMouseMove(std::int64_t session, NV_ABS_MOUSE_MOVE_PACKET* packet) {
@@ -789,9 +789,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -811,7 +811,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnRelMouseMove(std::int64_t session, NV_REL_MOUSE_MOVE_PACKET* packet) {
@@ -819,8 +819,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        if (jvm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             return;
         }
 
@@ -832,7 +833,7 @@ namespace sunshine_callbacks {
             env->ExceptionDescribe();
             env->ExceptionClear();
         }
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnMouseButton(std::int64_t session, std::uint8_t button, bool release) {
@@ -848,9 +849,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -868,7 +869,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnMirrorClientDiscovered(std::string mirrorClient) {
@@ -882,9 +883,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -892,11 +893,12 @@ namespace sunshine_callbacks {
         jmethodID onClientDiscoveredMethod = env->GetStaticMethodID(sunshineServerClass, "onMirrorClientDiscovered", "(Ljava/lang/String;)V");
         if (onClientDiscoveredMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find onMirrorClientDiscovered method"sv;
-            jvm->DetachCurrentThread();
+            if(env->ExceptionCheck())env->ExceptionClear();
             return;
         }
 
         jstring jClientName = env->NewStringUTF(mirrorClient.c_str());
+        if(!jClientName){if(env->ExceptionCheck())env->ExceptionClear();return;}
         env->CallStaticVoidMethod(sunshineServerClass, onClientDiscoveredMethod, jClientName);
         env->DeleteLocalRef(jClientName);
 
@@ -905,7 +907,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaSetMirrorServerUuid(std::string uuid) {
@@ -919,9 +921,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -929,11 +931,12 @@ namespace sunshine_callbacks {
         jmethodID setServerUuidMethod = env->GetStaticMethodID(sunshineServerClass, "setMirrorServerUuid", "(Ljava/lang/String;)V");
         if (setServerUuidMethod == nullptr) {
             BOOST_LOG(error) << "Cannot find setMirrorServerUuid method"sv;
-            jvm->DetachCurrentThread();
+            if(env->ExceptionCheck())env->ExceptionClear();
             return;
         }
 
         jstring jUuid = env->NewStringUTF(uuid.c_str());
+        if(!jUuid){if(env->ExceptionCheck())env->ExceptionClear();return;}
         env->CallStaticVoidMethod(sunshineServerClass, setServerUuidMethod, jUuid);
         env->DeleteLocalRef(jUuid);
 
@@ -942,7 +945,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnKeyboard(uint16_t modcode, bool release, uint8_t flags) {
@@ -956,9 +959,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -974,7 +977,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnGamepad(uint32_t buttonFlags, uint8_t lt, uint8_t rt, int16_t lsX, int16_t lsY, int16_t rsX, int16_t rsY) {
@@ -988,9 +991,9 @@ namespace sunshine_callbacks {
             return;
         }
 
-        JNIEnv *env;
-        jint result = jvm->AttachCurrentThread(&env, nullptr);
-        if (result != JNI_OK) {
+        MoonCastJniScope scope(jvm);
+        JNIEnv *env=scope.env;
+        if (env == nullptr) {
             BOOST_LOG(error) << "Failed to attach to Java thread"sv;
             return;
         }
@@ -1009,7 +1012,7 @@ namespace sunshine_callbacks {
             env->ExceptionClear();
         }
 
-        jvm->DetachCurrentThread();
+
     }
 
     void callJavaOnVideoFrame(const uint8_t* data, size_t size, bool isKeyframe) {

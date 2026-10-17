@@ -71,6 +71,13 @@ jobs:
           python3 scripts/run_airplay_rtp_transition_tests.py
       - name: Build actual emulator fixtures
         run: gradle --no-daemon :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
+      - name: Preserve exact emulator APKs for diagnostic re-runs
+        uses: actions/upload-artifact@v4
+        with:
+          name: receiver-${{ matrix.runtime }}-emulator-apks
+          path: |
+            unified/build/outputs/apk/debug/unified-debug.apk
+            unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk
       - name: Build and verify both signed candidate APKs
         if: matrix.runtime == 'patched'
         run: |
@@ -95,7 +102,7 @@ jobs:
           echo no | avdmanager create avd --force --name receiver --path "$ANDROID_AVD_HOME/receiver.avd" --package 'system-images;android-30;google_apis;x86_64' --device pixel_2
           accel=off; if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then accel=on; fi
           echo "acceleration=$accel; no permissions or host security settings changed"
-          "$ANDROID_HOME/emulator/emulator" -avd receiver -no-window -no-audio -no-boot-anim -no-snapshot -gpu software -accel "$accel" > "$RUNNER_TEMP/receiver-evidence/emulator.txt" 2>&1 &
+          "$ANDROID_HOME/emulator/emulator" -avd receiver -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel "$accel" > "$RUNNER_TEMP/receiver-evidence/emulator.txt" 2>&1 &
           pid=$!; deadline=$((SECONDS + 900))
           while [ "$SECONDS" -lt "$deadline" ]; do
             kill -0 "$pid" || { cat "$RUNNER_TEMP/receiver-evidence/emulator.txt"; exit 1; }

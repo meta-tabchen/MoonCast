@@ -155,7 +155,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
             @Override public void onSurfaceTextureAvailable(SurfaceTexture t,int w,int h){Surface created=new Surface(t);mirrorSurface=created;com.mooncast.tv.airplay.AirPlaySurfaces.attach(airplay,created,()->mirrorSurface==created&&!destroyed);mirrorFraming.apply();}
             @Override public void onSurfaceTextureSizeChanged(SurfaceTexture t,int w,int h){mirrorFraming.apply();}
             @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture t){Surface old=mirrorSurface;mirrorSurface=null;com.mooncast.tv.airplay.AirPlaySurfaces.retire(airplay,old,t);return false;}
-            @Override public void onSurfaceTextureUpdated(SurfaceTexture t){if(playingMirror&&requested&&!gameOwned&&!dlnaOwnsAudio){mirrorHasFrame=true;blackout.setVisibility(View.GONE);}}
+            @Override public void onSurfaceTextureUpdated(SurfaceTexture t){if(playingMirror&&requested&&!gameOwned&&!dlnaOwnsAudio){if(!mirrorHasFrame)ReceiverDiagnostics.event("texture-first-frame",0);mirrorHasFrame=true;blackout.setVisibility(View.GONE);}}
         });
         configureAirplay();
         createGameStream();
@@ -373,7 +373,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     }
     private record Lan(Inet4Address address,int prefix,String key){}
     private Lan findLan(){Network network=connectivity.getActiveNetwork();if(network==null)return null;NetworkCapabilities caps=connectivity.getNetworkCapabilities(network);if(caps==null||caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)||(!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;LinkProperties props=connectivity.getLinkProperties(network);if(props==null)return null;for(LinkAddress a:props.getLinkAddresses())if(a.getAddress() instanceof Inet4Address ip&&!ip.isLoopbackAddress()&&!ip.isLinkLocalAddress())return new Lan(ip,a.getPrefixLength(),network+":"+ip.getHostAddress());return null;}
-    private void networkChanged(){main.postDelayed(()->{if(apkReceiver!=null){Lan current=findLan();apkReceiver.onNetworkChanged(current==null?"":current.key()+":"+current.prefix());}if(!requested||!foreground)return;Lan lan=findLan();String key=lan==null?"":lan.key();if(!key.equals(activeNetwork)){showStatus(getString(R.string.network_change));startReceiver();}},750);}
+    private void networkChanged(){ReceiverDiagnostics.event("network-changed",0);main.postDelayed(()->{if(apkReceiver!=null){Lan current=findLan();apkReceiver.onNetworkChanged(current==null?"":current.key()+":"+current.prefix());}if(!requested||!foreground)return;Lan lan=findLan();String key=lan==null?"":lan.key();if(!key.equals(activeNetwork)){showStatus(getString(R.string.network_change));startReceiver();}},750);}
     private void startReceiver(){
         com.mooncast.tv.airplay.ReceiverDiagnostics.event("receiver-start",generation);
         if(identityResetting)return;receiverName=com.mooncast.locale.DeviceName.get(this);panel.setReceiverName(receiverName);receiverReady=false;airplayProblem=false;dlnaProblem=false;panel.setHint("");stopMediaOnly();airplaySuspended=true;
@@ -407,7 +407,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void stopReceiver(){
         com.mooncast.tv.airplay.ReceiverDiagnostics.event("receiver-stop",generation);requested=false;receiverReady=false;++generation;activeNetwork="";stop();panel.setReceiving(false);showStatus(getString(R.string.waiting));networkWorker.execute(this::closeServers);showPanel();}
     private void closeServers(){if(dlna!=null){dlna.stop();dlna=null;}if(airplay!=null)airplay.stop();if(multicast!=null){try{if(multicast.isHeld())multicast.release();}catch(RuntimeException ignored){}multicast=null;}}
-    @Override protected void onNewIntent(android.content.Intent intent){super.onNewIntent(intent);setIntent(intent);if(foreground&&!requested&&!identityResetting)startReceiver();}
+    @Override protected void onNewIntent(android.content.Intent intent){ReceiverDiagnostics.event("activity-new-intent",0);super.onNewIntent(intent);setIntent(intent);if(foreground&&!requested&&!identityResetting)startReceiver();}
     @Override protected void onActivityResult(int request,int result,android.content.Intent data){super.onActivityResult(request,result,data);apkReceiver.onActivityResult(request,result);}
     @Override protected void onResume(){super.onResume();apkReceiver.onResume();}
     @Override protected void onPause(){apkReceiver.onPause();super.onPause();}

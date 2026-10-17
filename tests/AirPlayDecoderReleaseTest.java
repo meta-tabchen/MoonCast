@@ -30,6 +30,8 @@ public final class AirPlayDecoderReleaseTest {
     }
     private static final class Events implements MirrorDecoder.Events {
         int failures;
+        final java.util.List<String> diagnostics=new java.util.ArrayList<>();
+        public void diagnostic(String code,long value){check(code.matches("[a-z0-9_-]{1,40}"),"bounded diagnostic code only");diagnostics.add(code);}
         public void size(int width, int height) { }
         public void failure() { failures++; }
         public void output() { throw new AssertionError("Synthetic codecs must not produce frames"); }
@@ -116,6 +118,7 @@ public final class AirPlayDecoderReleaseTest {
             check(!decoder.active() && !decoder.releaseFailed(), "Successful cleanup must fully stop codec");
             check(original.codecOwners() == 0 && replacement.codecOwners() == 0,
                     "Successful cleanup must leave no producer owners");
+            check(events.diagnostics.contains("decoder-create")&&events.diagnostics.contains("decoder-released"),"decoder creation and confirmed release recorded");
             original.release(); replacement.release();
         }
     }

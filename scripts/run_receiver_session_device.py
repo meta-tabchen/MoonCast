@@ -18,6 +18,10 @@ try:
  for file in [a.debug,a.test]:
   result=adb('install','-r','-t',file,timeout=180);evidence.append(result.stdout+result.stderr)
   if result.returncode or 'Success' not in result.stdout:raise RuntimeError('Fixture installation failed')
+ result=adb('shell','am','instrument','-w','-r','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=180)
+ load_text=result.stdout+result.stderr;evidence.append(load_text)
+ status['nativeLoadPassed']=result.returncode==0 and 'actual Android sender/receiver JNI loads' in load_text and 'INSTRUMENTATION_CODE: -1' in load_text and 'INSTRUMENTATION_FAILED' not in load_text
+ if not status['nativeLoadPassed']:raise RuntimeError('Actual sender/receiver library load or isolated process test failed')
  result=adb('shell','am','instrument','-w','-r','-e','suite','airplay-receiver','com.mooncast.community.test/com.mooncast.unified.UnifiedInstrumentation',timeout=300)
  text=result.stdout+result.stderr;evidence.append(text);status['returnCode']=result.returncode
  passed=result.returncode==0 and 'AIRPLAY_RECEIVER_SESSION_PASSED' in text and 'INSTRUMENTATION_CODE: -1' in text and 'INSTRUMENTATION_FAILED' not in text
@@ -32,6 +36,9 @@ finally:
   logs=adb('logcat','-d','-t','2000','-v','threadtime',timeout=30)
   # This disposable device contains only generated fixtures, never user media.
   (a.output/'logcat.txt').write_text(logs.stdout)
+  if not passed:
+   print('Disposable emulator diagnostic tail:')
+   print('\n'.join(logs.stdout.splitlines()[-180:]))
  except Exception as failure:status['logCaptureFailure']=type(failure).__name__
  (a.output/'result.json').write_text(json.dumps(status,indent=2)+'\n');print('\n'.join(evidence));print(json.dumps(status,indent=2))
 if not passed:raise SystemExit('AirPlay receiver session test failed/blocked/process exited; see captured evidence')

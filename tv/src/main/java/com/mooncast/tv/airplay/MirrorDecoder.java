@@ -15,6 +15,7 @@ final class MirrorDecoder {
         void size(int width, int height);
         void failure();
         void output();
+        default void diagnostic(String code,long value) {}
     }
     private static final java.util.concurrent.ScheduledExecutorService DRAINER =
             java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
@@ -33,7 +34,7 @@ final class MirrorDecoder {
     private int decodedWidth, decodedHeight;
     private long fpsWindowNs, fpsFrames, lastOutputNs;
     private float observedFps;
-    private long frameCount, droppedFrames;
+    private long frameCount, droppedFrames, codecGeneration;
     private byte[] codecConfig;
     private boolean errorReported;
     MirrorDecoder(Events events) { this.events = events; }
@@ -48,9 +49,10 @@ final class MirrorDecoder {
     synchronized void setSurface(Surface value) {
         if (releaseFailed) { stopCodec(); if (releaseFailed) return; }
         if (surface == value) return;
+        events.diagnostic("decoder-surface",value==null?0:1);
         surface = value;
         if (codec != null && value != null && value.isValid()) {
-            try { codec.setOutputSurface(value); return; } catch (RuntimeException ignored) { /* reconnect decoder */ }
+            try { codec.setOutputSurface(value); return; } catch (RuntimeException failure) { events.diagnostic("decoder-surface-error",failure.getClass().getName().hashCode()); }
         }
         stopCodec();
     }
@@ -59,6 +61,7 @@ final class MirrorDecoder {
         fps = Math.max(24, Math.min(frameRate, 60));
         if (width == w && height == h) return;
         width = w; height = h;
+        events.diagnostic("decoder-request-size",((long)w<<32)|(h&0xffffffffL));
         // A codec-config packet follows orientation changes; avoid stale geometry.
         stopCodec(); codecConfig = null;
     }
@@ -96,6 +99,7 @@ final class MirrorDecoder {
             if (!queue(data, ntpNs)) droppedFrames++;
             drain();
         } catch (Exception failure) {
+            events.diagnostic("decoder-feed-error",failure.getClass().getName().hashCode());
             stopCodec();
             if (!errorReported) { errorReported = true; events.failure(); }
         }
@@ -117,9 +121,12 @@ final class MirrorDecoder {
                 if (!movie && Build.VERSION.SDK_INT >= 30
                         && info.getCapabilitiesForType(mime).isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency))
                     format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
+                events.diagnostic("decoder-create",++codecGeneration);
+                events.diagnostic("decoder-identity",info.getName().hashCode());
                 candidate = MediaCodec.createByCodecName(info.getName());
                 candidate.configure(format, surface, null, 0);
                 candidate.start(); codec = candidate; errorReported = false;
+                events.diagnostic("decoder-started",codecGeneration);
                 decoderName = info.getName();
                 implementation = Build.VERSION.SDK_INT >= 29
                         ? (info.isHardwareAccelerated() ? "hardware" : info.isSoftwareOnly() ? "software" : "unknown")
@@ -129,6 +136,7 @@ final class MirrorDecoder {
                     synchronized (MirrorDecoder.this) {
                         if (codec == null) return;
                         try { drain(); } catch (RuntimeException failure) {
+                            events.diagnostic("decoder-drain-error",failure.getClass().getName().hashCode());
                             stopCodec();
                             if (!errorReported) { errorReported = true; events.failure(); }
                         }
@@ -136,10 +144,11 @@ final class MirrorDecoder {
                 }, 8, 8, java.util.concurrent.TimeUnit.MILLISECONDS);
                 return;
             } catch (Exception failure) {
-                last = failure;
+                last = failure; events.diagnostic("decoder-config-error",failure.getClass().getName().hashCode());
                 if (candidate != null) {
-                    try { candidate.release(); }
+                    try { candidate.release(); events.diagnostic("decoder-released",codecGeneration); }
                     catch (RuntimeException releaseFailure) {
+                        events.diagnostic("decoder-release-error",releaseFailure.getClass().getName().hashCode());
                         codec = candidate; releaseFailed = true;
                         throw new IllegalStateException("Configured decoder release is unconfirmed", releaseFailure);
                     }
@@ -177,7 +186,7 @@ final class MirrorDecoder {
                     w = format.getInteger("crop-right") - format.getInteger("crop-left") + 1;
                 if (format.containsKey("crop-bottom") && format.containsKey("crop-top"))
                     h = format.getInteger("crop-bottom") - format.getInteger("crop-top") + 1;
-                decodedWidth = w; decodedHeight = h; events.size(w, h); continue;
+                decodedWidth = w; decodedHeight = h; events.diagnostic("decoder-output-size",((long)w<<32)|(h&0xffffffffL)); events.size(w, h); continue;
             }
             if (index < 0) return;
             if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
@@ -199,9 +208,10 @@ final class MirrorDecoder {
     private void stopCodec() {
         if (drainTask != null) { drainTask.cancel(false); drainTask = null; }
         if (codec != null) {
-            try { codec.stop(); } catch (RuntimeException ignored) {}
-            try { codec.release(); codec = null; releaseFailed = false; }
-            catch (RuntimeException failure) { releaseFailed = true; }
+            events.diagnostic("decoder-stop",codecGeneration);
+            try { codec.stop(); } catch (RuntimeException failure) { events.diagnostic("decoder-stop-error",failure.getClass().getName().hashCode()); }
+            try { codec.release(); codec = null; releaseFailed = false; events.diagnostic("decoder-released",codecGeneration); }
+            catch (RuntimeException failure) { releaseFailed = true; events.diagnostic("decoder-release-error",failure.getClass().getName().hashCode()); }
         }
         timing.reset();
     }

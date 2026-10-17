@@ -9,6 +9,10 @@ s=(r/'native/sunshine/sunshine.cpp').read_text();start=s.index('        const in
 configure=s[start:end]
 bridge=(r/'native/sunshine/airplay_bridge.cpp').read_text();bridge=bridge[bridge.index('void sendVideoFrame('):bridge.index('} // namespace airplay_bridge')]
 chain=s[s.index('    void callJavaOnVideoFrame('):s.rindex('}')]
+pin=s[s.index('    void callJavaOnPinRequested()'):s.index('    void createVirtualDisplay(')]
+uuid=s[s.index('    void callJavaSetMirrorServerUuid('):s.index('    void callJavaOnKeyboard(')]
+assert 'AttachCurrentThread' not in s[s.index('namespace sunshine_callbacks {'):], 'callbacks must use owned JNI scopes'
+chain=pin+uuid+chain
 symbols='static jclass airPlayServiceClass=(void*)1;static jmethodID airPlaySendFrameMethod=(void*)1;' 
 header='''#pragma once
 using jint=int;
@@ -17,8 +21,8 @@ using jint=int;
 #define JNI_EDETACHED -2
 #include <cstdint>
 #include <cstddef>
-using jclass=void*;using jmethodID=void*;using jbyteArray=void*;using jbyte=char;using jboolean=bool;
-struct JNIEnv {jbyteArray NewByteArray(size_t);void SetByteArrayRegion(jbyteArray,int,size_t,const jbyte*);void CallStaticVoidMethod(jclass,jmethodID,jbyteArray,jboolean);void DeleteLocalRef(void*);bool ExceptionCheck();void ExceptionDescribe();void ExceptionClear();};
+using jclass=void*;using jmethodID=void*;using jstring=void*;using jbyteArray=void*;using jbyte=char;using jboolean=bool;
+struct JNIEnv {jmethodID GetStaticMethodID(jclass,const char*,const char*);jstring NewStringUTF(const char*);void CallStaticVoidMethod(jclass,jmethodID);void CallStaticVoidMethod(jclass,jmethodID,jstring);jbyteArray NewByteArray(size_t);void SetByteArrayRegion(jbyteArray,int,size_t,const jbyte*);void CallStaticVoidMethod(jclass,jmethodID,jbyteArray,jboolean);void DeleteLocalRef(void*);bool ExceptionCheck();void ExceptionDescribe();void ExceptionClear();};
 struct JavaVM {jint GetEnv(void**,jint);jint AttachCurrentThread(JNIEnv**,void*);jint DetachCurrentThread();};
 '''
 source=r'''
@@ -38,7 +42,13 @@ void JNIEnv::SetByteArrayRegion(jbyteArray,int,size_t,const jbyte*){assert(attac
 void JNIEnv::CallStaticVoidMethod(jclass,jmethodID,jbyteArray,jboolean){assert(attached);}
 void JNIEnv::DeleteLocalRef(void*){assert(attached);}
 bool JNIEnv::ExceptionCheck(){return pendingException;}void JNIEnv::ExceptionDescribe(){}void JNIEnv::ExceptionClear(){pendingException=false;}
-JavaVM* jvm=nullptr;
+jmethodID JNIEnv::GetStaticMethodID(jclass,const char*,const char*){assert(attached);return (void*)1;}
+jstring JNIEnv::NewStringUTF(const char*){assert(attached);if(failedAllocation){pendingException=true;return nullptr;}return (void*)1;}
+void JNIEnv::CallStaticVoidMethod(jclass,jmethodID){assert(attached);}
+void JNIEnv::CallStaticVoidMethod(jclass,jmethodID,jstring){assert(attached);}
+using namespace std::literals;struct Logger{template<class T> Logger& operator<<(const T&){return *this;}};
+#define BOOST_LOG(level) Logger{}
+JavaVM* jvm=nullptr;jclass sunshineServerClass=(void*)1;
 namespace airplay_bridge { BRIDGE }
 namespace sunshine_callbacks { CHAIN }
 using AMediaFormat=std::map<std::string,int>;
@@ -57,7 +67,7 @@ CONFIGURE
 }
 int main(){
  JavaVM vm;jvm=&vm;std::vector<std::thread> threads;
- for(int i=0;i<64;i++)threads.emplace_back([&]{MoonCastJniScope owner(&vm);assert(owner.env);{MoonCastJniScope nested(&vm);assert(nested.env==owner.env);}assert(attached);uint8_t frame[4]={0,0,1,5};sunshine_callbacks::callJavaOnVideoFrame(frame,4,true);assert(attached);failedAllocation=true;sunshine_callbacks::callJavaOnVideoFrame(frame,4,true);assert(attached&&!pendingException);});
+ for(int i=0;i<64;i++)threads.emplace_back([&]{MoonCastJniScope owner(&vm);assert(owner.env);{MoonCastJniScope nested(&vm);assert(nested.env==owner.env);}assert(attached);sunshine_callbacks::callJavaOnPinRequested();sunshine_callbacks::callJavaSetMirrorServerUuid("fixture-id");assert(attached);uint8_t frame[4]={0,0,1,5};sunshine_callbacks::callJavaOnVideoFrame(frame,4,true);assert(attached);failedAllocation=true;sunshine_callbacks::callJavaSetMirrorServerUuid("fixture-id");assert(attached&&!pendingException);sunshine_callbacks::callJavaOnVideoFrame(frame,4,true);assert(attached&&!pendingException);});
  for(auto& t:threads)t.join();assert(attaches==64&&detaches==64);
  attached=true;{MoonCastJniScope borrowed(&vm);assert(borrowed.env);}assert(attached&&detaches==64);attached=false;
  fail=true;{MoonCastJniScope failed(&vm);assert(!failed.env);}assert(attaches==64&&detaches==64);fail=false;
