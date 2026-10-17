@@ -28,6 +28,13 @@ public final class VideoPipeline {
     private final HandlerThread thread=new HandlerThread("MoonCastGL");
     private Handler handler;
     private volatile boolean closed;
+    private volatile boolean paused;
+    public void setPaused(boolean value){paused=value;if(handler!=null)handler.post(()->{handler.removeCallbacks(pausedFrame);if(paused)handler.post(pausedFrame);else if(!closed&&texture!=null)frame();});}
+    private final Runnable pausedFrame=new Runnable(){public void run(){
+        if(closed||!paused)return;
+        try{if(haveFrame)render(System.nanoTime());}catch(RuntimeException failure){events.error(PhoneMessages.message(R.string.phone_gpu_render_failed,failure.getMessage()));return;}
+        handler.postDelayed(this,100);
+    }};
     private boolean followsDisplay;
     private boolean detectPortraitContent;
     public void setDetectPortraitContent(boolean enabled){detectPortraitContent=enabled;}
@@ -58,7 +65,7 @@ public final class VideoPipeline {
     public void setFrameLimit(int fps){frameLimit=Math.max(15,Math.min(120,fps));}
     private final Runnable probe=new Runnable(){public void run(){
         if(closed)return;
-        try{if(haveFrame && autoMode() && (sourceW>sourceH || detectPortraitContent) && detect())render(System.nanoTime());}
+        try{if(!paused && haveFrame && autoMode() && (sourceW>sourceH || detectPortraitContent) && detect())render(System.nanoTime());}
         catch(Exception e){events.error(PhoneMessages.message(R.string.phone_crop_sample_failed , e.getMessage()));close();return;}
         handler.postDelayed(this,250);
     }};
@@ -76,11 +83,11 @@ public final class VideoPipeline {
     }
     public void addOutput(long session,Surface surface,int width,int height){
         if(width<1 || height<1 || width>8192 || height>8192)throw new IllegalArgumentException(PhoneMessages.message(R.string.phone_output_size_invalid));
-        handler.post(()->{if(closed)return;try{if(targets.containsKey(session))return;current(home);Target target=new Target(surface,width,height);target.window=createWindow(surface);targets.put(session,target);int limit=Math.max(maxOutputSize,Math.max(width,height));if(limit!=maxOutputSize){maxOutputSize=limit;if(followsDisplay)resizeInternal(screenW,screenH);}if(haveFrame)render(System.nanoTime());}catch(Exception e){events.error(PhoneMessages.message(R.string.phone_encoder_output_failed , e.getMessage()));}});
+        handler.post(()->{if(closed)return;try{if(targets.containsKey(session))return;current(home);Target target=new Target(surface,width,height);target.window=createWindow(surface);targets.put(session,target);recomputeOutputLimit();if(haveFrame)render(System.nanoTime());}catch(Exception e){events.error(PhoneMessages.message(R.string.phone_encoder_output_failed , e.getMessage()));}});
     }
     public void removeOutput(long session,Runnable removed){
         if(handler==null || closed){removed.run();return;}
-        handler.post(()->{try{Target target=targets.remove(session);if(target!=null && target.window!=EGL14.EGL_NO_SURFACE){current(home);EGL14.eglDestroySurface(egl,target.window);}}finally{removed.run();}});
+        handler.post(()->{try{Target target=targets.remove(session);if(target!=null && target.window!=EGL14.EGL_NO_SURFACE){current(home);EGL14.eglDestroySurface(egl,target.window);}recomputeOutputLimit();}finally{removed.run();}});
     }
     /** Resize a consumer whose SurfaceTexture buffer size changed, without another capture grant. */
     public void resizeOutput(long session,int width,int height){
@@ -93,8 +100,14 @@ public final class VideoPipeline {
             Target next=new Target(previous.surface,width,height);
             next.window=previous.window;next.timestamp=previous.timestamp;
             targets.put(session,next);
-            maxOutputSize=Math.max(maxOutputSize,Math.max(width,height));
+            recomputeOutputLimit();
         });
+    }
+    private void recomputeOutputLimit(){
+        int[] sizes=new int[targets.size()*2];int i=0;for(Target target:targets.values()){sizes[i++]=target.width;sizes[i++]=target.height;}
+        int limit=OutputSizePolicy.liveLimit(maxOutputSize,sizes);
+        // No consumers: retain the existing capture until reconnect, never resize to zero.
+        if(limit>0&&limit!=maxOutputSize){maxOutputSize=limit;if(texture!=null)resizeInternal(screenW,screenH);}
     }
     public static DisplayMetrics metrics(DisplayManager m){DisplayMetrics result=new DisplayMetrics();m.getDisplay(Display.DEFAULT_DISPLAY).getRealMetrics(result);return result;}
     public void start(int width,int height,boolean followDisplay,Factory factory){
@@ -169,11 +182,11 @@ public final class VideoPipeline {
         GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER,0);
     }
     private void frame(){
-        if(closed)return;
+        if(closed||paused)return;
         try{
             current(home);texture.updateTexImage();texture.getTransformMatrix(transform);
             haveFrame=true;long now=System.nanoTime();
-            if(now-lastRendered>=1_000_000_000L/frameLimit){render(texture.getTimestamp());lastRendered=now;}
+            if(!paused && now-lastRendered>=1_000_000_000L/frameLimit){render(texture.getTimestamp());lastRendered=now;}
             if(++frames==1)events.message(PhoneMessages.message(R.string.phone_gpu_first_frame));
         }catch(Exception e){if(!closed){events.error(PhoneMessages.message(R.string.phone_gpu_render_failed , e.getMessage()));close();}}
     }

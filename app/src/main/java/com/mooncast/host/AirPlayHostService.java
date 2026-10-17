@@ -31,6 +31,8 @@ public final class AirPlayHostService extends Service {
     private AirPlayPlaybackAudio audio;
     private LocalAudioMute localMute;
     private PowerManager.WakeLock wake;
+    private CastControls controls;
+    private volatile boolean castPaused;
     private android.net.wifi.WifiManager.MulticastLock audioDiscoveryLock;
     private volatile boolean stopping;
     private boolean started, ownsCapture, cleanupStarted, connected, pinPending, wantsAudio, mutePhone, legacy, wholeScreen;
@@ -70,7 +72,9 @@ public final class AirPlayHostService extends Service {
     }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
+        if(CastControls.isAction(intent.getAction())&&controls==null){stopSelf();return START_NOT_STICKY;}
         if ("stop".equals(intent.getAction())) { stopSender(); return START_NOT_STICKY; }
+        if(controls!=null&&controls.handle(intent.getAction()))return START_NOT_STICKY;
         if (started) return START_NOT_STICKY;
         Messenger initialReply = intent.getParcelableExtra("statusReply");
         if (initialReply != null) subscriber = initialReply;
@@ -106,6 +110,11 @@ public final class AirPlayHostService extends Service {
             }, main);
             wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MoonCast:AirPlay");
             wake.acquire(6 * 60 * 60 * 1000L);
+            controls=new CastControls(this,"airplay",8,new CastControls.Session(){
+                public boolean connected(){return !stopping&&connected&&video!=null;}
+                public boolean pause(boolean value){if(!connected())return false;video.pause(value);castPaused=value;return true;}
+                public void stop(){stopSender();}
+            },null);
             // The upstream bare legacy path sends empty SETUP /video and skips
             // /info, pairing and FairPlay. Real AirPlay mirrors require negotiated
             // session/stream plists. The saved compatibility option now limits
@@ -219,7 +228,7 @@ public final class AirPlayHostService extends Service {
             audio = new AirPlayPlaybackAudio(); audio.start(this, projection, new AirPlayPlaybackAudio.Output() {
                 public void audio(byte[] bytes) { if (!stopping && token == generation.get()) {
                     int peak=0; for(int i=0;i+1<bytes.length;i+=2) peak=Math.max(peak,Math.abs((int)(short)((bytes[i]&255)|(bytes[i+1]<<8))));
-                    pcmPeak=peak; pcmFrames++; active.sendAudio(bytes);
+                    pcmPeak=peak; pcmFrames++; if(castPaused)java.util.Arrays.fill(bytes,(byte)0);active.sendAudio(bytes);
                 } }
                 public void failed(String reason) { main.post(() -> { if (!stopping && token == generation.get()) { closeAudio(); log(getString(R.string.ui_audio_capture_unavailable_video_continues) + reason); publish(); } }); }
             });
@@ -264,7 +273,7 @@ public final class AirPlayHostService extends Service {
         main.post(this::finishStop);
     }
     private void finishStop() {
-        if (cleanupStarted) return; cleanupStarted = true; publish(); restoreVolume(); releaseAudioDiscovery();
+        if (cleanupStarted) return; cleanupStarted = true;if(controls!=null){controls.close();controls=null;} publish(); restoreVolume(); releaseAudioDiscovery();
         // Close Go pipes before waiting for audio/video workers blocked by network backpressure.
         Session old = session; session = null;
         new Thread(() -> {
@@ -312,7 +321,7 @@ public final class AirPlayHostService extends Service {
         if(stopping || !error.isEmpty() || now-lastDiagnosticSave>5000) {AirPlayDiagnosticStore.save(getFilesDir(),report);lastDiagnosticSave=now;}
         if (subscriber == null) return;
         Bundle b = new Bundle(); b.putString("state", state); b.putString("detail", detail); b.putString("error", error);
-        b.putBoolean("audioRunning", audio != null); b.putBoolean("stopping", stopping); b.putBoolean("connected", connected); b.putBoolean("pinPending", pinPending);
+        b.putBoolean("paused",castPaused);b.putBoolean("audioRunning", audio != null); b.putBoolean("stopping", stopping); b.putBoolean("connected", connected); b.putBoolean("pinPending", pinPending);
         b.putInt("scaleMode", scaleMode); b.putString("protocol", "airplay"); b.putInt("pid", android.os.Process.myPid());
         b.putString("diagnosticReport",report);
         if(wantsAudio && connected && audio==null) {

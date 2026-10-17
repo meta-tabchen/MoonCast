@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="controls_bubble">投屏</string>
+    <string name="controls_collapse">收起</string>
+    <string name="controls_pause">暂停画面和声音</string>
+    <string name="controls_resume">继续画面和声音</string>
+    <string name="controls_paused">投屏已暂停</string>
+    <string name="controls_screen_off">熄灭屏幕</string>
+    <string name="controls_cancel_off">取消熄屏</string>
+    <string name="controls_test_instructions">唤醒测试：3 秒后熄屏，请轻触一次屏幕。如果触摸无效，15 秒后自动恢复亮屏。</string>
+    <string name="controls_off_countdown">3 秒后熄屏，点击取消或恢复亮屏可取消。</string>
+    <string name="controls_test_confirm">是否在 15 秒计时结束前，由你的触摸恢复了亮屏？请仅在亲眼确认有效后选择“是”。仅用于本设备、本次投屏。</string>
+    <string name="controls_test_yes">是，触摸恢复了亮屏</string>
+    <string name="controls_verified">本次投屏已确认触摸唤醒。再次熄屏会持续到轻触屏幕、断开连接或停止投屏。</string>
+    <string name="controls_test_timeout">未验证触摸唤醒，将保持亮屏。</string>
+    <string name="controls_touch_restore">轻触手机屏幕一次即可恢复亮屏。</string>
+    <string name="controls_panel_unavailable">熄屏需要悬浮窗权限及已授权的 Root 或 Shizuku。当前保持亮屏。</string>
+    <string name="controls_restore_retry">亮屏恢复失败；特权辅助进程将重试，或在 30 秒租约到期后恢复。</string>
+    <string name="controls_overlay_denied">悬浮控件不可用，请使用投屏通知中的操作。</string>
+    <string name="controls_not_connected">请先连接接收端并继续投屏。</string>
+    <string name="controls_capture_notice">整屏投屏可能包含悬浮按钮；不会用安全窗口制造黑块。</string>
+    <string name="controls_notification">手机默认保持亮屏，可通过通知或悬浮按钮操作。</string>
+    <string name="controls_settings">投屏悬浮控件</string>
+    <string name="controls_enable">启用悬浮控件</string>
+    <string name="controls_permission_hint">允许 MoonCast 显示在其他应用上层后，可拖动悬浮按钮。拒绝权限仍可使用通知操作。</string>
+    <string name="controls_shizuku">授权 Shizuku 以手动熄屏</string>
+    <string name="controls_disabled">已关闭悬浮控件，下次投屏生效。</string>
+</resources>

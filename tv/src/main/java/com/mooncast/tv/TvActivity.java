@@ -104,6 +104,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private long pendingSeek;
     private volatile int allowedMediaProxyPort=-1;
     private String uri="",metadata="",receiverName,uuid;
+    private String gameRequested="";
     private String activeNetwork="";
     private final Runnable tick=new Runnable(){@Override public void run(){
         if(destroyed)return;
@@ -122,7 +123,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     };
     @Override protected void attachBaseContext(Context base){super.attachBaseContext(com.mooncast.locale.AppLocale.wrap(base));}
     @Override public void onCreate(Bundle state){
-        super.onCreate(state);
+        super.onCreate(state);com.mooncast.tv.airplay.ReceiverDiagnostics.initialize(this);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN|View.SYSTEM_UI_FLAG_HIDE_NAVIGATION|View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         preferences=getSharedPreferences("receiver-settings",MODE_PRIVATE);
@@ -130,7 +131,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         quality=preferences.getInt("media.quality",0);
         String saved=getPreferences(MODE_PRIVATE).getString("receiver_id",null);
         if(saved==null){saved=UUID.randomUUID().toString();getPreferences(MODE_PRIVATE).edit().putString("receiver_id",saved).apply();}
-        uuid=saved;receiverName=getString(R.string.tv_app_name)+" "+uuid.substring(0,4).toUpperCase(java.util.Locale.ROOT);
+        uuid=saved;receiverName=com.mooncast.locale.DeviceName.get(this);
         apkReceiver=new com.mooncast.tv.apk.ApkReceiveController(this);
         apkReceiver.restoreState(state);
         createUi();
@@ -211,7 +212,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         Lan lan=findLan();if(lan==null){notice(R.string.gs_network_required);return;}
         LanAccess access=new LanAccess(lan.address(),lan.prefix());
         try{host.endpoint.requireOnLan(access);}catch(IllegalArgumentException e){notice(R.string.gs_network_required);return;}
-        stopMediaOnly();gameOwned=true;gameConnecting=true;airplaySuspended=true;gameHasFrame=false;int token=++gameEpoch;
+        gameRequested=getString(R.string.gs_requested_details,quality.width,quality.height,quality.fps,quality.bitrateKbps);stopMediaOnly();gameOwned=true;gameConnecting=true;airplaySuspended=true;gameHasFrame=false;int token=++gameEpoch;
         gameFraming.sourceProfile("gamestream");mediaTexture.setVisibility(View.INVISIBLE);gameTexture.setVisibility(View.VISIBLE);
         details.setText(R.string.gs_connecting);showPanel();
         networkWorker.execute(()->{airplay.stop();if(!airplayStoppedSafely()||!awaitGameStopped())return;main.post(()->{
@@ -258,9 +259,11 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void advancedDialog(){
         boolean unified=isUnifiedApp();
         java.util.ArrayList<String> labels=new java.util.ArrayList<>();
-        labels.add(getString(R.string.theme_title));if(unified){labels.add(getString(R.string.tv_device_mode));labels.add(getString(R.string.tv_language));}
+        labels.add(getString(com.mooncast.locale.R.string.device_name_title));labels.add(getString(R.string.theme_title));if(unified){labels.add(getString(R.string.tv_device_mode));labels.add(getString(R.string.tv_language));}
         for(int id:new int[]{R.string.playback_controls,R.string.quality,R.string.recovery_settings,R.string.diagnostics_title,R.string.cast_guide_title,R.string.about,R.string.gs_connect_title})labels.add(getString(id));
         new AlertDialog.Builder(this).setTitle(R.string.advanced_title).setItems(labels.toArray(new String[0]),(d,w)->{
+            if(w==0){com.mooncast.locale.DeviceName.show(this,()->{});return;}
+            w--;
             if(w==0){TvThemeDialog.show(this,preferences,panel);return;}
             if(unified&&w==1){switchUnifiedRole();return;}
             if(unified&&w==2){switchUnifiedLanguage();return;}
@@ -269,7 +272,7 @@ public final class TvActivity extends Activity implements PlaybackTarget {
         }).setNegativeButton(R.string.close,null).show();
     }
     private void playbackDialog(){boolean media=mediaPresentationEnabled&&!uri.isEmpty();String[] choices=media?new String[]{getString(player.isPlaying()?R.string.pause_action:R.string.resume_action),getString(R.string.stop_media)}:new String[]{getString(R.string.stop_media)};new AlertDialog.Builder(this).setTitle(R.string.playback_controls).setItems(choices,(d,w)->{if(media&&w==0){if(player.isPlaying())pause();else play();}else stop();}).setNegativeButton(R.string.close,null).show();}
-    private void diagnosticsDialog(){updateRuntime();new AlertDialog.Builder(this).setTitle(R.string.diagnostics_title).setMessage(status.getText()+"\n\n"+details.getText()+"\n\n"+runtimeView.getText()+"\n\n"+getString(R.string.trusted)).setPositiveButton(R.string.close,null).show();}
+    private void diagnosticsDialog(){updateRuntime();new AlertDialog.Builder(this).setTitle(R.string.diagnostics_title).setMessage(status.getText()+"\n\n"+details.getText()+"\n\n"+runtimeView.getText()+"\n\n"+com.mooncast.tv.airplay.ReceiverDiagnostics.report()+"\n\n"+getString(R.string.trusted)).setPositiveButton(R.string.close,null).show();}
     private int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}
     private void showProtocolStatus(){receiverReady=!airplayProblem&&!dlnaProblem;showStatus(getString(receiverReady?R.string.ready_simple:airplayProblem&&dlnaProblem?R.string.receiver_partial:dlnaProblem?R.string.dlna_partial:R.string.airplay_partial));panel.setHint(receiverReady?"":getString(dlnaProblem?R.string.dlna_partial_hint:R.string.airplay_partial_hint));}
     private void showStatus(String value){status.setText(value);panel.setStatus(value,receiverReady);panel.setReceiving(requested);}
@@ -359,6 +362,9 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private void updateRuntime(){
         if(airplay==null||player==null)return;AirPlayEngine.RuntimeStats a=lastAirStats;String state=gameOwned?getString(R.string.gs_session):playingMirror?getString(R.string.source_mirror):!uri.isEmpty()?getString(mediaFromAirplay?R.string.airplay_media_session:R.string.dlna_session):a!=null&&a.state==AirPlayEngine.SessionState.AUDIO_ONLY?getString(R.string.audio_session):getString(R.string.idle_session);
         StringBuilder text=new StringBuilder(getString(R.string.current_session,state));
+        android.view.Display physical=getWindowManager().getDefaultDisplay();android.view.Display.Mode displayMode=physical.getMode();
+        text.append("\n").append(getString(R.string.tv_display_vs_stream,displayMode.getPhysicalWidth(),displayMode.getPhysicalHeight()));
+        if(gameOwned)text.append("\n").append(gameRequested);
         if(gameOwned&&game.video()!=null){var g=game.video().getStats();text.append("\n").append(getString(R.string.tv_video_runtime,g.decodedWidth,g.decodedHeight,"H.264 SDR",g.decoderName,g.observedFps,g.droppedFrames)).append("\n").append(getString(R.string.gs_timing_limit));}
         else if(playingMirror&&a!=null)text.append("\n").append(getString(R.string.tv_video_runtime,a.decodedWidth,a.decodedHeight,a.codec,a.decoderName,a.observedFps,a.droppedFrames));
         else if(!uri.isEmpty()){androidx.media3.common.Format f=player.getVideoFormat();text.append("\n").append(getString(R.string.media_runtime,f==null?getString(R.string.unknown_spec):String.valueOf(f.sampleMimeType),f==null?0:f.width,f==null?0:f.height,mediaDecoder.isEmpty()?getString(R.string.unknown_spec):mediaDecoder,getString(player.isPlaying()?R.string.tv_playback_playing:player.getPlaybackState()==Player.STATE_BUFFERING?R.string.tv_playback_buffering:R.string.tv_playback_paused_stopped)));}
@@ -369,7 +375,8 @@ public final class TvActivity extends Activity implements PlaybackTarget {
     private Lan findLan(){Network network=connectivity.getActiveNetwork();if(network==null)return null;NetworkCapabilities caps=connectivity.getNetworkCapabilities(network);if(caps==null||caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)||(!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)&&!caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)))return null;LinkProperties props=connectivity.getLinkProperties(network);if(props==null)return null;for(LinkAddress a:props.getLinkAddresses())if(a.getAddress() instanceof Inet4Address ip&&!ip.isLoopbackAddress()&&!ip.isLinkLocalAddress())return new Lan(ip,a.getPrefixLength(),network+":"+ip.getHostAddress());return null;}
     private void networkChanged(){main.postDelayed(()->{if(apkReceiver!=null){Lan current=findLan();apkReceiver.onNetworkChanged(current==null?"":current.key()+":"+current.prefix());}if(!requested||!foreground)return;Lan lan=findLan();String key=lan==null?"":lan.key();if(!key.equals(activeNetwork)){showStatus(getString(R.string.network_change));startReceiver();}},750);}
     private void startReceiver(){
-        if(identityResetting)return;receiverReady=false;airplayProblem=false;dlnaProblem=false;panel.setHint("");stopMediaOnly();airplaySuspended=true;
+        com.mooncast.tv.airplay.ReceiverDiagnostics.event("receiver-start",generation);
+        if(identityResetting)return;receiverName=com.mooncast.locale.DeviceName.get(this);panel.setReceiverName(receiverName);receiverReady=false;airplayProblem=false;dlnaProblem=false;panel.setHint("");stopMediaOnly();airplaySuspended=true;
         requested=true;int epoch=++generation;Lan lan=findLan();activeNetwork=lan==null?"":lan.key();showStatus(getString(R.string.starting));panel.setReceiving(true);if(panel.getVisibility()==View.VISIBLE)panel.requestPrimaryFocus();
         networkWorker.execute(()->{
             closeServers();if(!airplayStoppedSafely()||!awaitGameStopped()||epoch!=generation||!requested)return;
@@ -397,16 +404,17 @@ public final class TvActivity extends Activity implements PlaybackTarget {
             public Snapshot snapshot(){return active()?TvActivity.this.snapshot():Snapshot.empty();}
         };
     }
-    private void stopReceiver(){requested=false;receiverReady=false;++generation;activeNetwork="";stop();panel.setReceiving(false);showStatus(getString(R.string.waiting));networkWorker.execute(this::closeServers);showPanel();}
+    private void stopReceiver(){
+        com.mooncast.tv.airplay.ReceiverDiagnostics.event("receiver-stop",generation);requested=false;receiverReady=false;++generation;activeNetwork="";stop();panel.setReceiving(false);showStatus(getString(R.string.waiting));networkWorker.execute(this::closeServers);showPanel();}
     private void closeServers(){if(dlna!=null){dlna.stop();dlna=null;}if(airplay!=null)airplay.stop();if(multicast!=null){try{if(multicast.isHeld())multicast.release();}catch(RuntimeException ignored){}multicast=null;}}
     @Override protected void onNewIntent(android.content.Intent intent){super.onNewIntent(intent);setIntent(intent);if(foreground&&!requested&&!identityResetting)startReceiver();}
     @Override protected void onActivityResult(int request,int result,android.content.Intent data){super.onActivityResult(request,result,data);apkReceiver.onActivityResult(request,result);}
     @Override protected void onResume(){super.onResume();apkReceiver.onResume();}
     @Override protected void onPause(){apkReceiver.onPause();super.onPause();}
     @Override protected void onSaveInstanceState(Bundle state){apkReceiver.saveState(state);super.onSaveInstanceState(state);}
-    @Override protected void onStart(){super.onStart();foreground=true;if(identityResetting)autoStartAfterReset=true;else if(!requested)startReceiver();}
-    @Override protected void onStop(){apkReceiver.onStop();foreground=false;autoStartAfterReset=false;stopReceiver();super.onStop();}
-    @Override protected void onDestroy(){apkReceiver.close();destroyed=true;main.removeCallbacksAndMessages(null);connectivity.unregisterNetworkCallback(networkCallback);networkWorker.execute(this::closeServers);networkWorker.shutdown();statsWorker.shutdown();ExoPlayer closingPlayer=player;MEDIA_STOPS.record(mediaRenderers.playbackBarrier().stopAsync(closingPlayer)).whenComplete((ignored,error)->CLEANUP_MAIN.post(closingPlayer::release));mirrorFraming.release();mediaFraming.release();gameFraming.release();gameHosts.close();game.close();
+    @Override protected void onStart(){super.onStart();com.mooncast.tv.airplay.ReceiverDiagnostics.event("activity-start",0);foreground=true;if(identityResetting)autoStartAfterReset=true;else if(!requested)startReceiver();}
+    @Override protected void onStop(){com.mooncast.tv.airplay.ReceiverDiagnostics.event("activity-stop",isChangingConfigurations()?1:0);apkReceiver.onStop();foreground=false;autoStartAfterReset=false;stopReceiver();super.onStop();}
+    @Override protected void onDestroy(){com.mooncast.tv.airplay.ReceiverDiagnostics.event("activity-destroy",isFinishing()?1:0);apkReceiver.close();destroyed=true;main.removeCallbacksAndMessages(null);connectivity.unregisterNetworkCallback(networkCallback);networkWorker.execute(this::closeServers);networkWorker.shutdown();statsWorker.shutdown();ExoPlayer closingPlayer=player;MEDIA_STOPS.record(mediaRenderers.playbackBarrier().stopAsync(closingPlayer)).whenComplete((ignored,error)->CLEANUP_MAIN.post(closingPlayer::release));mirrorFraming.release();mediaFraming.release();gameFraming.release();gameHosts.close();game.close();
         if(switchingUnifiedRole&&isUnifiedApp())new Thread(()->{
             try{networkWorker.awaitTermination(3,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}
             // This Activity is packaged only in :receiver by unified. Ending that private

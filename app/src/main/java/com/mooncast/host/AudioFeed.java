@@ -6,6 +6,8 @@ import java.util.Arrays;
 /** Native Sunshine reads 48 kHz stereo float PCM through this ABI. Never records microphone audio. */
 public final class AudioFeed {
     private AudioRecord recorder;
+    private volatile boolean paused;
+    void setPaused(boolean value){paused=value;}
     private final Runnable onFailure;
     private boolean failureReported;
     public AudioFeed(){this(()->{});}
@@ -18,7 +20,7 @@ public final class AudioFeed {
             int n;
             try{n=current.read(buffer, offset, count, AudioRecord.READ_BLOCKING);}
             catch(IllegalStateException e){n=AudioRecord.ERROR_INVALID_OPERATION;}
-            if (n > 0) return n;
+            if (n > 0) {if(paused)Arrays.fill(buffer,offset,offset+n,0f);return n;}
             if(n<0){
                 boolean notify;
                 synchronized(this){notify=recorder==current && !failureReported;if(notify)failureReported=true;}

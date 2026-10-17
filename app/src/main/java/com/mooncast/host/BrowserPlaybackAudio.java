@@ -24,6 +24,8 @@ final class BrowserPlaybackAudio implements AutoCloseable {
     private final Object queue = new Object();
     private int head, count;
     private volatile boolean running;
+    private volatile boolean paused;
+    void pause(boolean value){synchronized(queue){paused=value;head=count=0;}}
     private AudioRecord recorder;
     private Thread reader;
     private long nextCallbackNs;
@@ -109,7 +111,7 @@ final class BrowserPlaybackAudio implements AutoCloseable {
                 && sampleRate == SAMPLE_RATE && buffer.capacity() == BLOCK_BYTES) {
             synchronized (queue) {
                 if (count > 0) {
-                    buffer.put(blocks[head]); head = (head + 1) % blocks.length; count--;
+                    if(!paused)buffer.put(blocks[head]); head = (head + 1) % blocks.length; count--;
                 }
             }
         }

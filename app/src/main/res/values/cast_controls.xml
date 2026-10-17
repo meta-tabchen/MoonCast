@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="controls_bubble">Cast</string>
+    <string name="controls_collapse">Collapse</string>
+    <string name="controls_pause">Pause picture + audio</string>
+    <string name="controls_resume">Resume picture + audio</string>
+    <string name="controls_paused">Casting paused</string>
+    <string name="controls_screen_off">Screen off</string>
+    <string name="controls_cancel_off">Cancel screen off</string>
+    <string name="controls_test_instructions">Wake-path test: screen off in 3 seconds. Tap the dark screen once. It automatically restores after 15 seconds if touch does not work.</string>
+    <string name="controls_off_countdown">Screen off in 3 seconds. Tap Cancel or Restore to cancel.</string>
+    <string name="controls_test_confirm">Did your tap restore the phone before the 15-second timer? Confirm only if you saw it work. This check is for this device and session.</string>
+    <string name="controls_test_yes">Yes, my tap restored it</string>
+    <string name="controls_verified">Touch-to-restore confirmed for this session. Screen off now stays off until you tap, disconnect or stop.</string>
+    <string name="controls_test_timeout">Touch-to-restore was not verified. Keeping the phone bright.</string>
+    <string name="controls_touch_restore">Tap the phone screen once to restore brightness.</string>
+    <string name="controls_panel_unavailable">Screen off needs floating-window permission and an authorized Root or Shizuku backend. The phone stays bright.</string>
+    <string name="controls_restore_retry">Display restore failed; the privileged helper will retry or expire its 30-second lease.</string>
+    <string name="controls_overlay_denied">Floating controls unavailable. Use the casting notification.</string>
+    <string name="controls_not_connected">Connect a receiver and resume casting first.</string>
+    <string name="controls_capture_notice">Whole-screen capture may include the bubble. No secure-window black rectangle is used.</string>
+    <string name="controls_notification">The phone stays bright. Use these controls or the floating bubble.</string>
+    <string name="controls_settings">Floating casting controls</string>
+    <string name="controls_enable">Enable floating controls</string>
+    <string name="controls_permission_hint">Allow MoonCast to display over other apps to use the draggable bubble. If denied, notification controls remain available.</string>
+    <string name="controls_shizuku">Authorize Shizuku for manual screen off</string>
+    <string name="controls_disabled">Floating controls disabled for the next session.</string>
+</resources>

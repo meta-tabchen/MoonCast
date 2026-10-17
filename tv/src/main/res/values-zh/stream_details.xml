@@ -1,0 +1,4 @@
+<resources>
+<string name="gs_requested_details">请求码流：%1$d × %2$d · %3$d fps · 目标 %4$d kbps</string>
+<string name="tv_display_vs_stream">电视显示模式：%1$d × %2$d。码流为 1080p 时，电视仍可显示为 4K。</string>
+</resources>

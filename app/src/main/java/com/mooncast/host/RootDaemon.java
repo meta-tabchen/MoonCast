@@ -65,7 +65,7 @@ public final class RootDaemon implements SunshineServer.Listener {
             SunshineServer.setHevcSupported(Boolean.parseBoolean(args[4]));
             daemon.scaleMode=Integer.parseInt(args[5]);
             daemon.frameLimit=Integer.parseInt(args[7]);
-            daemon.ownerHeartbeat=SystemClock.elapsedRealtime();daemon.panelWanted=Boolean.parseBoolean(args[9]);daemon.main.post(daemon.panelWatch);daemon.watchParty=Boolean.parseBoolean(args[8]);daemon.control(!daemon.watchParty && Boolean.parseBoolean(args[6]));
+            daemon.ownerHeartbeat=SystemClock.elapsedRealtime();daemon.panelWanted=false;daemon.main.post(daemon.panelWatch);daemon.watchParty=Boolean.parseBoolean(args[8]);daemon.control(!daemon.watchParty && Boolean.parseBoolean(args[6]));
             new Thread(() -> {
                 try {
                     DataInputStream commands=new DataInputStream(daemon.socket.getInputStream());
@@ -75,6 +75,13 @@ public final class RootDaemon implements SunshineServer.Listener {
                         if (command.matches("PIN [0-9]{4}")) SunshineServer.submitPin(command.substring(4));
                         if(command.matches("SCALE [0-4]"))daemon.main.post(()->{daemon.scaleMode=Integer.parseInt(command.substring(6));if(daemon.pipeline!=null)daemon.pipeline.setMode(daemon.scaleMode);});
                         if(command.matches("DISCONNECT -?[0-9]+"))daemon.main.post(()->{long id=Long.parseLong(command.substring(11));if(daemon.receivers.containsKey(id))new Thread(()->NativeSessions.disconnect(id),"RootDisconnect").start();});
+                        if(command.matches("PANEL_SET [0-9]+ [01]"))daemon.main.post(()->{
+                            String[] parts=command.split(" ");boolean off=parts[2].equals("1"),ok=false;
+                            try{if(off){if(daemon.pipeline==null||daemon.receivers.isEmpty()||daemon.pipeline.statistics().totalFrames()==0)throw new IllegalStateException("No active capture");if(daemon.power==null)daemon.power=new DisplayPowerLease(new PhysicalDisplayPower(daemon.context));daemon.ownerHeartbeat=SystemClock.elapsedRealtime();daemon.power.renew(daemon.ownerHeartbeat,30000);daemon.lastPanelRenew=daemon.ownerHeartbeat;daemon.panelWanted=true;ok=true;}else{daemon.restorePanel();ok=daemon.power==null||!daemon.power.pending();}}
+                            catch(Exception e){daemon.restorePanel();}
+                            daemon.event("panelResult","{\"token\":"+parts[1]+",\"success\":"+ok+"}");
+                        });
+                        if(command.matches("PAUSE [01]"))daemon.main.post(()->{if(daemon.pipeline!=null)daemon.pipeline.setPaused(command.endsWith("1"));});
                         if(command.equals("PANEL_HEARTBEAT"))daemon.main.post(()->daemon.ownerHeartbeat=SystemClock.elapsedRealtime());
                         if(command.equals("RESTORE_DISPLAY"))daemon.main.post(daemon::restorePanel);
                         if(command.equals("RESCAN"))daemon.main.post(()->{if(daemon.pipeline!=null)daemon.pipeline.rescan();});

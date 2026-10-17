@@ -119,6 +119,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     private WifiManager.MulticastLock multicast;
     private long handle;
     private volatile boolean running;
+    private long diagnosticFrames;
     private volatile int boundPort;
     private volatile int generation;
     private boolean mirroring, mirrorReady, mirrorUiReady, surfaceAvailable, startupScheduled;
@@ -142,7 +143,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         decoder = new MirrorDecoder(new MirrorDecoder.Events() {
             @Override public void size(int w, int h) { post(() -> listener.onVideoSize(w, h)); }
             @Override public void failure() { requestRecovery(resources.getString(R.string.tv_video_decoder_failed), true); }
-            @Override public void output() { watchdog.videoOutput(); }
+            @Override public void output() { watchdog.videoOutput();long count=++diagnosticFrames;if(count==1||count%600==0)ReceiverDiagnostics.event("decoded-frame",count); }
         });
     }
     public void start(String name, int width, int height, int fps) throws Exception {
@@ -150,6 +151,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
     }
     public void start(String name, int width, int height, int fps, boolean requirePin) throws Exception {
         if (running) return;
+        ReceiverDiagnostics.event("native-start",generation);diagnosticFrames=0;
         name = name == null || name.trim().isEmpty() ? "MoonCast TV" : name.trim();
         while (name.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 60)
             name = name.substring(0, name.offsetByCodePoints(name.length(), -1));
@@ -202,6 +204,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         }
     }
     public void stop() {
+        ReceiverDiagnostics.event("native-stop",generation);
         long previous;
         audioDesired = false; audioHasFocus = false; audioOutputActive = false;
         synchronized (gate) { running = false; previous = handle; handle = 0; generation++; }
@@ -311,6 +314,7 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         });
     }
     private void requestRecovery(String reason, boolean problem) {
+        ReceiverDiagnostics.event(problem?"decoder-recovery":"session-recovery",generation);
         final boolean wasMirroring;
         synchronized (mirrorGate) {
             if (!running || recoveryPending) return;
@@ -538,17 +542,19 @@ public final class AirPlayEngine implements RaopCallbackHandler {
         controlAudio();
         post(() -> { if (focusRequest != null) audio.abandonAudioFocusRequest(focusRequest); audioHasFocus = false; });
     }
-    @Override public void onConnectionInit() { if (running) watchdog.connectionOpened(); }
+    @Override public void onConnectionInit() {ReceiverDiagnostics.event("connection-open",generation); if (running) watchdog.connectionOpened(); }
     @Override public void onConnectionDestroy() {
+        ReceiverDiagnostics.event("connection-close",generation);
         if (running) watchdog.connectionClosed(SystemClock.elapsedRealtime());
     }
-    @Override public void onConnectionReset(int reason) { requestRecovery(resources.getString(R.string.tv_native_session_reset, reason), false); }
+    @Override public void onConnectionReset(int reason) {ReceiverDiagnostics.event("native-reset",reason); requestRecovery(resources.getString(R.string.tv_native_session_reset, reason), false); }
     @Override public void onDisplayPin(String pin) { post(() -> listener.onPin(pin)); }
     @Override public void onMetadata(byte[] data) {}
     @Override public void onCoverArt(byte[] data) {}
     @Override public void onProgress(long start, long current, long end) {}
     @Override public void onDacpId(String id, String remote) {}
     @Override public void onMirrorRunning(boolean active) {
+        ReceiverDiagnostics.event("native-mirror",active?1:0);
         if (!running || recoveryPending) return;
         if (active) beginMirror(); else { endMirror(); if (audioUsingScreen) onAudioTeardown(); }
     }

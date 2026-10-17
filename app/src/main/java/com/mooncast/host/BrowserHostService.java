@@ -33,6 +33,8 @@ public final class BrowserHostService extends Service {
     private volatile BrowserRtcSession rtc;
     private volatile BrowserSignalingServer server;
     private PowerManager.WakeLock wake;
+    private CastControls controls;
+    private boolean castPaused;
     private boolean started, ownsCapture;
     private volatile boolean stopping;
     private String state = "", detail = "", error = "", urls = "";
@@ -59,7 +61,9 @@ public final class BrowserHostService extends Service {
 
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
+        if(CastControls.isAction(intent.getAction())&&controls==null){stopSelf();return START_NOT_STICKY;}
         if ("stop".equals(intent.getAction())) { stopSender(); return START_NOT_STICKY; }
+        if(controls!=null&&controls.handle(intent.getAction()))return START_NOT_STICKY;
         if (started) return START_NOT_STICKY;
         subscriber = intent.getParcelableExtra("statusReply");
         if (!SenderOwnership.acquire(this)) { stopSelf(); return START_NOT_STICKY; }
@@ -83,6 +87,11 @@ public final class BrowserHostService extends Service {
             }, main);
             wake = getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MoonCast:Browser");
             wake.acquire(6 * 60 * 60 * 1000L);
+            controls=new CastControls(this,"browser",12,new CastControls.Session(){
+                public boolean connected(){return !stopping&&connected&&rtc!=null;}
+                public boolean pause(boolean value){if(rtc==null||value&&!connected())return false;rtc.pause(value);castPaused=value;return true;}
+                public void stop(){stopSender();}
+            },null);
             state = getString(R.string.browser_service_preparing);
             detail = getString(R.string.browser_service_lan_hint);
             publish();
@@ -183,6 +192,7 @@ public final class BrowserHostService extends Service {
     private void updateState(String value) {
         if (stopping) return;
         connected = "connected".equals(value);
+        if(!connected&&controls!=null)controls.disconnected();
         int label = switch (value) {
             case "connected" -> R.string.browser_service_connected;
             case "connecting" -> R.string.browser_service_connecting;
@@ -215,7 +225,7 @@ public final class BrowserHostService extends Service {
         stopping = true;
         // Arm independently of the UI, GL and native WebRTC threads, as existing senders do.
         new Thread(() -> { SystemClock.sleep(4000); android.os.Process.killProcess(android.os.Process.myPid()); }, "BrowserStopDeadline").start();
-        main.post(() -> { urls = ""; publish(); });
+        main.post(() -> {if(controls!=null){controls.close();controls=null;} urls = ""; publish(); });
         lifecycle.execute(() -> {
             try { if (server != null) server.close(); } catch (RuntimeException ignored) {} finally { server = null; }
             try { if (rtc != null) rtc.close(); } catch (RuntimeException | LinkageError ignored) {} finally { rtc = null; }
@@ -255,7 +265,7 @@ public final class BrowserHostService extends Service {
     private void publish() {
         if (subscriber == null) return;
         Bundle data = new Bundle();
-        data.putInt("pid", android.os.Process.myPid());
+        data.putBoolean("paused",castPaused);data.putInt("pid", android.os.Process.myPid());
         data.putString("protocol", "browser");
         data.putString("state", state);
         data.putString("detail", detail);

@@ -286,10 +286,12 @@ public final class MainActivity extends Activity {
         if((getPackageName().equals("com.mooncast.unified.preview") || getPackageName().equals("com.mooncast.community"))){
             ImageButton deviceMode=PhoneVisuals.settingsButton(this,getString(R.string.phone_settings_title));deviceMode.setTag("open_settings");
             deviceMode.setOnClickListener(v->new android.app.AlertDialog.Builder(this).setTitle(R.string.phone_settings_title)
-                .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version)},(d,w)->{
+                .setItems(new String[]{getString(R.string.phone_switch_device_mode),getString(R.string.phone_language),getString(R.string.phone_about_version),getString(com.mooncast.locale.R.string.device_name_title),getString(R.string.controls_settings)},(d,w)->{
                     if(w==0){PhoneRolePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.RoleSettingsActivity").putExtra("role_choice",choice).putExtra("require_cleanup",true));finish();});}
                     else if(w==1){com.mooncast.locale.LanguagePicker.show(this,choice->{startActivity(new Intent().setClassName(getPackageName(),"com.mooncast.unified.LanguageSettingsActivity").putExtra("require_cleanup",true).putExtra("language_choice",choice));finish();});}
-                    else showAbout();
+                    else if(w==2)showAbout();
+                    else if(w==3)com.mooncast.locale.DeviceName.show(this,()->name.setText(com.mooncast.locale.DeviceName.get(this)));
+                    else controlsSettings();
                 }).show());header.addView(deviceMode,new LinearLayout.LayoutParams(dp(48),dp(48)));
         }
         buildProtocolTabs(page);
@@ -343,7 +345,7 @@ public final class MainActivity extends Activity {
         source.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener(){public void onNothingSelected(AdapterView<?> p){}public void onItemSelected(AdapterView<?> p,View v,int position,long id){if(loadingProfile)return;settings().edit().putInt("source",position).apply();if(airSource!=null && position<2){updatingAirSource=true;airSource.setSelection(position);updatingAirSource=false;}if(root!=null && position!=0)root.setChecked(false);if(control!=null)refreshControlOptions();if(openApp!=null)openApp.setVisibility(position==2?View.VISIBLE:View.GONE);}});
         openApp=smallButton(getString(R.string.ui_launch_independent_app));openApp.setEnabled(false);openApp.setOnClickListener(v->chooseIndependentApp());capture.addView(openApp);openApp.setVisibility(source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);
 
-        panelOff=toggle(capture,getString(R.string.ui_panel_option),getString(R.string.ui_panel_hint),false);
+        panelOff=new Switch(this);panelOff.setChecked(false);
         panelOff.setOnCheckedChangeListener((button,checked)->refreshControlOptions());
         panelState=text(getString(R.string.ui_off),12,MUTED);capture.addView(panelState);
         restoreDisplay=smallButton(getString(R.string.ui_panel_restore));restoreDisplay.setEnabled(false);restoreDisplay.setOnClickListener(v->{send(HostService.RESTORE_DISPLAY,null);panelOff.setChecked(false);});capture.addView(restoreDisplay);
@@ -372,7 +374,7 @@ public final class MainActivity extends Activity {
         LinearLayout settings=card(page);moonlightOnly.add(settings);TextView expand=text(getString(R.string.ui_connection_and_device_settings_collapsed),15,INK);expand.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));settings.addView(expand);
         LinearLayout advanced=new LinearLayout(this);advanced.setOrientation(LinearLayout.VERTICAL);advanced.setVisibility(View.GONE);settings.addView(advanced);
         expand.setOnClickListener(v->{boolean open=advanced.getVisibility()!=View.VISIBLE;advanced.setVisibility(open?View.VISIBLE:View.GONE);expand.setText(open?getString(R.string.ui_connection_and_device_settings_expanded):getString(R.string.ui_connection_and_device_settings_collapsed));});
-        advanced.addView(text(getString(R.string.ui_host_name),12,MUTED));name=new EditText(this);name.setSingleLine(true);name.setTextSize(15);name.setText(settings().getString("name","MoonCast · "+Build.MODEL));advanced.addView(name);
+        name=new EditText(this);name.setText(com.mooncast.locale.DeviceName.get(this));
         hevc=toggle(advanced,getString(R.string.ui_prefer_hevc_h_265),getString(R.string.ui_set_resolution_frame_rate_and_bitrate_in_moonlight),settings().getBoolean("hevc",true));
         root=toggle(advanced,getString(R.string.ui_root_screen_capture),getString(R.string.ui_experimental_no_capture_dialog_video_only),false);
         root.setOnCheckedChangeListener((button,checked)->{if(checked && source.getSelectedItemPosition()!=0)source.setSelection(0);audio.setEnabled(!checked && remote==null);if(checked)controlBackend.setSelection(1);muteLocal.setEnabled(!checked && audio.isChecked() && remote==null);refreshControlOptions();});
@@ -745,7 +747,7 @@ public final class MainActivity extends Activity {
         root.setChecked(false);watchParty.setChecked(settings().getBoolean("watchParty",false));source.setSelection(settings().getInt("source",0));openApp.setVisibility(source.getSelectedItemPosition()==2?View.VISIBLE:View.GONE);currentScenario=settings().getInt("scenario",0);scenario.setSelection(currentScenario);describeScenario(currentScenario);scale.setSelection(settings().getInt("scaleMode",CropGeometry.VIDEO_REGION));describeMode(scale.getSelectedItemPosition());
         audio.setChecked(settings().getBoolean("audio",false));muteLocal.setChecked(settings().getBoolean("muteLocal",false));
         hevc.setChecked(settings().getBoolean("hevc",true));control.setChecked(settings().getBoolean("control",false));
-        controlBackend.setSelection(settings().getInt("controlBackend",settings().getBoolean("controlRoot",false)?1:0));name.setText(settings().getString("name","MoonCast · "+Build.MODEL));
+        controlBackend.setSelection(settings().getInt("controlBackend",settings().getBoolean("controlRoot",false)?1:0));name.setText(com.mooncast.locale.DeviceName.get(this));
         updatingScale=false;updatingControl=false;loadingProfile=false;refreshControlOptions();
     }
     private void chooseIndependentApp(){
@@ -807,6 +809,20 @@ public final class MainActivity extends Activity {
     }
     private Button smallButton(String label){Button b=new Button(this);b.setText(label);PhoneVisuals.button(b,false);b.setTextSize(14);return b;}
 
+    private void controlsSettings(){
+        android.content.SharedPreferences prefs=getSharedPreferences("cast-controls",0);
+        new android.app.AlertDialog.Builder(this).setTitle(R.string.controls_settings)
+            .setItems(new String[]{getString(R.string.controls_enable),getString(R.string.controls_shizuku),getString(R.string.ui_off)},(dialog,which)->{
+                if(which==1){requestShizuku(false);return;}
+                prefs.edit().putBoolean("overlay",which==0).apply();
+                if(which==2){toast(getString(R.string.controls_disabled));return;}
+                if(!android.provider.Settings.canDrawOverlays(this)){
+                    new android.app.AlertDialog.Builder(this).setMessage(R.string.controls_permission_hint)
+                        .setPositiveButton(android.R.string.ok,(d,w)->{try{startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,android.net.Uri.parse("package:"+getPackageName())));}catch(RuntimeException e){toast(getString(R.string.controls_overlay_denied));}})
+                        .setNegativeButton(android.R.string.cancel,null).show();
+                }else toast(getString(R.string.controls_notification));
+            }).setNegativeButton(android.R.string.cancel,null).show();
+    }
     private void requestShizuku(boolean thenStart){
         if(ShizukuInputBackend.authorized()){if(thenStart)begin();return;}
         if(!rikka.shizuku.Shizuku.pingBinder()){toast(getString(R.string.ui_shizuku_hint));Intent manager=getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");if(manager!=null)startActivity(manager);return;}
@@ -819,7 +835,7 @@ public final class MainActivity extends Activity {
             if(pendingEndpoint==null){showAirPicker();return;}
         }else if(!browserMode()){
             if(watchParty.isChecked() && !io.github.jqssun.displaymirror.sunshine.NativeSessions.packaged()){toast(getString(R.string.ui_session_bridge_unavailable));return;}
-            if(((!root.isChecked() && panelOff.isChecked()) || source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
+            if((source.getSelectedItemPosition()==2 || (control.isChecked() && controlBackend.getSelectedItemPosition()==2)) && !ShizukuInputBackend.authorized()){requestShizuku(true);return;}
             if(control.isChecked() && !root.isChecked() && controlBackend.getSelectedItemPosition()==0 && !accessibilityEnabled()){
                 toast(getString(R.string.ui_enable_mooncast_accessibility_first_or_turn_off_remote_input));startActivity(new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS));return;
             }
@@ -885,10 +901,10 @@ public final class MainActivity extends Activity {
                 .putExtra("browserLongEdge",pendingBrowserQuality.longEdge).putExtra("browserFps",pendingBrowserQuality.fps).putExtra("browserBitrate",pendingBrowserQuality.maxBitrateBps));
             return;
         }
-        String host=name.getText().toString().trim();
+        String host=com.mooncast.locale.DeviceName.get(this);
         if(host.isEmpty()) host="MoonCast";
         settings().edit().putString("name",host).putBoolean("hevc",hevc.isChecked()).putBoolean("audio",audio.isChecked()).putBoolean("muteLocal",muteLocal.isChecked()).putBoolean("control",control.isChecked()).putInt("controlBackend",controlBackend.getSelectedItemPosition()).putBoolean("controlRoot",controlBackend.getSelectedItemPosition()==1).apply();
-        Intent i=new Intent(this,HostService.class).putExtra("panelOff",panelOff.isChecked()).putExtra("watchParty",watchParty.isChecked()).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",pendingAudioAllowed).putExtra("muteLocal",pendingAudioAllowed && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
+        Intent i=new Intent(this,HostService.class).putExtra("panelOff",false).putExtra("watchParty",watchParty.isChecked()).putExtra("source",source.getSelectedItemPosition()).putExtra("frameLimit",frameLimit()).putExtra("name",host).putExtra("hevc",hevc.isChecked()).putExtra("audio",pendingAudioAllowed).putExtra("muteLocal",pendingAudioAllowed && muteLocal.isChecked()).putExtra("root",root.isChecked()).putExtra("scaleMode",scale.getSelectedItemPosition()).putExtra("control",control.isChecked()).putExtra("controlBackend",controlBackend.getSelectedItemPosition()).putExtra("controlRoot",controlBackend.getSelectedItemPosition()==1);
         if(grant!=null) i.putExtra("grant",grant);
         startHost(i);
     }

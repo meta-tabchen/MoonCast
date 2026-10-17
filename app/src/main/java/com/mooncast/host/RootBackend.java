@@ -17,6 +17,8 @@ final class RootBackend {
     private DataOutputStream commands;
     private Process process;
     private volatile boolean stopping;
+    private final java.util.concurrent.ConcurrentHashMap<Integer,java.util.concurrent.CompletableFuture<Boolean>> panelReplies=new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicInteger panelSequence=new java.util.concurrent.atomic.AtomicInteger();
     RootBackend(Context c,Events e) { context=c; events=e; }
     synchronized void start(String name,boolean hevc,int scaleMode,boolean control,int frameLimit,boolean watchParty,boolean panelOff) throws Exception {
         if(stopping) throw new IOException(PhoneMessages.message(R.string.phone_root_stopped));
@@ -43,7 +45,8 @@ final class RootBackend {
                 DataInputStream input=new DataInputStream(socket.getInputStream());
                 while (!stopping) {
                     JSONObject event=new JSONObject(input.readUTF());
-                    events.event(event.getString("kind"),event.optString("text"));
+                    if("panelResult".equals(event.getString("kind"))){JSONObject response=new JSONObject(event.optString("text"));var waiting=panelReplies.get(response.getInt("token"));if(waiting!=null)waiting.complete(response.getBoolean("success"));}
+                    else events.event(event.getString("kind"),event.optString("text"));
                 }
             } catch (Exception e) { if (!stopping) events.event("error",PhoneMessages.message(R.string.phone_root_channel_lost , e.getMessage())); }
         },"RootEvents").start();
@@ -51,6 +54,14 @@ final class RootBackend {
     synchronized void disconnect(long id){send("DISCONNECT "+id);}
     synchronized void pin(String pin) { send("PIN "+pin); }
     synchronized void scale(int mode){send("SCALE "+mode);}
+    synchronized boolean ready(){return commands!=null&&!stopping;}
+    void panelOff(){if(!panelPower(true))throw new IllegalStateException("Root panel request failed");}
+    boolean panelPower(boolean off){
+        if(!ready())return false;int token=panelSequence.incrementAndGet();var response=new java.util.concurrent.CompletableFuture<Boolean>();panelReplies.put(token,response);
+        synchronized(this){send("PANEL_SET "+token+" "+(off?1:0));}
+        try{return response.get(2,java.util.concurrent.TimeUnit.SECONDS);}catch(Exception e){return false;}finally{panelReplies.remove(token);}
+    }
+    synchronized void pause(boolean value){send(value?"PAUSE 1":"PAUSE 0");}
     synchronized void panelHeartbeat(){send("PANEL_HEARTBEAT");}
     synchronized void restoreDisplay(){send("RESTORE_DISPLAY");}
     synchronized void rescan(){send("RESCAN");}

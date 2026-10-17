@@ -110,6 +110,7 @@ final class AirPlayVideoEncoder implements AutoCloseable {
             }
         } catch (Exception | LinkageError e) { if (running) output.error(context.getString(R.string.phone_h264_failed,e.getMessage())); }
     }
+    void pause(boolean value){VideoPipeline current=pipeline;if(current!=null)current.setPaused(value);}
     void resize(int width, int height) { VideoPipeline current = pipeline; if (current != null) current.resize(width, height); }
     void scale(int mode) { VideoPipeline current = pipeline; if (current != null) current.setMode(mode); }
     void rescan() { VideoPipeline current = pipeline; if (current != null) current.rescan(); }

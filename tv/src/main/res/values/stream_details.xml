@@ -1,0 +1,4 @@
+<resources>
+<string name="gs_requested_details">Requested stream: %1$d × %2$d · %3$d fps · %4$d kbps target</string>
+<string name="tv_display_vs_stream">TV display: %1$d × %2$d. Display mode can remain 4K while the decoded stream is 1080p.</string>
+</resources>

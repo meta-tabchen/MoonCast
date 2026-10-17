@@ -63,7 +63,7 @@ class Metadata(unittest.TestCase):
     with self.assertRaises(RuntimeError):m.validate_fixtures(bad,cert)
  def test_workflow_version_and_manual_device_contract(self):
   workflow=(p.parents[1]/'.github/workflows/unified.yml').read_text()
-  for label in ('baseline64.apk','candidate65.apk','debug65.apk','MoonCast-0.8-arm64-v8a.apk','MoonCast-0.8-armeabi-v7a.apk','MoonCast-0.8-source.zip'):
+  for label in ('baseline65.apk','candidate66.apk','debug66.apk','MoonCast-0.9-arm64-v8a.apk','MoonCast-0.9-armeabi-v7a.apk','MoonCast-0.9-source.zip'):
    self.assertIn(label,workflow)
   for stale in ('baseline50.apk','candidate51.apk','debug51.apk','MoonCast-0.5.1-community-'):
    self.assertNotIn(stale,workflow)

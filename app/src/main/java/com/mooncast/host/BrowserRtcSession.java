@@ -373,6 +373,7 @@ final class BrowserRtcSession implements AutoCloseable {
         pipeline.resizeOutput(0, nextWidth, nextHeight);
         pipeline.resize(width, height);
     }
+    void pause(boolean value){VideoPipeline current=pipeline;if(current!=null)current.setPaused(value);playback.pause(value);}
     void scale(int mode) { VideoPipeline active = pipeline; if (active != null) active.setMode(mode); }
     void rescan() { VideoPipeline active = pipeline; if (active != null) active.rescan(); }
     FrameStatistics.Sample statistics() {

@@ -52,7 +52,7 @@ public class HostService extends Service implements SunshineServer.Listener {
         else if(msg.what==CROP_RESET) rescanCrop();
         else if(msg.what==LAUNCH_APP) launchApp(msg.getData().getString("component",""));
         else if(msg.what==DISCONNECT)disconnectReceiver(msg.getData().getLong("session"));
-        else if(msg.what==RESTORE_DISPLAY)restorePanel();
+        else if(msg.what==RESTORE_DISPLAY){restorePanel();if(controls!=null)controls.handle(CastControls.ACTION_RESTORE);}
     }
     private final ArrayList<String> logs = new ArrayList<>();
     private MediaProjection projection;
@@ -69,6 +69,8 @@ public class HostService extends Service implements SunshineServer.Listener {
     private NsdManager nsd;
     private NsdManager.RegistrationListener registration;
     private PowerManager.WakeLock wakeLock;
+    private CastControls controls;
+    private boolean castPaused;
     private RootBackend root;
     private volatile NativeHostConnection nativeHost;
     private volatile VideoPipeline pipeline;
@@ -123,9 +125,11 @@ public class HostService extends Service implements SunshineServer.Listener {
     }
     @Override public int onStartCommand(Intent intent, int flags, int id) {
         if (intent == null) { stopSelf(); return START_NOT_STICKY; }
+        if(CastControls.isAction(intent.getAction())&&controls==null){stopSelf();return START_NOT_STICKY;}
         if ("stop".equals(intent.getAction())) { stopHost(); return START_NOT_STICKY; }
         Messenger initialReply=intent.getParcelableExtra("statusReply");
         if(initialReply!=null)subscriber=initialReply;
+        if (controls!=null && controls.handle(intent.getAction()))return START_NOT_STICKY;
         if (started) { publish(); return START_NOT_STICKY; }
         statusToken=intent.getLongExtra("statusToken",0);
         if (!SenderOwnership.acquire(this)) { stopSelf(); return START_NOT_STICKY; }
@@ -133,11 +137,11 @@ public class HostService extends Service implements SunshineServer.Listener {
         started=true;
         captureSource=intent.getIntExtra("source",0);
         boolean isRoot=captureSource==0 && intent.getBooleanExtra("root", false);rootCapture=isRoot;
-        frameLimit=intent.getIntExtra("frameLimit",120);watchParty=intent.getBooleanExtra("watchParty",false);receiverLimit=watchParty?3:1;panelWanted=intent.getBooleanExtra("panelOff",false);panelState=getString(panelWanted?R.string.ui_panel_waiting:R.string.ui_off);
+        frameLimit=intent.getIntExtra("frameLimit",120);watchParty=intent.getBooleanExtra("watchParty",false);receiverLimit=watchParty?3:1;panelWanted=false;panelState=getString(panelWanted?R.string.ui_panel_waiting:R.string.ui_off);
         controlEnabled=captureSource!=1 && !watchParty && intent.getBooleanExtra("control",false);controlRoot=isRoot || intent.getBooleanExtra("controlRoot",false);
         if(!isRoot){
             int inputBackend=intent.getIntExtra("controlBackend",controlRoot?1:0);
-            if(inputBackend==2 || captureSource==2 || panelWanted){shizukuInput=new ShizukuInputBackend(this,this::log);shizukuInput.start();}
+            if(inputBackend==2 || captureSource==2 || ShizukuInputBackend.authorized()){shizukuInput=new ShizukuInputBackend(this,this::log);shizukuInput.start();}
             RemoteInputController.Backend backend;
             if(inputBackend==2)backend=shizukuInput;
             else if(controlRoot){rootInput=new RootInputBackend(this,this::log);backend=rootInput;}
@@ -155,6 +159,20 @@ public class HostService extends Service implements SunshineServer.Listener {
             makeNotification(isRoot || captureSource==2 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE : ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
             wakeLock=getSystemService(PowerManager.class).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"MoonCast:host");
             wakeLock.acquire(6*60*60*1000L);
+            controls=new CastControls(this,"host",7,new CastControls.Session(){
+                public boolean connected(){return !stopping&&!receivers.isEmpty();}
+                public boolean pause(boolean value){
+                    if(value&&!connected())return false;
+                    if(root!=null){if(!root.ready())return false;root.pause(value);}
+                    else {if(pipeline==null)return false;pipeline.setPaused(value);if(audioFeed!=null)audioFeed.setPaused(value);}
+                    castPaused=value;return true;
+                }
+                public void stop(){stopHost();}
+            },new CastControls.Panel(){
+                public boolean ready(){return root!=null?root.ready():shizukuInput!=null&&shizukuInput.ready();}
+                public void off(){if(root!=null)root.panelOff();else if(shizukuInput!=null)shizukuInput.displayPower(true);else throw new IllegalStateException("No panel backend");}
+                public boolean restore(){panelWanted=false;main.removeCallbacks(panelHeartbeat);if(root!=null)return root.panelPower(false);return shizukuInput!=null&&shizukuInput.ready()&&!shizukuInput.displayPower(false);}
+            });
             log(isRoot ? getString(R.string.ui_starting_root_host) : getString(R.string.ui_starting_screen_capture_host));
             if (!isRoot && captureSource!=2) {
                 stage("projection");
@@ -265,7 +283,7 @@ public class HostService extends Service implements SunshineServer.Listener {
                     public void error(String text){HostService.this.error(text);}
                     public void geometry(long id,CropGeometry.Mapping mapping){if(id==session && remoteInput!=null)remoteInput.mapping(mapping);}
                 },s);
-                pipeline.setFrameLimit(frameLimit);
+                pipeline.setFrameLimit(frameLimit);pipeline.setPaused(castPaused);
                 android.util.DisplayMetrics size=VideoPipeline.metrics(getSystemService(DisplayManager.class));
                 int width=captureSource==2?w:capturedW>0?capturedW:size.widthPixels,height=captureSource==2?h:capturedH>0?capturedH:size.heightPixels;
                 pipeline.start(width,height,captureSource==0,(input,captureW,captureH)->{
@@ -325,7 +343,7 @@ public class HostService extends Service implements SunshineServer.Listener {
             if(receivers.isEmpty()){
                 session=0;if(remoteInput!=null)remoteInput.begin(0);
                 state=getString(R.string.ui_preparing_reconnection);detail="";
-                log(state);restorePanel();stopAudio();
+                log(state);restorePanel();if(controls!=null)controls.disconnected();castPaused=false;if(pipeline!=null)pipeline.setPaused(false);if(audioFeed!=null)audioFeed.setPaused(false);stopAudio();
                 // Keep the consent-owned display/input for Android 14+ reconnection.
                 // Restart only the pinned transport runtime; the projection owner stays alive.
                 audioPump=false;if(nativeHost!=null)nativeHost.restart();
@@ -360,7 +378,7 @@ public class HostService extends Service implements SunshineServer.Listener {
                 case "pin" -> pinRequested();
                 case "receivers" -> {try{var items=new org.json.JSONArray(text);receivers.clear();for(int i=0;i<items.length();i++){var r=items.getJSONObject(i);receivers.put(r.getLong("id"),new Receiver(r.getInt("ordinal"),r.getInt("width"),r.getInt("height"),r.getInt("fps")));}if(!receivers.isEmpty())updateReceivers();}catch(org.json.JSONException e){log(PhoneMessages.message(R.string.phone_receiver_inventory_invalid));}}
                 case "stream" -> { state=getString(R.string.ui_casting_root); detail=PhoneMessages.render(this,text); log(text); }
-                case "end" -> { state=getString(R.string.ui_waiting_for_receiver_root); detail=""; log(getString(R.string.ui_root_session_ended_waiting_for_reconnection)); }
+                case "end" -> { if(controls!=null)controls.disconnected();castPaused=false;state=getString(R.string.ui_waiting_for_receiver_root); detail=""; log(getString(R.string.ui_root_session_ended_waiting_for_reconnection)); }
                 case "error" -> error(text);
                 case "control" -> {rootControlStatus=PhoneMessages.render(this,text);log(text);}
                 case "controlOff" -> {controlEnabled=false;rootControlStatus=PhoneMessages.render(this,text);log(text);}
@@ -403,7 +421,7 @@ public class HostService extends Service implements SunshineServer.Listener {
         if(Looper.myLooper()==Looper.getMainLooper())finishStop();else main.post(this::finishStop);
     }
     private void finishStop(){
-        if(cleanupStarted)return;cleanupStarted=true;
+        if(cleanupStarted)return;cleanupStarted=true;if(controls!=null){controls.close();controls=null;}
         state=getString(R.string.ui_stopped);detail="";
         try { cleanupCapture(); }
         catch(RuntimeException e){android.util.Log.w("MoonCast","Capture cleanup failed",e);}
@@ -426,7 +444,7 @@ public class HostService extends Service implements SunshineServer.Listener {
         Bundle b=new Bundle(); b.putBoolean("stopping",stopping);b.putInt("pid",android.os.Process.myPid()); b.putString("state",state); b.putString("detail",detail); b.putString("error",error);
         b.putString("startupStage",startupStage);
         long[] ids=new long[receivers.size()];String[] labels=new String[receivers.size()];int index=0;for(var entry:receivers.entrySet()){ids[index]=entry.getKey();Receiver r=entry.getValue();labels[index++]=getString(R.string.phone_receiver_format,r.ordinal(),r.width(),r.height(),r.fps());}b.putLongArray("receivers",ids);b.putStringArray("receiverLabels",labels);
-        b.putString("panelState",panelState);b.putBoolean("panelOff",panelOff);b.putInt("displayId",independentDisplayId);b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
+        b.putBoolean("paused",castPaused);b.putString("panelState",panelState);b.putBoolean("panelOff",panelOff);b.putInt("displayId",independentDisplayId);b.putInt("scaleMode",scaleMode); b.putBoolean("pinPending",pinPending); b.putString("logs",String.join("\n",logs));
         b.putBoolean("control",remoteInput!=null?remoteInput.enabled():controlEnabled);
         b.putString("metrics",metrics());
         b.putString("controlStatus",remoteInput!=null?remoteInput.status(this):!controlEnabled?getString(R.string.ui_off):rootControlStatus);return b;
