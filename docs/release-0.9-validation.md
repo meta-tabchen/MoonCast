@@ -1,6 +1,6 @@
-# MoonCast 0.9 / code66 development candidate
+# MoonCast 0.9 / code66 validation record
 
-This is not a release announcement. Public 0.8 assets/tags remain unchanged.
+Publication status is determined by the tagged GitHub Release and verified public downloads, not this record alone. Historical 0.8 assets/tags remain unchanged.
 Package `com.mooncast.community` and the existing community test certificate remain fixed.
 The public fixture provides upgrade continuity, not publisher authentication.
 
@@ -49,6 +49,14 @@ The public fixture provides upgrade continuity, not publisher authentication.
 
 - Full run39054983284 retained a separate minimum-brightness failure before its cancellation tap: the guard became laid out, but the subsequent check found the three-second countdown already over. Its cold dim-owner first render took about3.3seconds; countdown started17:49:35.140 and activated17:49:38.389. This establishes that the test missed the cancellable window, not a failed wake gesture. The late Activity `Displayed` log does not establish late rotation or recreation. The unchanged Sunshine emulator configuration still failed before encoded output; the job is failure overall despite successful control/GL/name/TV subtests.
 - The subsequent fix keeps brightness normal until the notice frame is submitted (API29 hardware rendering), then starts the unchanged three seconds. Older/software rendering uses a weaker posted-after-first-draw fallback. No frame by the request's ten-second deadline cancels bright; duplicate, late, canceled and obsolete-generation callbacks cannot activate dimming. This is frame-submission/draw evidence, not optical visibility. Instrumentation gives readiness its own bounded wait and asserts at least3000ms from readiness to each real dim transition; it does not retry cancellation until success.
+
+## Final production-code cross-check
+
+Source `3e6eb055f7df37f13ba2dc5ae29d3043c5a6dee9` contains the final notice-frame and edge-coordinate fixes described above. [Unified39056211675](https://github.com/meta-tabchen/MoonCast/actions/runs/39056211675) passed ARM64/ARMv7 build, lint, host/wire/native/signature/source and release-asset checks; its publication and separate manual bilingual/upgrade job were skipped.
+
+[Window39056211712](https://github.com/meta-tabchen/MoonCast/actions/runs/39056211712) passed the full minimum-brightness/gesture/permission/window-owner-death matrix, production GL static-resume, cross-process names and two actual compact/landscape controls cycles. ZIP SHA-256 `c4631d1c833ae6b35f11bcfca80558f329a71dcdf172b0d5d5b8096c2d6de5cd`. The independent [full AOSP39056211688](https://github.com/meta-tabchen/MoonCast/actions/runs/39056211688) also passed dimming, GL, names and controls; its early evidence ZIP SHA-256 is `673affdd69dab5aeeb6f8ad4e3ca82d58b028a19403b28b1bb6465c9df01c72c`. Both logs separate the initial render wait (about2.053s and1.810s) from one-shot cancellation; subsequent readiness-to-dim transitions include3016ms and3024ms. These tests enforce the unchanged three seconds after notice-frame readiness and do not retry a missed cancellation. The API29 hardware-rendered frame-commit path was executed; the pre29/software draw fallback is compiled and state-reviewed, without separate device execution in this series.
+
+The final release source is frozen only after these results. Its complete same-source CI and downloaded asset identities must pass the bounded promotion workflow before publication. The audit receipt identifies exact source/tree, candidate run/artifact and all six inspected file bytes; main's later rebuild may verify but cannot silently replace those bytes. A passed portable/window/generated-media check never implies physical-phone, Douyin or target-TV acceptance.
 
 ## Artifact provenance
 
