@@ -53,6 +53,7 @@ jobs:
       - name: Behavior and discovery regressions
         run: |
           python3 scripts/run_release_asset_policy_tests.py
+          python3 scripts/run_publication_policy_tests.py
           python3 scripts/run_receiver_runner_tests.py
           python3 scripts/run_receiver_jni_thread_tests.py
           python3 scripts/run_sunshine_candidate_tests.py
@@ -147,6 +148,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publish_community_release.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA" | tee "$RUNNER_TEMP/public-release-verification.json"
+      - name: Correct obsolete historical source-upload banner after public source verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/correct_release08_source_notice.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

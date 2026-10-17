@@ -35,6 +35,9 @@ jobs:
           export ANDROID_AVD_HOME="$RUNNER_TEMP/window-avd"
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd --force --name window --package 'system-images;android-28;google_apis;x86_64' --device pixel_2
+          # Match the small physical display to a valid 640x360 dp desktop. Pixel 2 defaults to 420 dpi.
+          sed -i 's/^hw.lcd.density=.*/hw.lcd.density=160/' "$ANDROID_AVD_HOME/window.avd/config.ini"
+          grep -qx 'hw.lcd.density=160' "$ANDROID_AVD_HOME/window.avd/config.ini"
           "$ANDROID_HOME/emulator/emulator" -avd window -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -skin 640x360 -memory 2048 -cores 2 -gpu swiftshader -feature -Vulkan -accel off > "$RUNNER_TEMP/window-evidence/emulator.txt" 2>&1 &
           echo $! > "$RUNNER_TEMP/window-emulator.pid"
           deadline=$((SECONDS+660))
