@@ -2,7 +2,7 @@ name: Window dimming software-runtime checks
 on:
   push:
     branches: [codex/mooncast-0.9, main]
-    paths: ['locale-core/**','app/src/main/java/com/mooncast/host/VideoPipeline.java','app/src/main/java/com/mooncast/host/PhoneMessages.java','app/src/main/java/com/mooncast/host/CropGeometry.java','app/src/main/java/com/mooncast/host/*CropTracker.java','app/src/main/java/com/mooncast/host/OutputSizePolicy.java','app/src/main/java/com/mooncast/host/FrameStatistics.java','app/src/main/java/com/mooncast/host/ScreenDim*','app/src/main/java/com/mooncast/host/CastControls.java','unified/src/debug/java/com/mooncast/host/DimFixtureService.java','unified/src/debug/java/com/mooncast/unified/DimFixtureActivity.java','unified/src/androidTest/java/com/mooncast/unified/ScreenDimDeviceTest.java','window-tests/**','.github/workflows/window-controls.yml']
+    paths: ['docs/release-0.9-validation.md','locale-core/**','app/src/main/java/com/mooncast/host/VideoPipeline.java','app/src/main/java/com/mooncast/host/PhoneMessages.java','app/src/main/java/com/mooncast/host/CropGeometry.java','app/src/main/java/com/mooncast/host/*CropTracker.java','app/src/main/java/com/mooncast/host/OutputSizePolicy.java','app/src/main/java/com/mooncast/host/FrameStatistics.java','app/src/main/java/com/mooncast/host/ScreenDim*','app/src/main/java/com/mooncast/host/CastControls.java','unified/src/debug/java/com/mooncast/host/DimFixtureService.java','unified/src/debug/java/com/mooncast/unified/DimFixtureActivity.java','unified/src/androidTest/java/com/mooncast/unified/ScreenDimDeviceTest.java','window-tests/**','.github/workflows/window-controls.yml']
 jobs:
   software-window:
     runs-on: ubuntu-latest
