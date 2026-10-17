@@ -88,11 +88,13 @@ jobs:
         timeout-minutes: 5
         shell: bash
         run: |
-          timeout 240s adb -s emulator-5554 shell am instrument -w -r -e suite controls com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/window-evidence/controls.txt" 2>&1
-          cat "$RUNNER_TEMP/window-evidence/controls.txt"
-          grep -q CONTROLS_LAYOUT_DEVICE_PASSED "$RUNNER_TEMP/window-evidence/controls.txt"
-          grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/window-evidence/controls.txt"
-          ! grep -qE 'CONTROLS_LAYOUT_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/window-evidence/controls.txt"
+          for cycle in 1 2; do
+            timeout 120s adb -s emulator-5554 shell am instrument -w -r -e suite controls com.mooncast.windowtest.test/com.mooncast.unified.WindowInstrumentation > "$RUNNER_TEMP/window-evidence/controls-$cycle.txt" 2>&1
+            cat "$RUNNER_TEMP/window-evidence/controls-$cycle.txt"
+            grep -q CONTROLS_LAYOUT_DEVICE_PASSED "$RUNNER_TEMP/window-evidence/controls-$cycle.txt"
+            grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/window-evidence/controls-$cycle.txt"
+            ! grep -qE 'CONTROLS_LAYOUT_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/window-evidence/controls-$cycle.txt"
+          done
       - name: Capture generated fixture evidence and stop software emulator
         if: always()
         run: |

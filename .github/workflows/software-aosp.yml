@@ -2,7 +2,7 @@ name: AOSP software window and real TV runtime
 on:
   push:
     branches: [codex/mooncast-0.9]
-    paths: ['.github/workflows/software-aosp.yml']
+    paths: ['.github/workflows/software-aosp.yml','window-tests/**','unified/src/androidTest/java/com/mooncast/unified/ScreenDimDeviceTest.java']
 jobs:
   aosp-runtime:
     runs-on: ubuntu-latest

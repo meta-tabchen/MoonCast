@@ -5,8 +5,9 @@ on:
     paths: [.github/workflows/receiver-kvm-once.yml]
 jobs:
   existing-apks:
-    # Exactly one authorized job, not a standing permission or automatic retry.
-    if: contains(github.event.head_commit.message, '[approved-kvm-once-20261017]') && github.run_attempt == 1
+    # Authorization consumed; original run and byte-identical ACL restoration remain in history.
+    # Disabled permanently in the current tree. A new permission operation needs new approval.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:

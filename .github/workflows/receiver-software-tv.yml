@@ -1,8 +1,7 @@
 name: Real TV TextureView software-emulator sessions
 on:
-  push:
-    branches: [codex/mooncast-0.9]
-    paths: ['.github/workflows/receiver-software-tv.yml']
+  # Historical Google-image comparison; current evidence uses software-aosp.yml.
+  workflow_dispatch:
 jobs:
   actual-tv:
     runs-on: ubuntu-latest
@@ -58,10 +57,13 @@ jobs:
         timeout-minutes: 18
         shell: bash
         run: |
+          adb -s emulator-5554 logcat -v threadtime > "$RUNNER_TEMP/tv-evidence/continuous-logcat.txt" 2>&1 &
+          echo $! > "$RUNNER_TEMP/tv-logcat.pid"
           failed=0
           for surface in tv-ui fresh probe; do
             adb -s emulator-5554 uninstall com.mooncast.community.test || true
             adb -s emulator-5554 uninstall com.mooncast.community || true
+            timeout 20s adb -s emulator-5554 shell ps -A -o PID,PPID,NAME,ARGS > "$RUNNER_TEMP/tv-evidence/$surface-processes-before.txt" 2>&1 || true
             args=(--surface "$surface")
             if [ "$surface" = probe ]; then args=(--surface reuse --probe-texture); fi
             if ! python3 scripts/run_receiver_session_device.py --serial emulator-5554 "${args[@]}" --debug "$RUNNER_TEMP/tv-apks/debug/unified-debug.apk" --test "$RUNNER_TEMP/tv-apks/androidTest/debug/unified-debug-androidTest.apk" --output "$RUNNER_TEMP/tv-evidence/$surface"; then failed=1; fi
@@ -70,6 +72,9 @@ jobs:
       - name: Stop disposable software emulator
         if: always()
         run: |
+          timeout 20s adb -s emulator-5554 shell dumpsys package installs > "$RUNNER_TEMP/tv-evidence/install-state.txt" 2>&1 || true
+          timeout 20s adb -s emulator-5554 shell dumpsys window > "$RUNNER_TEMP/tv-evidence/window-state.txt" 2>&1 || true
+          if [ -f "$RUNNER_TEMP/tv-logcat.pid" ]; then kill "$(cat "$RUNNER_TEMP/tv-logcat.pid")" 2>/dev/null || true; fi
           timeout 15s adb -s emulator-5554 emu kill || true
           if [ -f "$RUNNER_TEMP/tv-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/tv-emulator.pid")" 2>/dev/null || true; fi
       - uses: actions/upload-artifact@v4

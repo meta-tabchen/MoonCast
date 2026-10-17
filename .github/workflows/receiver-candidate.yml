@@ -6,8 +6,8 @@ on:
         description: Rebuild native outputs instead of strict unchanged-input artifact reuse
         type: boolean
         default: false
-  push:
-    branches: [codex/mooncast-0.9]
+  # Baseline/patched native comparison is explicit; ordinary source/runtime checks
+  # run in unified.yml and the working AOSP software workflow.
 jobs:
   native-and-session:
     name: Receiver ${{ matrix.runtime }} runtime

@@ -10,7 +10,7 @@ MoonCast 0.9 · versionCode 66 · com.mooncast.community
 
 ### 验证范围与重要限制
 
-完整证据与各轮失败见 [0.9 验证记录](https://github.com/meta-tabchen/MoonCast/blob/v0.9/docs/release-0.9-validation.md)。构建、签名和源码核验结果以随包 RELEASE-PROVENANCE.json 为准。
+使用步骤见[手动悬浮控制说明](https://github.com/meta-tabchen/MoonCast/blob/v0.9/docs/manual-controls-0.9.md)。完整证据与各轮失败见 [0.9 验证记录](https://github.com/meta-tabchen/MoonCast/blob/v0.9/docs/release-0.9-validation.md)。构建、签名和源码核验结果以随包 RELEASE-PROVENANCE.json 为准。
 
 真实 AirPlay 回环已经覆盖原生握手、JNI、MediaCodec、不同颜色像素、停止及第二会话。离屏 EGL 测试发现复用 Surface 时消费者等待信号的问题，fresh Surface/主动采样对照能继续取得第二轮像素；该测试现象尚不能归因于用户电视，不能称电视退出已根治。普通 AOSP29 模拟器上的真实 TvActivity/TextureView 已通过两次原生会话、不同颜色像素、持续解码和 Activity 清理；这仍不是用户电视的实物验收。
 

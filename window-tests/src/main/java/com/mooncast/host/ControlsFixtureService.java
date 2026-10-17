@@ -12,7 +12,7 @@ public final class ControlsFixtureService extends Service {
    data.putInt("pid",android.os.Process.myPid());data.putInt("instance",System.identityHashCode(this));data.putBoolean("paused",paused);data.putBoolean("stopped",stopped);data.putInt("pauseCommands",pauseCommands);
    android.graphics.Point physical=new android.graphics.Point();getSystemService(WindowManager.class).getDefaultDisplay().getRealSize(physical);data.putInt("screenWidth",physical.x);data.putInt("screenHeight",physical.y);data.putFloat("density",getResources().getDisplayMetrics().density);data.putFloat("fontScale",getResources().getConfiguration().fontScale);
    java.lang.reflect.Field field=CastControls.class.getDeclaredField("overlay");field.setAccessible(true);View root=(View)field.get(controls);
-   data.putBoolean("overlay",root!=null);if(root!=null){bounds(data,"window",root);walk(data,root);}
+   data.putBoolean("overlay",root!=null);if(root!=null){bounds(data,"window",root);Rect usable=new Rect();root.getWindowVisibleDisplayFrame(usable);data.putParcelable("usable",usable);data.putBoolean("layoutRequested",root.isLayoutRequested());walk(data,root);}
   }catch(Throwable error){data.putString("failure",android.util.Log.getStackTraceString(error));}
   if(message.replyTo!=null)try{Message reply=Message.obtain();reply.setData(data);message.replyTo.send(reply);}catch(RemoteException ignored){}
   return true;
