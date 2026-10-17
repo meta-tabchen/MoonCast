@@ -11,7 +11,7 @@ on:
 jobs:
   native-and-session:
     name: Receiver ${{ matrix.runtime }} runtime
-    if: "!contains(github.event.head_commit.message, '[approved-kvm-once-20261017]')"
+    if: "!contains(github.event.head_commit.message, '[approved-kvm-once-20261017]') && !contains(github.event.head_commit.message, '[approved-kvm-second-20261017]')"
     runs-on: ubuntu-latest
     timeout-minutes: 80
     strategy:
