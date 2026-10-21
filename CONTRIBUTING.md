@@ -6,9 +6,9 @@ Thanks for helping test and improve MoonCast. English and Chinese reports are we
 
 Use the **main** branch for the complete phone/TV/browser implementation. Start with the [unified build/signing guide](docs/unified-build.md), [TV setup](docs/unified-guide.md), [browser guide](docs/browser-receiver.md) and [current browser evidence](docs/browser-validation.md). The current application target is **`:unified`**, not `:app`. Follow the guide for pinned native inputs, fixed community signing or an explicitly unsigned verification build; never generate a replacement signing identity as a fallback.
 
-Current application metadata is `0.7`, versionCode 57. Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release. The [0.5.1/code51 record](docs/community-validation.md) and older sender documents are historical, not current-version acceptance. Read [browser source scope](docs/browser-release-source.md): the bundle includes application source and pinned external SDK source/DEPS/build mappings, not a full offline WebRTC checkout or proof of an independent SDK rebuild.
+For current application metadata, see [unified/build.gradle](unified/build.gradle) and the [unified build guide](docs/unified-build.md). Earlier code55/code54 records remain historical; numeric 0.6.0 was a draft, not a public release. The [0.5.1/code51 record](docs/community-validation.md) and older sender documents are historical, not current-version acceptance. Read [browser source scope](docs/browser-release-source.md): the bundle includes application source and pinned external SDK source/DEPS/build mappings, not a full offline WebRTC checkout or proof of an independent SDK rebuild.
 
-当前完整手机／电视／浏览器实现以 **main** 为主分支，构建目标是 **`:unified`**。当前应用版本为0.7/code57；code55与code54保留为历史，数字0.6.0未公开发布；0.5.1/code51 与以下发送端记录为历史。应用源码包提供 WebRTC 固定外部源码、DEPS 和构建映射，不等于完整离线 SDK 源树或已独立重建原生 SDK。不要在缺少固定社区签名时生成临时身份。
+当前完整手机／电视／浏览器实现以 **main** 为主分支，构建目标是 **`:unified`**。当前应用版本以 [unified/build.gradle](unified/build.gradle) 和[合并版构建指南](docs/unified-build.md)为准；code55与code54保留为历史，数字0.6.0未公开发布；0.5.1/code51 与以下发送端记录为历史。应用源码包提供 WebRTC 固定外部源码、DEPS 和构建映射，不等于完整离线 SDK 源树或已独立重建原生 SDK。不要在缺少固定社区签名时生成临时身份。
 
 ### Historical sender-only maintenance
 

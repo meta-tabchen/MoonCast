@@ -220,6 +220,11 @@ My TV 统一显示设备及能力。普通 AirPlay 电视不等于能收 APK。�
 git clone --branch main https://github.com/meta-tabchen/MoonCast.git
 cd MoonCast
 python3 scripts/restore_release_inputs.py
+```
+
+**继续前必须完成：** 按[构建指南中的原生库重建或严格校验的 CI 产物复用流程](docs/unified-build.md#native-isolation-and-corresponding-source)准备必需的原生输入，再执行下面的命令。
+
+```sh
 python3 scripts/prepare_airplay.py --verify-sources
 python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
 python3 scripts/prepare_unified_native.py

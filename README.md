@@ -220,6 +220,11 @@ Use JDK 17, Android SDK 35, Build Tools 35.0.0 and Gradle 8.9 / AGP 8.7.3. The c
 git clone --branch main https://github.com/meta-tabchen/MoonCast.git
 cd MoonCast
 python3 scripts/restore_release_inputs.py
+```
+
+**Required before continuing:** Complete the [native rebuild or strictly verified CI-output reuse](docs/unified-build.md#native-isolation-and-corresponding-source) before running the following commands.
+
+```sh
 python3 scripts/prepare_airplay.py --verify-sources
 python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
 python3 scripts/prepare_unified_native.py
