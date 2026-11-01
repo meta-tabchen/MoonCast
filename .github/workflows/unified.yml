@@ -48,7 +48,7 @@ jobs:
           python3 scripts/prepare_airplay.py --verify-sources
           python3 scripts/prepare_airplay.py --verify-aar app/libs/airplaylib.aar
           python3 scripts/prepare_unified_native.py
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
       - name: Behavior and discovery regressions
