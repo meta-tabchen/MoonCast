@@ -78,7 +78,7 @@ jobs:
       - name: Build actual emulator fixtures
         run: gradle --no-daemon :unified:assembleDebug :unified:assembleDebugAndroidTest -PmooncastAbi=x86_64
       - name: Preserve exact emulator APKs for diagnostic re-runs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: receiver-${{ matrix.runtime }}-emulator-apks
           path: |
@@ -128,12 +128,12 @@ jobs:
             --debug unified/build/outputs/apk/debug/unified-debug.apk \
             --test unified/build/outputs/apk/androidTest/debug/unified-debug-androidTest.apk \
             --output "$RUNNER_TEMP/receiver-evidence/session"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: receiver-${{ matrix.runtime }}-evidence
           path: ${{ runner.temp }}/receiver-evidence
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && matrix.runtime == 'patched'
         with:
           name: receiver-patched-candidates-and-provenance
