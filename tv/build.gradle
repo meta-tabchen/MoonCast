@@ -84,7 +84,7 @@ dependencies {
     implementation project(':moonlight-core')
     implementation 'androidx.core:core:1.8.0'
     // Align instrumentation with versions already resolved by Media3 in the app.
-    androidTestImplementation 'androidx.annotation:annotation:1.6.0'
+    androidTestImplementation 'androidx.annotation:annotation:1.11.0'
     androidTestImplementation 'androidx.collection:collection:1.2.0'
     implementation 'androidx.media3:media3-exoplayer:1.5.1'
     implementation 'androidx.media3:media3-exoplayer-hls:1.5.1'
