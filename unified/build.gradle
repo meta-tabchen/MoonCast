@@ -88,7 +88,7 @@ def verifyUnifiedNative = tasks.register('verifyUnifiedNative') {
 tasks.named('preBuild').configure { dependsOn verifyUnifiedNative }
 android.sourceSets.androidTest.java.srcDirs += ['../tv/src/androidTest/java']
 dependencies {
- androidTestImplementation 'androidx.annotation:annotation:1.6.0'
+ androidTestImplementation 'androidx.annotation:annotation:1.11.0'
  androidTestImplementation 'androidx.collection:collection:1.2.0'
  androidTestImplementation project(':moonlight-core')
  androidTestImplementation 'androidx.media3:media3-exoplayer:1.5.1'
