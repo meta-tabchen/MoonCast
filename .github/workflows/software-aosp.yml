@@ -113,7 +113,7 @@ jobs:
           grep -q CONTROLS_LAYOUT_DEVICE_PASSED "$RUNNER_TEMP/aosp-evidence/controls.txt"
           grep -q 'INSTRUMENTATION_CODE: -1' "$RUNNER_TEMP/aosp-evidence/controls.txt"
           ! grep -qE 'CONTROLS_LAYOUT_DEVICE_FAILED|INSTRUMENTATION_FAILED' "$RUNNER_TEMP/aosp-evidence/controls.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: aosp-early-window-and-gl-evidence
@@ -154,7 +154,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/aosp-logcat.pid" ]; then kill "$(cat "$RUNNER_TEMP/aosp-logcat.pid")" 2>/dev/null || true; fi
           timeout 15s adb -s emulator-5554 emu kill || true
           if [ -f "$RUNNER_TEMP/aosp-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/aosp-emulator.pid")" 2>/dev/null || true; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: aosp-software-runtime-evidence

@@ -77,7 +77,7 @@ jobs:
           if [ -f "$RUNNER_TEMP/tv-logcat.pid" ]; then kill "$(cat "$RUNNER_TEMP/tv-logcat.pid")" 2>/dev/null || true; fi
           timeout 15s adb -s emulator-5554 emu kill || true
           if [ -f "$RUNNER_TEMP/tv-emulator.pid" ]; then kill "$(cat "$RUNNER_TEMP/tv-emulator.pid")" 2>/dev/null || true; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: actual-tv-software-session-evidence

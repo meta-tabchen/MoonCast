@@ -115,11 +115,11 @@ jobs:
         run: |
           python3 scripts/package_native_candidate.py --base "$RUNNER_TEMP/community-base-source.zip" --output "$RUNNER_TEMP/community-release/MoonCast-0.9-source.zip" --expected-commit "$GITHUB_SHA"
           python3 scripts/prepare_release_assets.py --directory "$RUNNER_TEMP/community-release" --commit "$GITHUB_SHA"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: community-release-candidates
           path: ${{ runner.temp }}/community-release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: community-build-reports
           path: |
@@ -155,7 +155,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/correct_release08_source_notice.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: public-release-verification
@@ -267,7 +267,7 @@ jobs:
             --aapt "$ANDROID_HOME/build-tools/35.0.0/aapt" \
             --apksigner "$ANDROID_HOME/build-tools/35.0.0/apksigner" \
             --output "$RUNNER_TEMP/mooncast-device/evidence/ui"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: community-api${{ matrix.api }}-device-evidence
@@ -281,7 +281,7 @@ jobs:
           python3 scripts/record_community_demo.py --serial emulator-5554 \
             --verification-manifest "$RUNNER_TEMP/mooncast-device/evidence/ui/manifest.json" \
             --output "$RUNNER_TEMP/mooncast-demo" --language zh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always() && matrix.api == 35
         with:
           name: community-api35-ui-demo
